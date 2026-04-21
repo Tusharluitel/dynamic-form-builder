@@ -1,0 +1,6 @@
+name = Views content panes Test
+description = Test module for Views content panes.
+core = 7.x
+package = Views
+dependencies[] = ctools:views_content
+hidden = TRUE

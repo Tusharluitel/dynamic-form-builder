@@ -1,0 +1,59 @@
+<?php
+
+/**
+ * @file
+ * Tests the bundled node admin page.
+ */
+
+/**
+ * Tests the bundled node admin page.
+ */
+class AdminViewsNodeAdminTestCase extends AdminViewsBaseTestCase {
+
+  /**
+   * Define this test class.
+   *
+   * @return array
+   *   The test's meta data.
+   */
+  public static function getInfo() {
+    return array(
+      'name' => 'Node admin',
+      'description' => 'Tests the bundled node admin page.',
+      'group' => 'Administration views',
+    );
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function setUp(array $modules = array()) {
+    $modules[] = 'node';
+    $modules[] = 'taxonomy';
+    parent::setUp($modules);
+
+    // Log in as user 1, so permissions won't matter.
+    $this->loginUser1();
+
+    // Create some sample content.
+    for ($x = 0; $x <= 50; $x++) {
+      $this->drupalCreateNode(array(
+        'type' => 'article',
+      ));
+    }
+  }
+
+  /**
+   * Tests the node admin page.
+   */
+  public function testAdminPage() {
+    $this->drupalGet('admin/content');
+    $this->assertResponse(200);
+    $this->assertRaw('view-admin-views-node');
+    $this->assertRaw('view-id-admin_views_node');
+    $this->assertRaw('view-display-id-system_1');
+    $this->assertRaw('admin-views-view');
+    $this->assertRaw('id="views-exposed-form-admin-views-node-system-1"');
+  }
+
+}

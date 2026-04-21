@@ -1,0 +1,114 @@
+<?php
+
+/**
+ * @file
+ * Tests system child page display functionality.
+ */
+
+/**
+ * Tests system child page display functionality.
+ *
+ * This is important, as any other page view menu items that are children of a
+ * system view can otherwise inherit item properties they don't want.
+ */
+class AdminViewsPageDisplayTestCase extends AdminViewsBaseTestCase {
+
+  /**
+   * Define this test class.
+   *
+   * @return array
+   *   The test's meta data.
+   */
+  public static function getInfo() {
+    return array(
+      'name' => 'Views Page display plugin',
+      'description' => 'Tests views page functionality for children of system plugins.',
+      'group' => 'Administration views',
+    );
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function setUp(array $modules = array()) {
+    $modules[] = 'node';
+    parent::setUp($modules);
+
+    // Save the test page view.
+    $this->normalPageView()->save();
+
+    // Reset views static cache.
+    views_get_view('admin_views_test_normal', TRUE);
+
+    // Rebuild the menu.
+    // views_invalidate_cache only sets the rebuild variable.
+    menu_rebuild();
+  }
+
+  /**
+   * Tests creation of a view page display that is a child of "admin/content".
+   */
+  public function testAddPageViewAdminContent() {
+    $this->drupalLogin($this->admin_user);
+
+    // Test the child view exists by checking for the page title.
+    $this->drupalGet('admin/content/test');
+    $this->assertText('admin_views_test_normal');
+  }
+
+  /**
+   * Returns a test page view with a path under "admin/content".
+   */
+  protected function normalPageView() {
+    views_include('view');
+    $view = new view();
+    $view->name = 'admin_views_test_normal';
+    $view->description = '';
+    $view->tag = 'default';
+    $view->base_table = 'node';
+    $view->human_name = 'admin_views_test_normal';
+    $view->core = 7;
+    $view->api_version = '3.0';
+    $view->disabled = FALSE; /* Edit this to true to make a default view disabled initially */
+
+    /* Display: Master */
+    $handler = $view->new_display('default', 'Master', 'default');
+    $handler->display->display_options['title'] = 'admin_views_test_normal';
+    $handler->display->display_options['use_more_always'] = FALSE;
+    $handler->display->display_options['access']['type'] = 'perm';
+    $handler->display->display_options['cache']['type'] = 'none';
+    $handler->display->display_options['query']['type'] = 'views_query';
+    $handler->display->display_options['exposed_form']['type'] = 'basic';
+    $handler->display->display_options['pager']['type'] = 'full';
+    $handler->display->display_options['pager']['options']['items_per_page'] = '10';
+    $handler->display->display_options['style_plugin'] = 'default';
+    $handler->display->display_options['row_plugin'] = 'node';
+    /* Field: Content: Title */
+    $handler->display->display_options['fields']['title']['id'] = 'title';
+    $handler->display->display_options['fields']['title']['table'] = 'node';
+    $handler->display->display_options['fields']['title']['field'] = 'title';
+    $handler->display->display_options['fields']['title']['label'] = '';
+    $handler->display->display_options['fields']['title']['alter']['word_boundary'] = FALSE;
+    $handler->display->display_options['fields']['title']['alter']['ellipsis'] = FALSE;
+    /* Sort criterion: Content: Post date */
+    $handler->display->display_options['sorts']['created']['id'] = 'created';
+    $handler->display->display_options['sorts']['created']['table'] = 'node';
+    $handler->display->display_options['sorts']['created']['field'] = 'created';
+    $handler->display->display_options['sorts']['created']['order'] = 'DESC';
+    /* Filter criterion: Content: Published */
+    $handler->display->display_options['filters']['status']['id'] = 'status';
+    $handler->display->display_options['filters']['status']['table'] = 'node';
+    $handler->display->display_options['filters']['status']['field'] = 'status';
+    $handler->display->display_options['filters']['status']['value'] = 1;
+    $handler->display->display_options['filters']['status']['group'] = 1;
+    $handler->display->display_options['filters']['status']['expose']['operator'] = FALSE;
+
+    /* Display: Page */
+    $handler = $view->new_display('page', 'Page', 'page');
+    $handler->display->display_options['defaults']['hide_admin_links'] = FALSE;
+    $handler->display->display_options['path'] = 'admin/content/test';
+
+    return $view;
+  }
+
+}

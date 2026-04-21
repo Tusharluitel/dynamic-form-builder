@@ -1,0 +1,59 @@
+<?php
+
+/**
+ * @file
+ * Test default views.
+ */
+
+/**
+ * Test default views.
+ */
+class AdminViewsDefaultViewsTestCase extends AdminViewsBaseTestCase {
+
+  /**
+   * Define this test class.
+   *
+   * @return array
+   *   The test's meta data.
+   */
+  public static function getInfo() {
+    return array(
+      'name' => 'Default views',
+      'description' => 'Tests default views.',
+      'group' => 'Administration views',
+    );
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function setUp(array $modules = array()) {
+    $modules[] = 'node';
+    $modules[] = 'comment';
+    parent::setUp($modules);
+  }
+
+  /**
+   * Tests basic appearance and behavior of built-in default views.
+   */
+  public function testComment() {
+    $this->drupalLogin($this->admin_user);
+
+    foreach (array('admin/content/comment', 'admin/content/comment/approval') as $path) {
+      $this->drupalGet($path);
+      $this->assertOriginalRouterItem('comment', $path);
+
+      // Verify that a view with its exposed filters appears.
+      $this->assertFieldByName('subject');
+      $this->assertFieldByName('author');
+      $this->assertFieldByName('nodeTitle');
+      $this->assertFieldByName('status');
+      $this->assertFieldByXPath('//select[@name="status"]/option', 'All', 'Published: All option found.');
+      $this->assertFieldByXPath('//select[@name="status"]/option', '1', 'Published: Yes option found.');
+      $this->assertFieldByXPath('//select[@name="status"]/option', '0', 'Published: No option found.');
+      $this->assertFieldByXPath('//input[@type="submit"]', t('Apply'), 'Apply button found.');
+      $this->assertFieldByXPath('//input[@type="submit"]', t('Reset'), 'Reset button found.');
+    }
+  }
+
+}

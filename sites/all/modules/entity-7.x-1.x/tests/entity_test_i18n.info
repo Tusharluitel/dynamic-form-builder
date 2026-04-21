@@ -1,0 +1,7 @@
+name = Entity-test type translation
+description = Allows translating entity-test types.
+package = Multilingual - Internationalization
+dependencies[] = entity:entity_test
+dependencies[] = i18n:i18n_string
+core = 7.x
+hidden = TRUE

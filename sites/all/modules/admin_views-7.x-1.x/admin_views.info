@@ -1,0 +1,17 @@
+name = Administration Views
+description = Replaces all system object management pages in Drupal core with real views.
+package = Administration
+core = 7.x
+
+dependencies[] = views
+dependencies[] = views_bulk_operations
+
+; The 'system' display plugin for Views is managed in this submodule.
+dependencies[] = admin_views_system_display
+
+; Test coverage.
+files[] = tests/AdminViewsBaseTestCase.test
+files[] = tests/AdminViewsSystemDisplayTestCase.test
+files[] = tests/AdminViewsDefaultViewsTestCase.test
+files[] = tests/AdminViewsPageDisplayTestCase.test
+files[] = tests/AdminViewsAccessHandlerTestCase.test

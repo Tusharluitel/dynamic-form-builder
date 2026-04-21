@@ -1,0 +1,8 @@
+name = Admin Views System Display
+description = Custom Views display plugin for overriding system pages.
+package = Views
+core = 7.x
+dependencies[] = views
+
+files[] = plugins/views_plugin_access_menu.inc
+files[] = plugins/views_plugin_display_system.inc

@@ -1,0 +1,8 @@
+name = Entity CRUD test module
+description = Provides entity types based upon the CRUD API.
+dependencies[] = entity:entity
+core = 7.x
+hidden = TRUE
+
+files[] = entity_test.module
+files[] = entity_test.install

@@ -1,0 +1,61 @@
+<?php
+
+/**
+ * @file
+ * Test System display functionality.
+ */
+
+/**
+ * Test System display functionality.
+ */
+class AdminViewsSystemDisplayTestCase extends AdminViewsBaseTestCase {
+
+  /**
+   * Define this test class.
+   *
+   * @return array
+   *   The test's meta data.
+   */
+  public static function getInfo() {
+    return array(
+      'name' => 'Views System display plugin',
+      'description' => 'Tests Views System display plugin functionality.',
+      'group' => 'Administration views',
+    );
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function setUp(array $modules = array()) {
+    $modules[] = 'node';
+    $modules[] = 'comment';
+    $modules[] = 'admin_views_test';
+    parent::setUp($modules);
+  }
+
+  /**
+   * Tests proper inheritance of router item properties.
+   */
+  public function testRouterItemInheritance() {
+    $this->drupalLogin($this->admin_user);
+    $path = 'admin/people';
+    $out = $this->drupalGet($path);
+    $this->assertOriginalRouterItem('user', $path);
+
+    // Verify that local tasks and actions exist and can be accessed.
+    foreach (array(t('List'), t('Permissions'), t('Add user')) as $link) {
+      $this->drupalSetContent($out);
+      $this->assertLink($link);
+      $this->clickLink($link);
+      $this->assertResponse(200);
+    }
+
+    // Test that child page callbacks of a system display work.
+    $this->drupalGet('admin/content/admin_views_test');
+    $this->assertResponse(200);
+    $this->assertTitle('Administration views test | Drupal');
+    $this->assertText('Administration views test page callback');
+  }
+
+}

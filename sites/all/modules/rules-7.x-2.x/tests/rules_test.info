@@ -1,0 +1,6 @@
+name = "Rules Tests"
+description = "Support module for the Rules tests."
+package = Testing
+core = 7.x
+files[] = rules_test.rules.inc
+hidden = TRUE
