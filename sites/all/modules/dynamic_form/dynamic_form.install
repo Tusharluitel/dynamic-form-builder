@@ -762,13 +762,7 @@ function dynamic_form_schema()
         'not null' => FALSE,
         'default' => NULL,
       ),
-      'referer' => array(
-        'description' => 'HTTP Referer header — the page that linked to the form. Useful for tracking traffic sources.',
-        'type' => 'varchar',
-        'length' => 1024,
-        'not null' => FALSE,
-        'default' => NULL,
-      ),
+      
       'session_id' => array(
         'description' => 'Hashed Drupal session ID. Allows linking anonymous responses to a browser session without exposing raw session tokens.',
         'type' => 'varchar',
@@ -854,7 +848,6 @@ function dynamic_form_schema()
       ),
     ),
     'primary key' => array('id'),
-    // No unique keys — the same entity can have many log entries over time.
     'indexes' => array(
       // Look up the full history of any entity.
       'entity'      => array('entity_type', 'entity_id'),

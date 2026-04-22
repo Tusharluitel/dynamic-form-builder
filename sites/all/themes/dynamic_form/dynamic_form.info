@@ -1,4 +1,15 @@
-name = Dynamic Form 
-description = Custom theme for dynamic form builder.
+name = Dynamic Form
+description = Custom theme for the Dynamic Form Builder platform.
 core = 7.x
-base theme = bartik
+
+; Stylesheets
+stylesheets[all][] = css/style.css
+
+; Scripts
+scripts[] = js/main.js
+
+; Regions
+regions[header] = Header
+regions[content] = Content
+regions[footer] = Footer
+regions[messages] = Messages

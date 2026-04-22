@@ -3,31 +3,6 @@ description = Enterprise dynamic form builder.
 core = 7.x
 package = Dynamic Forms
 
-; Core dependencies
 dependencies[] = file
 dependencies[] = field
 dependencies[] = field_ui
-
-; Recommended contrib dependencies (comment out if not used)
-; dependencies[] = entity
-; dependencies[] = rules
-; dependencies[] = views
-
-
-
-; Files — include all classes Drupal should autoload
-; files[] = tests/iform.test
-
-; Stylesheets — loaded on all pages (use hook_page_build to scope per route)
-; stylesheets[all][] = css/iform.form.css
-
-; Scripts — scoped in hook_init or drupal_add_js, not declared here globally
-; js files are added conditionally via hook_init / preprocess functions
-
-; Configuration page shortcut shown on modules page
-; configure = admin/config/iform/settings
-
-; Version — set by Drupal.org packager, leave blank in dev
-; version = "7.x-1.0"
-; project = "iform"
-; datestamp = ""
