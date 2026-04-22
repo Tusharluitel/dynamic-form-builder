@@ -762,7 +762,6 @@ function dynamic_form_schema()
         'not null' => FALSE,
         'default' => NULL,
       ),
-      
       'session_id' => array(
         'description' => 'Hashed Drupal session ID. Allows linking anonymous responses to a browser session without exposing raw session tokens.',
         'type' => 'varchar',
