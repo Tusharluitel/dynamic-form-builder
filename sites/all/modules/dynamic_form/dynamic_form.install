@@ -1,0 +1,935 @@
+<?php
+
+/**
+ * @file
+ * Database schema and install/uninstall hooks for the Dynamic Form module.
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function dynamic_form_schema()
+{
+  $schema = array();
+
+  $schema['dynamic_form_forms'] = array(
+    'description' => 'Stores form definitions created by the Dynamic Form builder.',
+    'fields' => array(
+      'id' => array(
+        'description' => 'Primary key.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'title' => array(
+        'description' => 'The form title.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ),
+      'description' => array(
+        'description' => 'Optional description of the form.',
+        'type' => 'text',
+        'size' => 'medium',
+        'not null' => FALSE,
+      ),
+      'status' => array(
+        'description' => 'Publishing status: 0=draft, 1=published, 2=closed.',
+        'type' => 'int',
+        'size' => 'tiny',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'slug' => array(
+        'description' => 'URL-friendly unique identifier for the form.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ),
+      'question_per_page' => array(
+        'description' => 'Number of questions to display per page.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 1,
+      ),
+      'closes_at' => array(
+        'description' => 'Timestamp when the form stops accepting responses. NULL = no expiry.',
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'visibility' => array(
+        'description' => 'Access level: p=public, r=restricted, m=members only.',
+        'type' => 'char',
+        'length' => 1,
+        'not null' => TRUE,
+        'default' => 'p',
+      ),
+
+      'published_at' => array(
+        'description' => 'Unix timestamp when the form was published.',
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'opens_at' => array(
+        'description' => 'Unix timestamp when the form opens for responses. NULL = no delay.',
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'published_by' => array(
+        'description' => 'FK to {users}.uid — form publisher.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'created_by' => array(
+        'description' => 'FK to {users}.uid — form author.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+
+      ),
+      'created_at' => array(
+        'description' => 'Unix timestamp when the form was created.',
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+      'updated_at' => array(
+        'description' => 'Unix timestamp of last update.',
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+      'deleted_at' => array(
+        'description' => 'Unix timestamp of when the form was deleted. NULL = not deleted.',
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'deleted_by' => array(
+        'description' => 'FK to {users}.uid — form deleter.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'slug' => array('slug'),
+    ),
+    'indexes' => array(
+      'status' => array('status'),
+      'created_by' => array('created_by'),
+      'closes_at' => array('closes_at'),
+    ),
+  );
+
+  // -----------------------------------------------------------------------
+
+  $schema['dynamic_form_sections'] = array(
+    'description' => 'Groups of questions within a form (sections).',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'form_id' => array(
+        'description' => 'FK to {dynamic_form_forms}.id.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'name' => array(
+        'description' => 'Section label displayed to the respondent.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ),
+      'description' => array(
+        'description' => 'Optional description of the section.',
+        'type' => 'text',
+        'size' => 'medium',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'position' => array(
+        'description' => 'Display order within the form.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'created_by' => array(
+        'description' => 'FK to {users}.uid — section author.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+
+      ),
+      'created_at' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+
+      ),
+      'updated_at' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+      'deleted_at' => array(
+        'description' => 'Unix timestamp of when the form was deleted. NULL = not deleted.',
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'deleted_by' => array(
+        'description' => 'FK to {users}.uid — form deleter.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+    ),
+    'primary key' => array('id'),
+    'indexes' => array(
+      'form_id' => array('form_id'),
+      'position' => array('form_id', 'position'),
+    ),
+  );
+
+  // -----------------------------------------------------------------------
+
+  $schema['dynamic_form_questions'] = array(
+    'description' => 'Individual fields/questions belonging to a form section.',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'form_id' => array(
+        'description' => 'FK to {dynamic_form_forms}.id.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'section_id' => array(
+        'description' => 'FK to {dynamic_form_sections}.id.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'label' => array(
+        'description' => 'The question text shown to the respondent.',
+        'type' => 'varchar',
+        'length' => 512,
+        'not null' => TRUE,
+      ),
+      'description' => array(
+        'description' => 'Optional helper text shown below the label.',
+        'type' => 'text',
+        'size' => 'medium',
+        'not null' => FALSE,
+      ),
+      'placeholder' => array(
+        'description' => 'Input placeholder text.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => FALSE,
+      ),
+      'type' => array(
+        'description' => 'Field type key: text, textarea, select, radio, checkbox, file, date, etc.',
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+        'default' => 'text',
+      ),
+      'is_readonly' => array(
+        'description' => '1 if this question is readonly.',
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'is_required' => array(
+        'description' => '1 if this question must be answered.',
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'allow_file_types' => array(
+        'description' => 'Allowed file types for file-type questions.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => FALSE,
+      ),
+      'max_file_size' => array(
+        'description' => 'Maximum file size for file-type questions in bytes.',
+        'type' => 'int',
+        'not null' => FALSE,
+      ),
+      'max_files' => array(
+        'description' => 'Maximum number of files allowed for file-type questions.',
+        'type' => 'int',
+        'not null' => FALSE,
+      ),
+      'position' => array(
+        'description' => 'Display order within the section.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'created_by' => array(
+        'description' => 'FK to {users}.uid — question author.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+
+      ),
+      'created_at' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+
+      ),
+      'updated_at' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+      'deleted_at' => array(
+        'description' => 'Unix timestamp of when the question was deleted. NULL = not deleted.',
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'deleted_by' => array(
+        'description' => 'FK to {users}.uid — question deleter.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+    ),
+    'primary key' => array('id'),
+    'indexes' => array(
+      'form_id'    => array('form_id'),
+      'section_id' => array('section_id'),
+      'type'       => array('type'),
+      'position'   => array('section_id', 'position'),
+      'form_section' => array('form_id', 'section_id'),
+
+    ),
+  );
+
+  // -----------------------------------------------------------------------
+
+  $schema['dynamic_form_question_options'] = array(
+    'description' => 'Selectable options for radio, checkbox, and select questions.',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'question_id' => array(
+        'description' => 'FK to {dynamic_form_questions}.id.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+
+      ),
+      'option_label' => array(
+        'description' => 'The option label shown to the respondent.',
+        'type' => 'varchar',
+        'length' => 512,
+        'not null' => TRUE,
+
+      ),
+      'position' => array(
+        'description' => 'Display order of this option within the question.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'created_by' => array(
+        'description' => 'FK to {users}.uid — option author.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'created_at' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+
+      ),
+      'updated_at' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+      'deleted_at' => array(
+        'description' => 'Unix timestamp of when the form was deleted. NULL = not deleted.',
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'deleted_by' => array(
+        'description' => 'FK to {users}.uid — form deleter.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+    ),
+    'primary key' => array('id'),
+    'indexes' => array(
+      'question_id' => array('question_id'),
+    ),
+  );
+
+  // -----------------------------------------------------------------------
+
+  $schema['dynamic_form_responses'] = array(
+    'description' => 'One row per form submission (the envelope; answers are in dynamic_form_answers).',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'form_id' => array(
+        'description' => 'FK to {dynamic_form_forms}.id.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'user_id' => array(
+        'description' => 'FK to {users}.uid. 0 for anonymous submissions.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'status' => array(
+        'description' => 'Submission status: 0=draft, 1=submitted',
+        'type' => 'int',
+        'size' => 'tiny',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'submitted_at' => array(
+        'description' => 'Unix timestamp when the respondent hit submit. NULL while still a draft.',
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL
+      ),
+      'created_at' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+      'updated_at' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+      'deleted_at' => array(
+        'description' => 'Unix timestamp of when the form was deleted. NULL = not deleted.',
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'deleted_by' => array(
+        'description' => 'FK to {users}.uid — form deleter.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+    ),
+    'primary key' => array('id'),
+    'indexes' => array(
+      'form_id'      => array('form_id'),
+      'user_id'      => array('user_id'),
+      'status'       => array('status'),
+      'submitted_at' => array('submitted_at'),
+      'form_user'    => array('form_id', 'user_id'),
+    ),
+  );
+
+  // -----------------------------------------------------------------------
+
+  $schema['dynamic_form_answers'] = array(
+    'description' => 'Individual question answers belonging to a response.',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'response_id' => array(
+        'description' => 'FK to {dynamic_form_responses}.id.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'question_id' => array(
+        'description' => 'FK to {dynamic_form_questions}.id.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'value' => array(
+        'description' => 'The submitted answer value.',
+        'type' => 'text',
+        'size' => 'medium',
+        'not null' => FALSE,
+      ),
+
+      'created_at' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+
+      ),
+      'updated_at' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+      'deleted_at' => array(
+        'description' => 'Unix timestamp of when the form was deleted. NULL = not deleted.',
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'deleted_by' => array(
+        'description' => 'FK to {users}.uid — form deleter.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'response_question' => array('response_id', 'question_id'),
+    ),
+    'indexes' => array(
+      'response_id'  => array('response_id'),
+      'question_id'  => array('question_id'),
+    ),
+  );
+
+  // -----------------------------------------------------------------------
+
+  $schema['dynamic_form_answer_files'] = array(
+    'description' => 'Files uploaded as answers to file-type questions.',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'answer_id' => array(
+        'description' => 'FK to {dynamic_form_answers}.id.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+
+      ),
+      'file_path' => array(
+        'description' => 'Managed file URI.',
+        'type' => 'varchar',
+        'length' => 512,
+        'not null' => TRUE,
+
+      ),
+      'file_name' => array(
+        'description' => 'Original filename as uploaded by the user.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+
+      ),
+      'file_type' => array(
+        'description' => 'MIME type of the uploaded file.',
+        'type' => 'varchar',
+        'length' => 128,
+        'not null' => TRUE,
+      ),
+      'file_size' => array(
+        'description' => 'File size in bytes.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+
+      ),
+      'created_at' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+
+      ),
+      'updated_at' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+
+      ),
+      'deleted_at' => array(
+        'description' => 'Unix timestamp of when the form was deleted. NULL = not deleted.',
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'deleted_by' => array(
+        'description' => 'FK to {users}.uid — form deleter.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+    ),
+    'primary key' => array('id'),
+    'indexes' => array(
+      'answer_id'     => array('answer_id'),
+    ),
+  );
+
+  // -----------------------------------------------------------------------
+
+  $schema['dynamic_form_members'] = array(
+    'description' => 'Per-form role assignments for access control.',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'form_id' => array(
+        'description' => 'FK to {dynamic_form_forms}.id.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'user_id' => array(
+        'description' => 'FK to {users}.uid.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'role' => array(
+        'description' => 'Member role: owner, editor, viewer, reviewer.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => 'viewer',
+      ),
+      'created_by' => array(
+        'description' => 'FK to {users}.uid — member author.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+
+      ),
+      'created_at' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+
+      ),
+      'updated_at' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+
+      ),
+      'deleted_at' => array(
+        'description' => 'Unix timestamp of when the form was deleted. NULL = not deleted.',
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'deleted_by' => array(
+        'description' => 'FK to {users}.uid — form deleter.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'form_user' => array('form_id', 'user_id'),
+    ),
+    'indexes' => array(
+      'form_id' => array('form_id'),
+      'user_id' => array('user_id'),
+      'role'    => array('role'),
+    ),
+  );
+
+  // -----------------------------------------------------------------------
+  $schema['dynamic_form_question_validations'] = array(
+    'description' => 'Normalised validation rules for individual questions. Replaces the JSON blob in dynamic_form_questions.validation_rules.',
+    'fields' => array(
+      'id' => array(
+        'description' => 'Primary key.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'question_id' => array(
+        'description' => 'FK to {dynamic_form_questions}.id.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'rule_type' => array(
+        'description' => 'Validation rule identifier: min_length, max_length, min_value, max_value, regex, required, email, url, numeric, custom.',
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+      ),
+      'rule_value' => array(
+        'description' => 'The rule parameter, e.g. "5" for min_length, "^\d+$" for regex. NULL for rules with no parameter (e.g. required).',
+        'type' => 'varchar',
+        'length' => 512,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'error_message' => array(
+        'description' => 'Custom error message shown to the respondent when this rule fails. NULL falls back to the module default.',
+        'type' => 'varchar',
+        'length' => 512,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'created_by' => array(
+        'description' => 'FK to {users}.uid — who created this rule.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'created_at' => array(
+        'description' => 'Unix timestamp when the rule was created.',
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+      'updated_at' => array(
+        'description' => 'Unix timestamp of last update.',
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'question_rule_type' => array('question_id', 'rule_type'),
+    ),
+    'indexes' => array(
+      'question_id' => array('question_id'),
+      'rule_type'   => array('rule_type'),
+    ),
+  );
+
+  // -----------------------------------------------------------------------
+
+  $schema['dynamic_form_response_sessions'] = array(
+    'description' => 'Stores session and device context for each form response, separated from dynamic_form_responses for GDPR/privacy isolation.',
+    'fields' => array(
+      'id' => array(
+        'description' => 'Primary key.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'response_id' => array(
+        'description' => 'FK to {dynamic_form_responses}.id. One session record per response.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'ip_address' => array(
+        'description' => 'IPv4 or IPv6 address of the respondent. Supports up to 45 chars for IPv6.',
+        'type' => 'varchar',
+        'length' => 45,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'user_agent' => array(
+        'description' => 'Raw User-Agent header from the respondent browser.',
+        'type' => 'varchar',
+        'length' => 512,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'referer' => array(
+        'description' => 'HTTP Referer header — the page that linked to the form. Useful for tracking traffic sources.',
+        'type' => 'varchar',
+        'length' => 1024,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'session_id' => array(
+        'description' => 'Hashed Drupal session ID. Allows linking anonymous responses to a browser session without exposing raw session tokens.',
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'created_at' => array(
+        'description' => 'Unix timestamp when the session record was created (i.e. when the respondent first opened the form).',
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'response_id' => array('response_id'),
+    ),
+    'indexes' => array(
+      'ip_address' => array('ip_address'),
+      'session_id' => array('session_id'),
+    ),
+  );
+
+  $schema['dynamic_form_audit_log'] = array(
+    'description' => 'Immutable append-only log of all create, update, delete, and publish actions across all dynamic form entities. Rows must never be updated or deleted.',
+    'fields' => array(
+      'id' => array(
+        'description' => 'Primary key.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'entity_type' => array(
+        'description' => 'The type of entity that was changed: form, section, question, question_option, question_validation, response, answer, answer_file, member.',
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+      ),
+      'entity_id' => array(
+        'description' => 'The primary key ID of the affected entity row.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'action' => array(
+        'description' => 'The action performed: created, updated, deleted, restored, published, unpublished, submitted.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+      ),
+      'actor_uid' => array(
+        'description' => 'FK to {users}.uid — the user who performed the action. 0 for anonymous or system-triggered actions.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'old_value' => array(
+        'description' => 'JSON snapshot of the entity state BEFORE the action. NULL for created actions.',
+        'type' => 'text',
+        'size' => 'medium',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'new_value' => array(
+        'description' => 'JSON snapshot of the entity state AFTER the action. NULL for deleted actions.',
+        'type' => 'text',
+        'size' => 'medium',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'ip_address' => array(
+        'description' => 'IP address of the actor at the time of the action.',
+        'type' => 'varchar',
+        'length' => 45,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'created_at' => array(
+        'description' => 'Unix timestamp when the action occurred. This column must never be updated.',
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('id'),
+    // No unique keys — the same entity can have many log entries over time.
+    'indexes' => array(
+      // Look up the full history of any entity.
+      'entity'      => array('entity_type', 'entity_id'),
+      // Look up all actions by a specific user.
+      'actor_uid'   => array('actor_uid'),
+      // Filter by action type across all entities (e.g. all "deleted" events).
+      'action'      => array('action'),
+      // Time-range queries (e.g. all activity in the last 30 days).
+      'created_at'  => array('created_at'),
+      // Combined: all actions on a specific entity type within a time window.
+      'entity_time' => array('entity_type', 'created_at'),
+    ),
+  );
+
+  return $schema;
+}
+
+
+/**
+ * Implements hook_enable().
+ *
+ * Enables the dynamic_form theme and sets it as the default site theme.
+ */
+function dynamic_form_enable()
+{
+  // Enable the custom theme first.
+  theme_enable(array('dynamic_form'));
+
+  // Set it as the default theme.
+  variable_set('theme_default', 'dynamic_form');
+
+  drupal_theme_rebuild();
+}
+
+/**
+ * Implements hook_disable().
+ *
+ * Reverts the default theme back to bartik when the module is disabled.
+ */
+function dynamic_form_disable()
+{
+  $current_theme = variable_get('theme_default', '');
+
+  if ($current_theme === 'dynamic_form') {
+    variable_set('theme_default', 'bartik');
+    theme_disable(array('dynamic_form'));
+    drupal_theme_rebuild();
+  }
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function dynamic_form_uninstall()
+{
+  $tables = array(
+    'dynamic_form_answer_files',
+    'dynamic_form_answers',
+    'dynamic_form_responses',
+    'dynamic_form_question_options',
+    'dynamic_form_questions',
+    'dynamic_form_sections',
+    'dynamic_form_members',
+    'dynamic_form_forms',
+    'dynamic_form_response_sessions',
+    'dynamic_form_audit_log',
+    'dynamic_form_question_validations',
+  );
+  foreach ($tables as $table) {
+    db_drop_table($table);
+  }
+
+
+
+  if (variable_get('theme_default', '') === 'dynamic_form') {
+    variable_set('theme_default', 'bartik');
+  }
+}

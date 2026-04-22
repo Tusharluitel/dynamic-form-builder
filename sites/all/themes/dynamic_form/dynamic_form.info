@@ -1,0 +1,4 @@
+name = Dynamic Form 
+description = Custom theme for dynamic form builder.
+core = 7.x
+base theme = bartik
