@@ -1,17 +1,20 @@
-## Form Builder Schema Diagram
+# Form Builder Schema Documentation 
 
 ![Schema Diagram](../images/schema.png/)
 
 
-# Achitechture Overview
+## Achitechture Overview
 
 The system is designed to support structured data collection with grouping, validation and auditing.
+
+---
 
 ### Design Pattern
 
 - **Process** : Form -> Section -> Question -> Question Options
 - **Submission** : Responses are stored separately 
 - **Auditability** : Every major entity includes timestamps for created, updated and deleted 
+---
 
 ### Layers
 
@@ -25,7 +28,7 @@ The system is designed to support structured data collection with grouping, vali
 | questions | Create question with dynamic input types, define number of files and size when submitting with positioning number for display |
 | question_options | Creates options for choice type questions|
 | question_validation | Stores Regex or boundary rules |
-
+---
 **Form Submission Layers**
 
 | Tables | Description |
