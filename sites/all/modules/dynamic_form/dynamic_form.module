@@ -8,16 +8,32 @@
 /**
  * Implements hook_permission().
  */
-function dynamic_form_permission() {
+function dynamic_form_permission()
+{
   return array(
-    'access dynamic forms' => array(
-      'title' => t('Access dynamic forms'),
-      'description' => t('Allow users to view and fill out dynamic forms.'),
+    'view forms' => array(
+      'title' => t('View forms'),
+      'description' => t('Allow users to view and fill out forms.'),
     ),
-    'administer dynamic forms' => array(
-      'title' => t('Administer dynamic forms'),
-      'description' => t('Create, edit, and delete dynamic forms.'),
-      'restrict access' => TRUE,
+    'create new form' => array(
+      'title' => t('Create new form'),
+      'description' => t('Create new forms.'),
+    ),
+    'edit any form' => array(
+      'title' => t('Edit any form'),
+      'description' => t('Edit any form.'),
+    ),
+    'edit own form' => array(
+      'title' => t('Edit own form'),
+      'description' => t('Edit own forms.'),
+    ),
+    'delete any form' => array(
+      'title' => t('Delete any form'),
+      'description' => t('Delete any form.'),
+    ),
+    'delete own form' => array(
+      'title' => t('Delete own form'),
+      'description' => t('Delete own forms.'),
     ),
   );
 }
@@ -25,7 +41,8 @@ function dynamic_form_permission() {
 /**
  * Implements hook_menu().
  */
-function dynamic_form_menu() {
+function dynamic_form_menu()
+{
   $items = array();
 
   $items['login'] = array(
@@ -52,7 +69,8 @@ function dynamic_form_menu() {
 /**
  * Page callback for /login.
  */
-function dynamic_form_login_page() {
+function dynamic_form_login_page()
+{
   drupal_set_title('');
   $form = drupal_get_form('dynamic_form_login_form');
   return _dynamic_form_auth_wrapper(drupal_render($form), 'login');
@@ -61,7 +79,8 @@ function dynamic_form_login_page() {
 /**
  * Login form builder.
  */
-function dynamic_form_login_form($form, &$form_state) {
+function dynamic_form_login_form($form, &$form_state)
+{
   $form['name'] = array(
     '#type' => 'textfield',
     '#title' => t('Email or Username'),
@@ -87,7 +106,8 @@ function dynamic_form_login_form($form, &$form_state) {
 /**
  * Login form validation.
  */
-function dynamic_form_login_form_validate($form, &$form_state) {
+function dynamic_form_login_form_validate($form, &$form_state)
+{
   $name = trim($form_state['values']['name']);
   $pass = $form_state['values']['pass'];
 
@@ -106,8 +126,7 @@ function dynamic_form_login_form_validate($form, &$form_state) {
   if ($uid) {
     $form_state['uid'] = $uid;
     flood_clear_event('failed_login_attempt_ip');
-  }
-  else {
+  } else {
     flood_register_event('failed_login_attempt_ip');
     form_set_error('name', t('Invalid username/email or password.'));
   }
@@ -116,7 +135,8 @@ function dynamic_form_login_form_validate($form, &$form_state) {
 /**
  * Login form submit.
  */
-function dynamic_form_login_form_submit($form, &$form_state) {
+function dynamic_form_login_form_submit($form, &$form_state)
+{
   global $user;
 
   $account = user_load($form_state['uid']);
@@ -134,7 +154,8 @@ function dynamic_form_login_form_submit($form, &$form_state) {
 /**
  * Page callback for /register.
  */
-function dynamic_form_register_page() {
+function dynamic_form_register_page()
+{
   drupal_set_title('');
   $form = drupal_get_form('dynamic_form_register_form');
   return _dynamic_form_auth_wrapper(drupal_render($form), 'register');
@@ -143,8 +164,9 @@ function dynamic_form_register_page() {
 /**
  * Register form builder.
  */
-function dynamic_form_register_form($form, &$form_state) {
-  
+function dynamic_form_register_form($form, &$form_state)
+{
+
   $form['mail'] = array(
     '#type' => 'textfield',
     '#title' => t('Email Address'),
@@ -184,7 +206,8 @@ function dynamic_form_register_form($form, &$form_state) {
 /**
  * Register form validation.
  */
-function dynamic_form_register_form_validate($form, &$form_state) {
+function dynamic_form_register_form_validate($form, &$form_state)
+{
   $name  = trim($form_state['values']['name']);
   $mail  = trim($form_state['values']['mail']);
   $pass  = $form_state['values']['pass'];
@@ -193,16 +216,14 @@ function dynamic_form_register_form_validate($form, &$form_state) {
   // Username validation.
   if ($error = user_validate_name($name)) {
     form_set_error('name', $error);
-  }
-  elseif (user_load_by_name($name)) {
+  } elseif (user_load_by_name($name)) {
     form_set_error('name', t('The username %name is already taken.', array('%name' => $name)));
   }
 
   // Email validation.
   if (!valid_email_address($mail)) {
     form_set_error('mail', t('Please enter a valid email address.'));
-  }
-  elseif (user_load_by_mail($mail)) {
+  } elseif (user_load_by_mail($mail)) {
     form_set_error('mail', t('An account with this email already exists.'));
   }
 
@@ -218,7 +239,8 @@ function dynamic_form_register_form_validate($form, &$form_state) {
 /**
  * Register form submit — create account, assign member role, auto-login.
  */
-function dynamic_form_register_form_submit($form, &$form_state) {
+function dynamic_form_register_form_submit($form, &$form_state)
+{
   global $user;
 
   $values = $form_state['values'];
@@ -249,8 +271,7 @@ function dynamic_form_register_form_submit($form, &$form_state) {
 
     drupal_set_message(t('Welcome, @name! Your account has been created.', array('@name' => $account->name)));
     $form_state['redirect'] = '<front>';
-  }
-  else {
+  } else {
     drupal_set_message(t('There was a problem creating your account. Please try again.'), 'error');
   }
 }
@@ -270,13 +291,13 @@ function dynamic_form_register_form_submit($form, &$form_state) {
  * @return string
  *   Full auth page HTML.
  */
-function _dynamic_form_auth_wrapper($form_html, $type) {
+function _dynamic_form_auth_wrapper($form_html, $type)
+{
   if ($type === 'login') {
     $title = t('Welcome back');
     $subtitle = t('Sign in to your account');
     $footer = t('Don\'t have an account? <a href="!url">Sign up</a>', array('!url' => url('register')));
-  }
-  else {
+  } else {
     $title = t('Create your account');
     $subtitle = t('Start building forms in minutes');
     $footer = t('Already have an account? <a href="!url">Sign in</a>', array('!url' => url('login')));
@@ -293,5 +314,3 @@ function _dynamic_form_auth_wrapper($form_html, $type) {
 
   return $output;
 }
-
-
