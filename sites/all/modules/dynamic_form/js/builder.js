@@ -35,6 +35,11 @@
         _dfbInitSortable(this, '.dfb-question-drag-handle', 'question', basePath + '/reorder', 'dfb-questions-wrapper');
       });
 
+      // Apply initial type visibility for the add form on page load.
+      $('#dfb-question-form-wrapper', context).once('dfb-type-visibility-init', function () {
+        _dfbApplyTypeVisibility($(this));
+      });
+
       // Open modal: inject section context into the Drupal form, show modal.
       // Delegated so dynamically-added "Add Question" buttons work after sections AJAX.
       $('#dfb-builder-container', context).once('dfb-question-modal-open', function () {
@@ -53,15 +58,17 @@
           $('#dfb-section-name-display').text(sectionName);
 
           // Reset type picker to the first option (text) on every open.
-          var $radios = $('.dfb-type-section input[type="radio"]');
+          var $radios = $('.dfb-type-section input[type="radio"]', '#dfb-question-modal');
           $radios.each(function () {
             this.checked = (this.value === 'text');
           });
           // Sync the selected-card highlight.
-          $('.dfb-type-section .form-type-radio').removeClass('dfb-type-selected');
-          $('.dfb-type-section input[value="text"]').closest('.form-type-radio').addClass('dfb-type-selected');
-          // Re-trigger Drupal states so sub-sections show/hide correctly.
-          $radios.filter(':checked').trigger('change');
+          $('.dfb-type-section .form-type-radio', '#dfb-question-modal').removeClass('dfb-type-selected');
+          $('.dfb-type-section input[value="text"]', '#dfb-question-modal').closest('.form-type-radio').addClass('dfb-type-selected');
+
+          // Apply type-based visibility (type is 'text', so options/scale/file hidden,
+          // validation shown).
+          _dfbApplyTypeVisibility($('#dfb-question-form-wrapper'));
 
           // Show modal — use CSS animate to preserve display:flex.
           $('#dfb-question-modal').css({ opacity: 0, display: 'flex' }).animate({ opacity: 1 }, 150);
@@ -86,42 +93,164 @@
         });
       });
 
-      // Close modal — delegated on document so it always works, even after
-      // AJAX rebuilds that replace the Cancel button's DOM node.
-      // Runs once per page load (guarded by the body once marker).
+      // Close add-question modal — delegated so it survives AJAX rebuilds.
       $('body').once('dfb-modal-close-delegated', function () {
-        // Any element with data-action="close-modal" closes the modal.
         $(document).delegate('[data-action="close-modal"]', 'click', function (e) {
           e.preventDefault();
-          e.stopImmediatePropagation(); // prevent Drupal's AJAX submit handler
+          e.stopImmediatePropagation();
           $('#dfb-question-modal').hide();
         });
+        $('#dfb-question-modal').bind('click', function (e) {
+          if ($(e.target).is('#dfb-question-modal')) { $(this).hide(); }
+        });
+      });
 
-        // Clicking the dark backdrop (overlay itself, not its children) also closes.
-        $('#dfb-question-modal').on('click', function (e) {
-          if ($(e.target).is('#dfb-question-modal')) {
-            $(this).hide();
+      // Close edit-question modal.
+      $('body').once('dfb-edit-modal-close', function () {
+        $(document).delegate('[data-action="close-edit-modal"]', 'click', function (e) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          $('#dfb-edit-question-modal').hide();
+        });
+        $('#dfb-edit-question-modal').bind('click', function (e) {
+          if ($(e.target).is('#dfb-edit-question-modal')) { $(this).hide(); }
+        });
+      });
+
+      // Click on a question's content area to open the edit modal.
+      // Drag-handle clicks are excluded by targeting .dfb-question-editable.
+      $('#dfb-builder-container', context).once('dfb-question-edit', function () {
+        $(this).delegate('.dfb-question-editable', 'click', function (e) {
+          e.stopPropagation();
+          var questionId = $(this).closest('.dfb-question-card').data('question-id');
+          if (!questionId) { return; }
+
+          // Show the modal immediately with the loading state.
+          $('#dfb-edit-question-modal').css({ opacity: 0, display: 'flex' }).animate({ opacity: 1 }, 150);
+
+          $.ajax({
+            url:      basePath + '/question/' + questionId + '/edit-form',
+            type:     'GET',
+            dataType: 'json',
+            success: function (commands) {
+              // Drupal's `insert` command calls ajax.getEffect() — provide a
+              // minimal shim so the handler doesn't throw.
+              var fakeAjax = {
+                wrapper: '#dfb-edit-form-placeholder',
+                method:  'html',
+                effect:  'none',
+                speed:   'none',
+                getEffect: function (response) {
+                  var type = response.effect || this.effect;
+                  if (type === 'none') {
+                    return { showEffect: 'show', hideEffect: 'hide', showSpeed: '' };
+                  }
+                  var speed = response.speed || this.speed;
+                  if (type === 'fade') {
+                    return { showEffect: 'fadeIn', hideEffect: 'fadeOut', showSpeed: speed };
+                  }
+                  return { showEffect: type + 'Toggle', hideEffect: type + 'Toggle', showSpeed: speed };
+                }
+              };
+
+              // Process each Drupal AJAX command (settings merge + html injection).
+              $.each(commands, function (i, cmd) {
+                if (Drupal.ajax && Drupal.ajax.prototype.commands[cmd.command]) {
+                  Drupal.ajax.prototype.commands[cmd.command](fakeAjax, cmd, null);
+                }
+              });
+
+              // -------------------------------------------------------
+              // ID-conflict fix: both the Add form and Edit form are
+              // rendered in separate PHP requests, so Drupal gives them
+              // identical element IDs (e.g. "edit-type-text").
+              // When the Edit form is injected, clicking a label whose
+              // for="edit-type-text" finds the FIRST matching element —
+              // which is the hidden Add form's radio, not the Edit form's.
+              // Fix: rebind each label to directly check its sibling input,
+              // bypassing the for-attribute ID lookup entirely.
+              // -------------------------------------------------------
+              $('#dfb-edit-question-modal .dfb-type-section .form-type-radio').each(function () {
+                var $item = $(this);
+                var radio = $item.find('input[type="radio"]')[0]; // native DOM element
+                $item.find('label').unbind('click.dfbfix').bind('click.dfbfix', function (e) {
+                  e.preventDefault();
+                  if (radio) {
+                    radio.checked = true;
+                    $(radio).trigger('change');
+                  }
+                });
+              });
+
+              // Apply type visibility now that the edit form is in the DOM.
+              _dfbApplyTypeVisibility($('#dfb-edit-question-form-wrapper'));
+            },
+            error: function () {
+              $('#dfb-edit-question-modal').hide();
+              alert(Drupal.t('Failed to load question editor. Please try again.'));
+            }
+          });
+        });
+      });
+
+      // Type picker — label click fix.
+      // Both forms render radios with identical IDs (separate PHP requests reset
+      // Drupal's ID counter). A label's `for` attribute would match the first
+      // element with that ID in the DOM — always the add form's radio, even when
+      // clicking inside the edit modal. Intercepting the click and checking the
+      // radio by DOM proximity (same .form-type-radio wrapper) fixes this.
+      $('body').once('dfb-type-picker-label-fix', function () {
+        $(document).delegate('.dfb-type-section label', 'click', function (e) {
+          e.preventDefault();
+          var radio = $(this).closest('.form-type-radio').find('input[type="radio"]')[0];
+          if (radio && !radio.checked) {
+            radio.checked = true;
+            $(radio).trigger('change');
           }
         });
       });
 
-      // Type picker: highlight the selected card with a CSS class.
-      // The radio input is visually hidden; the parent .form-type-radio gets 'dfb-type-selected'.
-      // This supplements the CSS :checked selector for browsers where sibling CSS isn't enough.
-      // Uses delegated binding on the wrapper so it survives AJAX rebuilds of the form.
-      $('#dfb-question-form-wrapper', context).once('dfb-type-picker', function () {
-        $(this).delegate('.dfb-type-section input[type="radio"]', 'change', function () {
-          var $input = $(this);
+      // Type picker: highlight the selected card AND update sub-section visibility.
+      // Delegated on body so it covers both the add form (rendered on page
+      // load) and the edit form (injected dynamically via AJAX).
+      $('body').once('dfb-type-picker-global', function () {
+        $(document).delegate('.dfb-type-section input[type="radio"]', 'change', function () {
+          var $input   = $(this);
+          var $section = $input.closest('.dfb-type-section');
           if ($input.is(':checked')) {
-            $('.dfb-type-section .form-type-radio').removeClass('dfb-type-selected');
+            $section.find('.form-type-radio').removeClass('dfb-type-selected');
             $input.closest('.form-type-radio').addClass('dfb-type-selected');
+
+            // Update conditional sub-section visibility for this form.
+            var $wrapper = $input.closest('#dfb-question-form-wrapper, #dfb-edit-question-form-wrapper');
+            if ($wrapper.length) {
+              _dfbApplyTypeVisibility($wrapper);
+            }
           }
         });
-        // Highlight the default on page load.
-        $('.dfb-type-section input[type="radio"]:checked').closest('.form-type-radio').addClass('dfb-type-selected');
       });
+      // Highlight whichever radio is already checked (add form on load;
+      // edit form is handled when Drupal.attachBehaviors fires after inject).
+      $('.dfb-type-section input[type="radio"]:checked', context)
+        .closest('.form-type-radio').addClass('dfb-type-selected');
     }
   };
+
+  // -------------------------------------------------------------------
+  // Show/hide conditional sub-sections based on the selected question type.
+  //
+  // Each conditional container carries data-dfb-show-for="<space-separated
+  // type list>".  This function reads the checked type radio within the
+  // given form wrapper and toggles every [data-dfb-show-for] element.
+  // -------------------------------------------------------------------
+  function _dfbApplyTypeVisibility($wrapper) {
+    var type = $wrapper.find('input[name="type"]:checked').val();
+    if (!type) { return; }
+    $wrapper.find('[data-dfb-show-for]').each(function () {
+      var allowed = $(this).attr('data-dfb-show-for').split(' ');
+      $(this).toggle(allowed.indexOf(type) !== -1);
+    });
+  }
 
   // -------------------------------------------------------------------
   // Shared SortableJS initializer.

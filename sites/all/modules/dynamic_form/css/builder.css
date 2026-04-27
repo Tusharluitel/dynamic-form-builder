@@ -28,6 +28,18 @@
   margin-bottom: 24px;
 }
 
+.dfb-builder-header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.dfb-builder-header-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .dfb-builder-title {
   margin: 0 0 8px 0;
   font-size: 2rem;
@@ -40,6 +52,31 @@
   font-size: 1rem;
   color: var(--color-text-muted, #64748b);
   line-height: 1.5;
+}
+
+.dfb-btn-preview {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  background: transparent;
+  border: 1.5px solid var(--color-primary, #6366f1);
+  border-radius: 6px;
+  color: var(--color-primary, #6366f1);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.dfb-btn-preview:hover,
+.dfb-btn-preview:focus {
+  background: var(--color-primary, #6366f1);
+  color: #fff;
+  text-decoration: none;
 }
 
 /* Section Card */
@@ -135,10 +172,19 @@
   margin-bottom: 8px;
 }
 
+.dfb-question-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .dfb-question-label {
   margin: 0;
   font-size: 1rem;
   font-weight: 500;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .dfb-req {
@@ -156,9 +202,37 @@
   letter-spacing: 0.5px;
 }
 
+/* Pencil icon — visible on question card hover */
+.dfb-edit-hint {
+  font-size: 0.9rem;
+  color: #cbd5e1;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  pointer-events: none;
+}
+
+.dfb-question-editable {
+  cursor: pointer;
+}
+
+.dfb-question-card:hover .dfb-edit-hint {
+  opacity: 1;
+  color: var(--color-primary, #6366f1);
+}
+
 .dfb-question-desc {
   font-size: 0.85rem;
   color: var(--color-text-muted, #64748b);
+}
+
+/* Edit form loading state inside the modal placeholder */
+.dfb-edit-form-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  color: var(--color-text-muted, #64748b);
+  font-size: 0.9375rem;
 }
 
 /* Section Footer / Add Question */
@@ -415,7 +489,10 @@
    FORM WRAPPER — three-zone flex layout inside the modal
    ===================================================================== */
 
-#dfb-question-form-wrapper {
+/* Edit modal has an extra placeholder div between .dfb-modal-content and
+   the form wrapper — it must participate in the flex chain or overflow:auto
+   on the scrollable zone has no effect. */
+#dfb-edit-form-placeholder {
   display: -webkit-box;
   display: -ms-flexbox;
   display: flex;
@@ -427,13 +504,30 @@
       -ms-flex: 1 1 auto;
           flex: 1 1 auto;
   overflow: hidden;
-  /* Remove browser default form margins */
+  min-height: 0;
+}
+
+#dfb-question-form-wrapper,
+#dfb-edit-question-form-wrapper {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-orient: vertical;
+  -webkit-box-direction: normal;
+      -ms-flex-direction: column;
+          flex-direction: column;
+  -webkit-box-flex: 1;
+      -ms-flex: 1 1 auto;
+          flex: 1 1 auto;
+  overflow: hidden;
   margin: 0;
 }
 
 /* The <form> tag Drupal renders (and its inner wrapper div) also need flex */
 #dfb-question-form-wrapper > form,
-#dfb-question-form-wrapper > form > div {
+#dfb-question-form-wrapper > form > div,
+#dfb-edit-question-form-wrapper > form,
+#dfb-edit-question-form-wrapper > form > div {
   display: -webkit-box;
   display: -ms-flexbox;
   display: flex;
@@ -698,6 +792,11 @@
 /* =====================================================================
    SUB-SECTIONS (options, scale, file, validation)
    ===================================================================== */
+
+/* Hidden by default; JS shows the right one based on selected type. */
+[data-dfb-show-for] {
+  display: none;
+}
 
 .dfb-q-subsection {
   border-top: 1px dashed var(--color-border, #e2e8f0);

@@ -217,11 +217,29 @@ function dynamic_form_menu()
     'type' => MENU_CALLBACK,
   );
 
+  $items['dashboard/forms/%/preview'] = array(
+    'title' => 'Preview Form',
+    'page callback' => 'dynamic_form_preview_page',
+    'page arguments' => array(2),
+    'access callback' => '_dynamic_form_edit_access',
+    'access arguments' => array(2),
+    'file' => 'includes/dynamic_form.preview.inc',
+    'type' => MENU_CALLBACK,
+  );
+
   $items['dynamic-form/ajax/builder/reorder'] = array(
     'page callback' => 'dynamic_form_ajax_reorder',
     'access callback' => 'user_is_logged_in',
     'file' => 'includes/dynamic_form.builder.inc',
     'type' => MENU_CALLBACK,
+  );
+
+  $items['dynamic-form/ajax/builder/question/%/edit-form'] = array(
+    'page callback'    => 'dynamic_form_ajax_question_edit_form',
+    'page arguments'   => array(4),
+    'access callback'  => 'user_is_logged_in',
+    'file'             => 'includes/dynamic_form.builder.inc',
+    'type'             => MENU_CALLBACK,
   );
 
   return $items;
