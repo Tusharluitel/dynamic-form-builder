@@ -2,7 +2,7 @@
 
 /**
  * @file
- * Dynamic Form module — routes, permissions, and authentication forms.
+ * Dynamic Form module — routes, permissions, and general helpers.
  */
 
 /**
@@ -11,6 +11,10 @@
 function dynamic_form_permission()
 {
   return array(
+    'access dashboard' => array(
+      'title' => t('Access dashboard'),
+      'description' => t('Access the form builder dashboard.'),
+    ),
     'view forms' => array(
       'title' => t('View forms'),
       'description' => t('Allow users to view and fill out forms.'),
@@ -45,10 +49,12 @@ function dynamic_form_menu()
 {
   $items = array();
 
+  // Authentication routes.
   $items['login'] = array(
     'title' => 'Sign In',
     'page callback' => 'dynamic_form_login_page',
     'access callback' => 'user_is_anonymous',
+    'file' => 'includes/dynamic_form.auth.inc',
     'type' => MENU_CALLBACK,
   );
 
@@ -56,261 +62,303 @@ function dynamic_form_menu()
     'title' => 'Create Account',
     'page callback' => 'dynamic_form_register_page',
     'access callback' => 'user_is_anonymous',
+    'file' => 'includes/dynamic_form.auth.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  // Form CRUD routes.
+  $items['form/create'] = array(
+    'title' => 'Create Form',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('dynamic_form_create_form'),
+    'access arguments' => array('create new form'),
+    'file' => 'includes/dynamic_form.forms.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['form/list'] = array(
+    'title' => 'My Forms',
+    'page callback' => 'dynamic_form_list_page',
+    'access arguments' => array('view forms'),
+    'file' => 'includes/dynamic_form.forms.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['form/%/edit'] = array(
+    'title' => 'Edit Form',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('dynamic_form_edit_form', 1),
+    'access callback' => '_dynamic_form_edit_access',
+    'access arguments' => array(1),
+    'file' => 'includes/dynamic_form.forms.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['form/%/delete'] = array(
+    'title' => 'Delete Form',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('dynamic_form_delete_confirm', 1),
+    'access callback' => '_dynamic_form_delete_access',
+    'access arguments' => array(1),
+    'file' => 'includes/dynamic_form.forms.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  // Dashboard routes.
+  $items['dashboard'] = array(
+    'title' => 'Dashboard',
+    'page callback' => 'dynamic_form_dashboard_page',
+    'page arguments' => array('overview'),
+    'access callback' => 'user_is_logged_in',
+    'file' => 'includes/dynamic_form.dashboard.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['dashboard/forms'] = array(
+    'title' => 'Forms',
+    'page callback' => 'dynamic_form_dashboard_page',
+    'page arguments' => array('forms'),
+    'access callback' => 'user_is_logged_in',
+    'file' => 'includes/dynamic_form.dashboard.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['dashboard/questions'] = array(
+    'title' => 'Questions',
+    'page callback' => 'dynamic_form_dashboard_page',
+    'page arguments' => array('questions'),
+    'access callback' => 'user_is_logged_in',
+    'file' => 'includes/dynamic_form.dashboard.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['dashboard/sections'] = array(
+    'title' => 'Sections',
+    'page callback' => 'dynamic_form_dashboard_page',
+    'page arguments' => array('sections'),
+    'access callback' => 'user_is_logged_in',
+    'file' => 'includes/dynamic_form.dashboard.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['dashboard/sections/create'] = array(
+    'title' => 'Create Section',
+    'page callback' => 'dynamic_form_dashboard_section_create_page',
+    'access arguments' => array('create new form'), // Require ability to create forms
+    'file' => 'includes/dynamic_form.dashboard.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['dashboard/sections/%/edit'] = array(
+    'title' => 'Edit Section',
+    'page callback' => 'dynamic_form_dashboard_section_edit_page',
+    'page arguments' => array(2),
+    // Reusing form edit access for now, but really should verify they can edit the parent form.
+    // For simplicity, we'll allow 'edit any form' or we'll handle the ownership check in the form itself.
+    'access arguments' => array('edit any form'),
+    'file' => 'includes/dynamic_form.dashboard.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['dashboard/sections/%/delete'] = array(
+    'title'            => 'Delete Section',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('dynamic_form_delete_section_confirm', 2),
+    'access arguments' => array('delete any form'),
+    'file'             => 'includes/dynamic_form.sections.inc',
+    'type'             => MENU_CALLBACK,
+  );
+
+  // Question edit / delete routes.
+  $items['dashboard/questions/%/edit'] = array(
+    'title'            => 'Edit Question',
+    'page callback'    => 'dynamic_form_dashboard_question_edit_page',
+    'page arguments'   => array(2),
+    'access arguments' => array('edit any form'),
+    'file'             => 'includes/dynamic_form.dashboard.inc',
+    'type'             => MENU_CALLBACK,
+  );
+
+  $items['dashboard/questions/%/delete'] = array(
+    'title'            => 'Delete Question',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('dynamic_form_delete_question_confirm', 2),
+    'access arguments' => array('delete any form'),
+    'file'             => 'includes/dynamic_form.questions.inc',
+    'type'             => MENU_CALLBACK,
+  );
+
+  $items['dashboard/forms/create'] = array(
+    'title' => 'Create Form',
+    'page callback' => 'dynamic_form_dashboard_form_create_page',
+    'access arguments' => array('create new form'),
+    'file' => 'includes/dynamic_form.dashboard.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['dashboard/forms/%/edit'] = array(
+    'title' => 'Edit Form',
+    'page callback' => 'dynamic_form_dashboard_form_edit_page',
+    'page arguments' => array(2),
+    'access callback' => '_dynamic_form_edit_access',
+    'access arguments' => array(2),
+    'file' => 'includes/dynamic_form.dashboard.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  // Builder routes.
+  $items['dashboard/forms/%/builder'] = array(
+    'title' => 'Form Builder',
+    'page callback' => 'dynamic_form_builder_page',
+    'page arguments' => array(2),
+    'access callback' => '_dynamic_form_edit_access',
+    'access arguments' => array(2),
+    'file' => 'includes/dynamic_form.builder.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['dynamic-form/ajax/builder/reorder'] = array(
+    'page callback' => 'dynamic_form_ajax_reorder',
+    'access callback' => 'user_is_logged_in',
+    'file' => 'includes/dynamic_form.builder.inc',
     'type' => MENU_CALLBACK,
   );
 
   return $items;
 }
 
-/* =====================================================================
-   LOGIN
-   ===================================================================== */
-
 /**
- * Page callback for /login.
+ * Implements hook_theme().
  */
-function dynamic_form_login_page()
+function dynamic_form_theme($existing, $type, $theme, $path)
 {
-  drupal_set_title('');
-  $form = drupal_get_form('dynamic_form_login_form');
-  return _dynamic_form_auth_wrapper(drupal_render($form), 'login');
-}
-
-/**
- * Login form builder.
- */
-function dynamic_form_login_form($form, &$form_state)
-{
-  $form['name'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Email or Username'),
-    '#required' => TRUE,
-    '#attributes' => array('placeholder' => t('you@example.com'), 'autofocus' => 'autofocus'),
+  return array(
+    'dynamic_form_dashboard' => array(
+      'variables' => array('sidebar' => '', 'content' => ''),
+      'template' => 'dashboard',
+      'path' => drupal_get_path('theme', 'dynamic_form') . '/template',
+    ),
   );
-
-  $form['pass'] = array(
-    '#type' => 'password',
-    '#title' => t('Password'),
-    '#required' => TRUE,
-    '#attributes' => array('placeholder' => t('Enter your password')),
-  );
-
-  $form['submit'] = array(
-    '#type' => 'submit',
-    '#value' => t('Sign In'),
-  );
-
-  return $form;
-}
-
-/**
- * Login form validation.
- */
-function dynamic_form_login_form_validate($form, &$form_state)
-{
-  $name = trim($form_state['values']['name']);
-  $pass = $form_state['values']['pass'];
-
-  if (empty($name) || empty($pass)) {
-    return;
-  }
-
-  // Check flood control.
-  if (!flood_is_allowed('failed_login_attempt_ip', variable_get('user_failed_login_ip_limit', 50))) {
-    form_set_error('name', t('Sorry, too many failed login attempts. Please try again later.'));
-    return;
-  }
-
-  $uid = user_authenticate($name, $pass);
-
-  if ($uid) {
-    $form_state['uid'] = $uid;
-    flood_clear_event('failed_login_attempt_ip');
-  } else {
-    flood_register_event('failed_login_attempt_ip');
-    form_set_error('name', t('Invalid username/email or password.'));
-  }
-}
-
-/**
- * Login form submit.
- */
-function dynamic_form_login_form_submit($form, &$form_state)
-{
-  global $user;
-
-  $account = user_load($form_state['uid']);
-  $user = $account;
-  user_login_finalize();
-
-  // Let Login Destination module handle redirect; fallback to front page.
-  $form_state['redirect'] = '<front>';
 }
 
 /* =====================================================================
-   REGISTER
+   FORM CRUD — ACCESS CALLBACKS
    ===================================================================== */
 
 /**
- * Page callback for /register.
- */
-function dynamic_form_register_page()
-{
-  drupal_set_title('');
-  $form = drupal_get_form('dynamic_form_register_form');
-  return _dynamic_form_auth_wrapper(drupal_render($form), 'register');
-}
-
-/**
- * Register form builder.
- */
-function dynamic_form_register_form($form, &$form_state)
-{
-
-  $form['mail'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Email Address'),
-    '#required' => TRUE,
-    '#attributes' => array('placeholder' => t('you@example.com')),
-  );
-
-  $form['name'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Username'),
-    '#required' => TRUE,
-    '#attributes' => array('placeholder' => t('Choose a username')),
-  );
-
-  $form['pass'] = array(
-    '#type' => 'password',
-    '#title' => t('Password'),
-    '#required' => TRUE,
-    '#attributes' => array('placeholder' => t('Min. 8 characters')),
-  );
-
-  $form['pass_confirm'] = array(
-    '#type' => 'password',
-    '#title' => t('Confirm Password'),
-    '#required' => TRUE,
-    '#attributes' => array('placeholder' => t('Re-enter your password')),
-  );
-
-  $form['submit'] = array(
-    '#type' => 'submit',
-    '#value' => t('Create Account'),
-  );
-
-  return $form;
-}
-
-/**
- * Register form validation.
- */
-function dynamic_form_register_form_validate($form, &$form_state)
-{
-  $name  = trim($form_state['values']['name']);
-  $mail  = trim($form_state['values']['mail']);
-  $pass  = $form_state['values']['pass'];
-  $pass2 = $form_state['values']['pass_confirm'];
-
-  // Username validation.
-  if ($error = user_validate_name($name)) {
-    form_set_error('name', $error);
-  } elseif (user_load_by_name($name)) {
-    form_set_error('name', t('The username %name is already taken.', array('%name' => $name)));
-  }
-
-  // Email validation.
-  if (!valid_email_address($mail)) {
-    form_set_error('mail', t('Please enter a valid email address.'));
-  } elseif (user_load_by_mail($mail)) {
-    form_set_error('mail', t('An account with this email already exists.'));
-  }
-
-  // Password validation.
-  if (drupal_strlen($pass) < 8) {
-    form_set_error('pass', t('Password must be at least 8 characters long.'));
-  }
-  if ($pass !== $pass2) {
-    form_set_error('pass_confirm', t('Passwords do not match.'));
-  }
-}
-
-/**
- * Register form submit — create account, assign member role, auto-login.
- */
-function dynamic_form_register_form_submit($form, &$form_state)
-{
-  global $user;
-
-  $values = $form_state['values'];
-
-  // Look up the 'member' role.
-  $member_role = user_role_load_by_name('member');
-  $roles = array();
-  if ($member_role) {
-    $roles[$member_role->rid] = $member_role->name;
-  }
-
-  // Create the new user account.
-  $new_user = array(
-    'name'   => trim($values['name']),
-    'mail'   => trim($values['mail']),
-    'pass'   => $values['pass'],
-    'status' => 1,
-    'init'   => trim($values['mail']),
-    'roles'  => $roles,
-  );
-
-  $account = user_save(drupal_anonymous_user(), $new_user);
-
-  if ($account) {
-    // Auto-login.
-    $user = $account;
-    user_login_finalize();
-
-    drupal_set_message(t('Welcome, @name! Your account has been created.', array('@name' => $account->name)));
-    $form_state['redirect'] = '<front>';
-  } else {
-    drupal_set_message(t('There was a problem creating your account. Please try again.'), 'error');
-  }
-}
-
-/* =====================================================================
-   HELPERS
-   ===================================================================== */
-
-/**
- * Builds the auth page wrapper HTML.
+ * Access callback for form/%/edit.
  *
- * @param string $form_html
- *   Rendered form HTML.
- * @param string $type
- *   Either 'login' or 'register'.
+ * Allows access if user has 'edit any form' or owns the form
+ * and has 'edit own form'.
+ */
+function _dynamic_form_edit_access($form_id)
+{
+  global $user;
+
+  if (user_access('edit any form')) {
+    return TRUE;
+  }
+
+  if (user_access('edit own form')) {
+    $created_by = db_select('dynamic_form_forms', 'f')
+      ->fields('f', array('created_by'))
+      ->condition('id', $form_id)
+      ->condition('deleted_at', NULL, 'IS NULL')
+      ->execute()
+      ->fetchField();
+    return $created_by && (int) $created_by === (int) $user->uid;
+  }
+
+  return FALSE;
+}
+
+/**
+ * Access callback for form/%/delete.
+ *
+ * Allows access if user has 'delete any form' or owns the form
+ * and has 'delete own form'.
+ */
+function _dynamic_form_delete_access($form_id)
+{
+  global $user;
+
+  if (user_access('delete any form')) {
+    return TRUE;
+  }
+
+  if (user_access('delete own form')) {
+    $created_by = db_select('dynamic_form_forms', 'f')
+      ->fields('f', array('created_by'))
+      ->condition('id', $form_id)
+      ->condition('deleted_at', NULL, 'IS NULL')
+      ->execute()
+      ->fetchField();
+    return $created_by && (int) $created_by === (int) $user->uid;
+  }
+
+  return FALSE;
+}
+
+/* =====================================================================
+   FORM CRUD — SLUG HELPER
+   ===================================================================== */
+
+/**
+ * Generates a URL-friendly slug from a title.
+ *
+ * @param string $title
+ *   The form title.
  *
  * @return string
- *   Full auth page HTML.
+ *   A lowercase, hyphenated slug.
  */
-function _dynamic_form_auth_wrapper($form_html, $type)
+function _dynamic_form_generate_slug($title)
 {
-  if ($type === 'login') {
-    $title = t('Welcome back');
-    $subtitle = t('Sign in to your account');
-    $footer = t('Don\'t have an account? <a href="!url">Sign up</a>', array('!url' => url('register')));
-  } else {
-    $title = t('Create your account');
-    $subtitle = t('Start building forms in minutes');
-    $footer = t('Already have an account? <a href="!url">Sign in</a>', array('!url' => url('login')));
+  // Lowercase, replace non-alphanumeric with hyphens, trim hyphens.
+  $slug = drupal_strtolower($title);
+  $slug = preg_replace('/[^a-z0-9]+/', '-', $slug);
+  $slug = trim($slug, '-');
+
+  // Ensure uniqueness by appending a number if needed.
+  $base_slug = $slug;
+  $counter = 1;
+  while (db_select('dynamic_form_forms', 'f')
+    ->fields('f', array('id'))
+    ->condition('slug', $slug)
+    ->condition('deleted_at', NULL, 'IS NULL')
+    ->execute()
+    ->fetchField()) {
+    $slug = $base_slug . '-' . $counter;
+    $counter++;
   }
 
-  $output  = '<div class="dfb-auth-wrapper">';
-  $output .= '  <div class="dfb-auth-card">';
-  $output .= '    <h2>' . $title . '</h2>';
-  $output .= '    <p class="auth-subtitle">' . $subtitle . '</p>';
-  $output .= '    ' . $form_html;
-  $output .= '    <div class="dfb-auth-footer">' . $footer . '</div>';
-  $output .= '  </div>';
-  $output .= '</div>';
+  return $slug;
+}
 
-  return $output;
+/* =====================================================================
+   FORM ALTERS
+   ===================================================================== */
+
+/**
+ * Implements hook_form_alter().
+ */
+function dynamic_form_form_alter(&$form, &$form_state, $form_id) {
+  // Override the default Drupal login form error messages.
+  if ($form_id == 'user_login' || $form_id == 'user_login_block') {
+    $form['#validate'][] = 'dynamic_form_custom_login_error_override';
+  }
+}
+
+/**
+ * Custom validation handler to override the core login error message.
+ */
+function dynamic_form_custom_login_error_override($form, &$form_state) {
+  if (!empty($_SESSION['messages']['error'])) {
+    foreach ($_SESSION['messages']['error'] as $key => $message) {
+      // Check if the message contains the default Drupal error string.
+      if (strpos($message, 'Sorry, unrecognized username or password') !== FALSE) {
+        $_SESSION['messages']['error'][$key] = t('Incorrect email or password for login.');
+      }
+    }
+  }
 }

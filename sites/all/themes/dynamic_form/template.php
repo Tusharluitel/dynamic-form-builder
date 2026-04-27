@@ -20,6 +20,10 @@ function dynamic_form_preprocess_page(&$variables) {
     $variables['classes_array'][] = 'page-register';
   }
 
+  if (strpos($path, 'dashboard') === 0) {
+    $variables['classes_array'][] = 'page-dashboard';
+  }
+
   if (drupal_is_front_page()) {
     $variables['classes_array'][] = 'page-front';
   }
@@ -38,5 +42,9 @@ function dynamic_form_preprocess_html(&$variables) {
   }
   elseif ($path === 'register' || $path === 'user/register') {
     $variables['classes_array'][] = 'page-register';
+  }
+
+  if (strpos($path, 'dashboard') === 0) {
+    $variables['classes_array'][] = 'page-dashboard';
   }
 }

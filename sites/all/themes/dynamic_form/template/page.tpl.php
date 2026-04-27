@@ -14,18 +14,7 @@
 
 <body class="<?php print $classes; ?>" <?php print $attributes; ?>>
 
-<?php print $page_top; 
-
-global $user;
-
-$roles = $user->roles;
-
-if (in_array('admin', $roles) || in_array('super administrator', $roles)) {
-  $dashboard_url = url('admin');
-} else {
-  $dashboard_url = url('user');
-}
-?>
+<?php print $page_top; ?>
 
 <div id="page-wrapper">
 
@@ -42,7 +31,8 @@ if (in_array('admin', $roles) || in_array('super administrator', $roles)) {
           <a href="<?php print url('register'); ?>" class="dfb-btn-primary">Sign Up</a>
         <?php else: ?>
 
-          <a href="<?php print $dashboard_url; ?>">Dashboard</a>
+          <a href="<?php print url('dashboard'); ?>">Dashboard</a>
+          <a href="<?php print url('dashboard/forms/create') ?>">Create Form</a>
           <a href="<?php print url('user/logout'); ?>" class="dfb-btn-ghost">Log Out</a>
         <?php endif; ?>
       </div>
@@ -63,7 +53,7 @@ if (in_array('admin', $roles) || in_array('super administrator', $roles)) {
           Get Started Free <span class="arrow">&rarr;</span>
         </a>
       <?php else: ?>
-        <a href="<?php print url('user'); ?>" class="dfb-hero-cta">
+        <a href="<?php print url('dashboard'); ?>" class="dfb-hero-cta">
           Go to Dashboard <span class="arrow">&rarr;</span>
         </a>
       <?php endif; ?>

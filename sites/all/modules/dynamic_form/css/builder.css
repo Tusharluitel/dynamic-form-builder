@@ -1,0 +1,937 @@
+/* =====================================================================
+   DYNAMIC FORM BUILDER STYLES
+   Google Forms-inspired builder UI
+   ===================================================================== */
+
+.dfb-builder-container {
+  max-width: 768px;
+  margin: 0 auto;
+  padding-bottom: 60px;
+}
+
+/* Common Card Style */
+.dfb-builder-header-card,
+.dfb-section-card,
+.dfb-question-card {
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-md, 8px);
+  padding: 24px;
+  margin-bottom: 16px;
+  position: relative;
+  transition: box-shadow 0.2s ease;
+}
+
+/* Header Card Specifics */
+.dfb-builder-header-card {
+  border-top: 8px solid var(--color-primary, #6366f1);
+  margin-bottom: 24px;
+}
+
+.dfb-builder-title {
+  margin: 0 0 8px 0;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--color-text, #1e293b);
+}
+
+.dfb-builder-desc {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--color-text-muted, #64748b);
+  line-height: 1.5;
+}
+
+/* Section Card */
+.dfb-section-card {
+  padding: 0; /* padding applied to inner elements */
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.dfb-section-header {
+  padding: 16px 24px;
+  background-color: var(--color-surface-alt, #f8fafc);
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  display: flex;
+  align-items: flex-start;
+  position: relative;
+}
+
+.dfb-section-title-wrap {
+  flex: 1;
+}
+
+.dfb-section-title {
+  margin: 0 0 4px 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text, #1e293b);
+}
+
+.dfb-section-desc {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text-muted, #64748b);
+}
+
+/* Drag Handles */
+.dfb-drag-handle {
+  cursor: grab;
+  color: #cbd5e1;
+  font-size: 1.2rem;
+  line-height: 1;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dfb-drag-handle:active {
+  cursor: grabbing;
+}
+
+.dfb-section-drag-handle {
+  padding: 4px 12px 4px 0;
+  margin-top: 4px;
+}
+
+.dfb-question-drag-handle {
+  position: absolute;
+  top: 50%;
+  left: 8px;
+  transform: translateY(-50%);
+  padding: 8px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.dfb-question-card:hover .dfb-question-drag-handle {
+  opacity: 1;
+}
+
+/* Questions Wrapper */
+.dfb-questions-wrapper {
+  padding: 16px 24px 0;
+  min-height: 10px; /* target for empty drag */
+}
+
+/* Question Card */
+.dfb-question-card {
+  padding: 16px 16px 16px 40px; /* room for drag handle */
+  margin-bottom: 12px;
+  border-left: 3px solid transparent;
+}
+
+.dfb-question-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  border-left-color: var(--color-border, #e2e8f0);
+}
+
+.dfb-question-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.dfb-question-label {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.dfb-req {
+  color: var(--color-error, #ef4444);
+}
+
+.dfb-question-type-badge {
+  font-size: 0.75rem;
+  padding: 3px 8px;
+  background: var(--color-surface-alt, #f8fafc);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-sm, 4px);
+  color: var(--color-text-muted, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dfb-question-desc {
+  font-size: 0.85rem;
+  color: var(--color-text-muted, #64748b);
+}
+
+/* Section Footer / Add Question */
+.dfb-section-footer {
+  padding: 12px 24px;
+  background-color: var(--color-surface, #fff);
+  border-top: 1px dashed var(--color-border, #e2e8f0);
+  text-align: center;
+}
+
+.dfb-btn-add-question {
+  background: transparent;
+  border: 1px solid var(--color-primary, #6366f1);
+  color: var(--color-primary, #6366f1);
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dfb-btn-add-question:hover {
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.dfb-btn-add-question .icon {
+  font-weight: bold;
+  font-size: 1.1em;
+}
+
+/* Empty State / Add Section */
+.dfb-builder-empty {
+  text-align: center;
+  padding: 40px;
+  background: var(--color-surface-alt, #f8fafc);
+  border: 2px dashed var(--color-border, #e2e8f0);
+  border-radius: var(--radius-md, 8px);
+  margin-bottom: 24px;
+}
+
+.dfb-builder-empty p {
+  color: var(--color-text-muted, #64748b);
+  margin-bottom: 16px;
+}
+
+.dfb-btn-add-section {
+  background: var(--color-primary, #6366f1);
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: var(--radius-sm, 4px);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
+}
+
+.dfb-btn-add-section:hover {
+  background: var(--color-primary-dark, #4f46e5);
+}
+
+/* =====================================================================
+   ADD SECTION CARD (Drupal Form API inline form)
+   Always rendered below the sections list — fixes the "trapped after
+   first section" bug from the previous implementation.
+   ===================================================================== */
+
+.dfb-add-section-card {
+  background: var(--color-surface, #fff);
+  border: 2px dashed var(--color-border, #e2e8f0);
+  border-radius: var(--radius-md, 8px);
+  padding: 24px;
+  margin-top: 16px;
+}
+
+.dfb-add-section-card .form-item {
+  margin-bottom: 16px;
+}
+
+.dfb-add-section-card label {
+  display: block;
+  font-weight: 500;
+  font-size: 0.9rem;
+  margin-bottom: 6px;
+  color: var(--color-text, #1e293b);
+}
+
+.dfb-add-section-card input[type="text"],
+.dfb-add-section-card textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-sm, 4px);
+  font-family: inherit;
+  font-size: 0.95rem;
+  color: var(--color-text, #1e293b);
+  background: var(--color-surface, #fff);
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+
+.dfb-add-section-card input[type="text"]:focus,
+.dfb-add-section-card textarea:focus {
+  outline: none;
+  border-color: var(--color-primary, #6366f1);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.dfb-add-section-card .description {
+  font-size: 0.8rem;
+  color: var(--color-text-muted, #64748b);
+  margin-top: 4px;
+}
+
+/* Drupal wraps the form actions in a .form-actions div — override margin. */
+.dfb-add-section-card .form-actions {
+  margin: 0;
+  padding: 0;
+}
+
+/* Validation error messages inside the card. */
+.dfb-add-section-card .messages.error {
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border-left: 4px solid var(--color-error, #ef4444);
+  background: #fef2f2;
+  border-radius: var(--radius-sm, 4px);
+  font-size: 0.875rem;
+  color: #b91c1c;
+}
+
+/* SortableJS Classes */
+.dfb-sortable-ghost {
+  opacity: 0.4;
+  background-color: var(--color-surface-alt, #f8fafc);
+}
+
+.dfb-sortable-drag {
+  cursor: grabbing !important;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+}
+
+/* =====================================================================
+   MODAL — Overlay + shell
+   ===================================================================== */
+
+.dfb-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(15, 23, 42, 0.55);
+  z-index: 9999;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+  -webkit-box-pack: center;
+      -ms-flex-pack: center;
+          justify-content: center;
+}
+
+@-webkit-keyframes dfbModalIn {
+  from { opacity: 0; -webkit-transform: translateY(-16px); transform: translateY(-16px); }
+  to   { opacity: 1; -webkit-transform: translateY(0);     transform: translateY(0); }
+}
+@keyframes dfbModalIn {
+  from { opacity: 0; transform: translateY(-16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* The modal content box is a flex column so header, body, footer stack */
+.dfb-modal-content {
+  background: #fff;
+  border-radius: var(--radius-md, 10px);
+  width: 92%;
+  max-width: 620px;
+  max-height: 92vh;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-orient: vertical;
+  -webkit-box-direction: normal;
+      -ms-flex-direction: column;
+          flex-direction: column;
+  box-shadow: 0 24px 40px rgba(0,0,0,0.12), 0 8px 16px rgba(0,0,0,0.06);
+  -webkit-animation: dfbModalIn 0.2s ease-out;
+          animation: dfbModalIn 0.2s ease-out;
+  overflow: hidden; /* clip children to rounded corners */
+}
+
+.dfb-modal-header {
+  -webkit-box-flex: 0;
+      -ms-flex: 0 0 auto;
+          flex: 0 0 auto;
+  padding: 18px 24px 14px;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-pack: justify;
+      -ms-flex-pack: justify;
+          justify-content: space-between;
+  -webkit-box-align: start;
+      -ms-flex-align: start;
+          align-items: flex-start;
+}
+
+.dfb-modal-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dfb-modal-header h2 {
+  margin: 0 0 2px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--color-text, #1e293b);
+}
+
+.dfb-modal-header-sub {
+  font-size: 0.83rem;
+  color: var(--color-text-muted, #64748b);
+  margin: 0;
+}
+
+.dfb-modal-close {
+  -ms-flex-negative: 0;
+      flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  background: var(--color-surface-alt, #f1f5f9);
+  border: none;
+  border-radius: 6px;
+  font-size: 1.1rem;
+  line-height: 32px;
+  text-align: center;
+  cursor: pointer;
+  color: var(--color-text-muted, #64748b);
+  margin-left: 12px;
+}
+
+.dfb-modal-close:hover {
+  background: var(--color-border, #e2e8f0);
+}
+
+/* =====================================================================
+   FORM WRAPPER — three-zone flex layout inside the modal
+   ===================================================================== */
+
+#dfb-question-form-wrapper {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-orient: vertical;
+  -webkit-box-direction: normal;
+      -ms-flex-direction: column;
+          flex-direction: column;
+  -webkit-box-flex: 1;
+      -ms-flex: 1 1 auto;
+          flex: 1 1 auto;
+  overflow: hidden;
+  /* Remove browser default form margins */
+  margin: 0;
+}
+
+/* The <form> tag Drupal renders (and its inner wrapper div) also need flex */
+#dfb-question-form-wrapper > form,
+#dfb-question-form-wrapper > form > div {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-orient: vertical;
+  -webkit-box-direction: normal;
+      -ms-flex-direction: column;
+          flex-direction: column;
+  -webkit-box-flex: 1;
+      -ms-flex: 1 1 auto;
+          flex: 1 1 auto;
+  overflow: hidden;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* =====================================================================
+   ZONE 1 — Type picker (fixed, does not scroll)
+   ===================================================================== */
+
+.dfb-type-section {
+  -webkit-box-flex: 0;
+      -ms-flex: 0 0 auto;
+          flex: 0 0 auto;
+  padding: 16px 20px 12px;
+}
+
+/* Drupal wraps #type=>'radios' in a div.form-wrapper; force flex grid.
+   Use a broad set of selectors to cover all Drupal markup variations. */
+.dfb-type-section .form-wrapper,
+.dfb-type-section .form-radios,
+.dfb-type-section > div,
+#dfb-question-form-wrapper .dfb-type-section .form-wrapper,
+#dfb-question-form-wrapper .dfb-type-section > div {
+  display: -webkit-box !important;
+  display: -ms-flexbox !important;
+  display: flex !important;
+  -ms-flex-wrap: wrap !important;
+      flex-wrap: wrap !important;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Each radio's form-item becomes a card */
+.dfb-type-section .form-type-radio {
+  -webkit-box-flex: 0;
+      -ms-flex: 0 0 auto;
+          flex: 0 0 auto;
+  width: calc(25% - 7px); /* 4 columns */
+  min-width: 90px;
+  position: relative;
+  margin: 0;
+}
+
+/* Hide the actual radio input */
+.dfb-type-section input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  margin: 0;
+}
+
+/* Style the label as a card */
+.dfb-type-section label {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-orient: vertical;
+  -webkit-box-direction: normal;
+      -ms-flex-direction: column;
+          flex-direction: column;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+  -webkit-box-pack: center;
+      -ms-flex-pack: center;
+          justify-content: center;
+  padding: 10px 4px 8px;
+  border: 1.5px solid var(--color-border, #e2e8f0);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-muted, #64748b);
+  text-align: center;
+  line-height: 1.3;
+  background: var(--color-surface, #fff);
+  -webkit-transition: border-color 0.15s, background 0.15s, color 0.15s;
+          transition: border-color 0.15s, background 0.15s, color 0.15s;
+  min-height: 68px;
+}
+
+/* Icon area above the label text using ::before */
+.dfb-type-section label::before {
+  display: block;
+  font-size: 1.3rem;
+  margin-bottom: 5px;
+  line-height: 1;
+}
+
+/* Per-type icons */
+.dfb-type-section label[for*="edit-type-text"]::before         { content: "⌨"; }
+.dfb-type-section label[for*="edit-type-textarea"]::before     { content: "☰"; }
+.dfb-type-section label[for*="edit-type-radio"]::before        { content: "◉"; }
+.dfb-type-section label[for*="edit-type-checkbox"]::before     { content: "☑"; }
+.dfb-type-section label[for*="edit-type-select"]::before       { content: "▾"; }
+.dfb-type-section label[for*="edit-type-file"]::before         { content: "📎"; }
+.dfb-type-section label[for*="edit-type-date"]::before         { content: "📅"; }
+.dfb-type-section label[for*="edit-type-time"]::before         { content: "⏱"; }
+.dfb-type-section label[for*="edit-type-rating"]::before       { content: "★"; }
+.dfb-type-section label[for*="edit-type-linear-scale"]::before { content: "◆"; }
+
+/* Selected state — CSS :checked sibling + JS class fallback */
+.dfb-type-section input[type="radio"]:checked + label,
+.dfb-type-section .form-type-radio.dfb-type-selected label {
+  border-color: var(--color-primary, #6366f1);
+  background: rgba(99, 102, 241, 0.06);
+  color: var(--color-primary, #6366f1);
+}
+
+.dfb-type-section label:hover {
+  border-color: #a5b4fc;
+}
+
+/* Separator between type picker and body */
+.dfb-modal-separator {
+  margin: 0;
+  border: none;
+  border-top: 1px solid var(--color-border, #e2e8f0);
+  -webkit-box-flex: 0;
+      -ms-flex: 0 0 auto;
+          flex: 0 0 auto;
+}
+
+/* =====================================================================
+   ZONE 2 — Scrollable body
+   ===================================================================== */
+
+.dfb-form-scrollable {
+  -webkit-box-flex: 1;
+      -ms-flex: 1 1 auto;
+          flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 18px 24px 8px;
+  /* Custom scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.dfb-form-scrollable::-webkit-scrollbar { width: 5px; }
+.dfb-form-scrollable::-webkit-scrollbar-track { background: transparent; }
+.dfb-form-scrollable::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+/* Reset Drupal default form-item spacing inside the scrollable zone */
+.dfb-form-scrollable .form-item {
+  margin-bottom: 12px;
+}
+
+.dfb-form-scrollable label {
+  display: block;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--color-text, #1e293b);
+  margin-bottom: 4px;
+}
+
+.dfb-form-scrollable input[type="text"],
+.dfb-form-scrollable select,
+.dfb-form-scrollable textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1.5px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-sm, 6px);
+  font-family: inherit;
+  font-size: 0.9rem;
+  color: var(--color-text, #1e293b);
+  background: #fff;
+  box-sizing: border-box;
+  -webkit-transition: border-color 0.15s;
+          transition: border-color 0.15s;
+}
+
+.dfb-form-scrollable input[type="text"]:focus,
+.dfb-form-scrollable select:focus,
+.dfb-form-scrollable textarea:focus {
+  outline: none;
+  border-color: var(--color-primary, #6366f1);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+/* Two-column row: question label + section name */
+.dfb-form-row {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.dfb-form-row > .form-item {
+  -webkit-box-flex: 1;
+      -ms-flex: 1 1 0%;
+          flex: 1 1 0%;
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+/* Section name display (read-only) */
+.dfb-section-name-val {
+  display: block;
+  padding: 8px 10px;
+  border: 1.5px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.9rem;
+  color: var(--color-text-muted, #64748b);
+  background: var(--color-surface-alt, #f8fafc);
+  min-height: 36px;
+}
+
+/* Required / Read-only toggle row */
+.dfb-toggle-row {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  gap: 24px;
+  margin-bottom: 12px;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+}
+
+.dfb-toggle-row .form-item {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+  gap: 8px;
+  margin-bottom: 0;
+  cursor: pointer;
+}
+
+.dfb-toggle-row .form-item label {
+  margin: 0;
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: var(--color-text, #1e293b);
+  cursor: pointer;
+}
+
+.dfb-toggle-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--color-primary, #6366f1);
+}
+
+/* =====================================================================
+   SUB-SECTIONS (options, scale, file, validation)
+   ===================================================================== */
+
+.dfb-q-subsection {
+  border-top: 1px dashed var(--color-border, #e2e8f0);
+  margin-top: 14px;
+  padding-top: 14px;
+}
+
+.dfb-subsection-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--color-text-muted, #64748b);
+  margin: 0 0 10px;
+}
+
+/* Option rows — input + remove button side by side */
+.dfb-option-row {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.dfb-option-row .form-item {
+  -webkit-box-flex: 1;
+      -ms-flex: 1 1 auto;
+          flex: 1 1 auto;
+  margin-bottom: 0;
+}
+
+.dfb-option-row .form-item input[type="text"] {
+  margin: 0;
+}
+
+/* Scale range row — two selects or two textfields */
+.dfb-scale-row {
+  gap: 12px;
+}
+
+.dfb-scale-row .form-item {
+  -webkit-box-flex: 1;
+      -ms-flex: 1;
+          flex: 1;
+}
+
+.dfb-scale-row .form-item select {
+  width: 100%;
+}
+
+/* Validation rows */
+.dfb-validation-row {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  -ms-flex-wrap: nowrap;
+      flex-wrap: nowrap;
+}
+
+.dfb-validation-row .form-item {
+  margin-bottom: 0;
+}
+
+.dfb-val-type  { -webkit-box-flex: 0; -ms-flex: 0 0 130px; flex: 0 0 130px; }
+.dfb-val-value { -webkit-box-flex: 0; -ms-flex: 0 0 80px;  flex: 0 0 80px;  }
+.dfb-val-msg   { -webkit-box-flex: 1; -ms-flex: 1 1 auto;  flex: 1 1 auto;  }
+
+.dfb-val-type select,
+.dfb-val-value input,
+.dfb-val-msg input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Remove (×) button */
+.dfb-btn-remove {
+  -ms-flex-negative: 0;
+      flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 6px;
+  font-size: 1rem;
+  line-height: 26px;
+  text-align: center;
+  cursor: pointer;
+  color: var(--color-text-muted, #64748b);
+  -webkit-transition: background 0.12s, color 0.12s;
+          transition: background 0.12s, color 0.12s;
+}
+
+.dfb-btn-remove:hover {
+  background: #fef2f2;
+  border-color: var(--color-error, #ef4444);
+  color: var(--color-error, #ef4444);
+}
+
+/* Add-more (+ Add Option, + Add Validation) */
+.dfb-btn-add-more {
+  background: transparent;
+  border: 1.5px dashed var(--color-primary, #6366f1);
+  color: var(--color-primary, #6366f1);
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 4px;
+  -webkit-transition: background 0.15s;
+          transition: background 0.15s;
+}
+
+.dfb-btn-add-more:hover {
+  background: rgba(99, 102, 241, 0.06);
+}
+
+/* =====================================================================
+   ZONE 3 — Action footer (fixed, does not scroll)
+   ===================================================================== */
+
+.dfb-modal-actions {
+  -webkit-box-flex: 0;
+      -ms-flex: 0 0 auto;
+          flex: 0 0 auto;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-pack: end;
+      -ms-flex-pack: end;
+          justify-content: flex-end;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+  gap: 10px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--color-border, #e2e8f0);
+  background: var(--color-surface-alt, #f8fafc);
+}
+
+.dfb-btn-cancel {
+  background: transparent;
+  border: 1px solid var(--color-border, #e2e8f0);
+  color: var(--color-text-muted, #64748b);
+  padding: 9px 18px;
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.dfb-btn-cancel:hover {
+  background: var(--color-surface-alt, #f0f4f8);
+}
+
+.dfb-btn-save-question {
+  background: var(--color-primary, #6366f1);
+  color: #fff;
+  border: none;
+  padding: 9px 22px;
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-transition: background 0.15s;
+          transition: background 0.15s;
+}
+
+.dfb-btn-save-question:hover {
+  background: var(--color-primary-dark, #4f46e5);
+}
+
+/* =====================================================================
+   VALIDATION ERRORS inside the modal
+   ===================================================================== */
+
+#dfb-question-form-wrapper .messages.error {
+  margin: 8px 0 12px;
+  padding: 10px 14px;
+  border-left: 4px solid var(--color-error, #ef4444);
+  background: #fef2f2;
+  border-radius: var(--radius-sm, 4px);
+  font-size: 0.875rem;
+  color: #b91c1c;
+}
+
+#dfb-question-form-wrapper .form-item .error,
+#dfb-question-form-wrapper input.error,
+#dfb-question-form-wrapper select.error {
+  border-color: var(--color-error, #ef4444) !important;
+}
+
+/* =====================================================================
+   EDIT QUESTION — Full-page layout overrides
+   The edit page reuses the modal UI classes but is NOT inside a modal,
+   so we remove the fixed-height / overflow constraints.
+   ===================================================================== */
+
+.dfb-edit-question-page {
+  background: #fff;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--color-border, #e2e8f0);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+/* Full-page type picker: allow wrapping without the fixed modal width */
+.dfb-edit-question-page .dfb-type-section {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+/* Scrollable zone is not actually scrollable on the edit page */
+.dfb-edit-scrollable {
+  flex: none !important;
+  overflow: visible !important;
+  padding: 20px 24px !important;
+  max-height: none !important;
+}
+
+/* Actions footer */
+.dfb-edit-question-page .dfb-modal-actions {
+  border-top: 1px solid var(--color-border, #e2e8f0);
+  background: var(--color-surface-alt, #f8fafc);
+  padding: 16px 24px;
+}
