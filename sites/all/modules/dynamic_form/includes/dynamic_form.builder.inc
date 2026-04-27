@@ -50,10 +50,17 @@ function dynamic_form_builder_page($form_id) {
 
   // Form header card.
   $output .= '<div class="dfb-builder-header-card">';
+  $output .= '<div class="dfb-builder-header-top">';
+  $output .= '<div class="dfb-builder-header-text">';
   $output .= '<h1 class="dfb-builder-title">' . check_plain($form_record->title) . '</h1>';
   if (!empty($form_record->description)) {
     $output .= '<p class="dfb-builder-desc">' . check_markup($form_record->description) . '</p>';
   }
+  $output .= '</div>';
+  $output .= '<a href="' . url('dashboard/forms/' . (int) $form_record->id . '/preview') . '"'
+    . ' target="_blank" class="dfb-btn-preview" title="' . t('Open preview in a new tab') . '">'
+    . t('Preview') . '</a>';
+  $output .= '</div>';
   $output .= '</div>';
 
   // Drupal Form API form: sections list + Add Section.
@@ -70,6 +77,19 @@ function dynamic_form_builder_page($form_id) {
   $output .= '<button type="button" class="dfb-modal-close" data-action="close-modal">&times;</button>';
   $output .= '</div>';
   $output .= drupal_render(drupal_get_form('dynamic_form_builder_question_form', (int) $form_record->id));
+  $output .= '</div>';
+  $output .= '</div>';
+
+  // Edit question modal shell — content is loaded on demand via AJAX.
+  $output .= '<div id="dfb-edit-question-modal" class="dfb-modal-overlay" style="display:none;">';
+  $output .= '<div class="dfb-modal-content">';
+  $output .= '<div id="dfb-edit-form-placeholder">';
+  $output .= '<div class="dfb-modal-header">';
+  $output .= '<div class="dfb-modal-header-text"><h2>' . t('Edit Question') . '</h2></div>';
+  $output .= '<button type="button" class="dfb-modal-close" data-action="close-edit-modal">&times;</button>';
+  $output .= '</div>';
+  $output .= '<div class="dfb-edit-form-loading"><p>' . t('Loading...') . '</p></div>';
+  $output .= '</div>';
   $output .= '</div>';
   $output .= '</div>';
 
@@ -345,10 +365,14 @@ function _dynamic_form_render_builder_question($question) {
   $output .= '<div class="dfb-drag-handle dfb-question-drag-handle"'
     . ' title="' . t('Drag to reorder') . '">&#8942;&#8942;</div>';
 
-  $output .= '<div class="dfb-question-content">';
+  $output .= '<div class="dfb-question-content dfb-question-editable"'
+    . ' title="' . t('Click to edit') . '">';
   $output .= '<div class="dfb-question-header">';
   $output .= '<h3 class="dfb-question-label">' . check_plain($question->label) . $req_star . '</h3>';
+  $output .= '<div class="dfb-question-header-right">';
   $output .= '<span class="dfb-question-type-badge">' . check_plain($question->type) . '</span>';
+  $output .= '<span class="dfb-edit-hint">&#9998;</span>';
+  $output .= '</div>';
   $output .= '</div>';
 
   if (!empty($question->description)) {
@@ -488,8 +512,7 @@ function dynamic_form_builder_question_form($form, &$form_state, $form_id) {
   );
   $form['scrollable']['options_wrapper'] = array(
     '#type'       => 'container',
-    '#attributes' => array('id' => 'dfb-q-options-wrapper', 'class' => array('dfb-q-subsection')),
-    '#states'     => $choice_states,
+    '#attributes' => array('id' => 'dfb-eq-options-wrapper', 'class' => array('dfb-q-subsection'), 'data-dfb-show-for' => 'radio checkbox select'),
   );
   $form['scrollable']['options_wrapper']['_title'] = array(
     '#markup' => '<p class="dfb-subsection-label">' . t('Options') . '</p>',
@@ -511,7 +534,7 @@ function dynamic_form_builder_question_form($form, &$form_state, $form_id) {
       '#limit_validation_errors' => array(),
       '#ajax'                    => array(
         'callback' => '_dfb_question_options_ajax_callback',
-        'wrapper'  => 'dfb-q-options-wrapper',
+        'wrapper'  => 'dfb-eq-options-wrapper',
         'effect'   => 'none',
       ),
       '#attributes'              => array('class' => array('dfb-btn-remove'), 'title' => t('Remove')),
@@ -526,7 +549,7 @@ function dynamic_form_builder_question_form($form, &$form_state, $form_id) {
     '#limit_validation_errors' => array(),
     '#ajax'                    => array(
       'callback' => '_dfb_question_options_ajax_callback',
-      'wrapper'  => 'dfb-q-options-wrapper',
+      'wrapper'  => 'dfb-eq-options-wrapper',
       'effect'   => 'none',
     ),
     '#attributes'              => array('class' => array('dfb-btn-add-more')),
@@ -537,13 +560,7 @@ function dynamic_form_builder_question_form($form, &$form_state, $form_id) {
   // -----------------------------------------------------------------
   $form['scrollable']['scale_settings'] = array(
     '#type'       => 'container',
-    '#attributes' => array('class' => array('dfb-q-subsection')),
-    '#states'     => array(
-      'visible' => array(
-        array(':input[name="type"]' => array('value' => 'rating')),
-        array(':input[name="type"]' => array('value' => 'linear_scale')),
-      ),
-    ),
+    '#attributes' => array('class' => array('dfb-q-subsection'), 'data-dfb-show-for' => 'rating linear_scale'),
   );
   $form['scrollable']['scale_settings']['_title'] = array(
     '#markup' => '<p class="dfb-subsection-label">' . t('Scale Range') . '</p>',
@@ -580,12 +597,7 @@ function dynamic_form_builder_question_form($form, &$form_state, $form_id) {
   // -----------------------------------------------------------------
   $form['scrollable']['file_settings'] = array(
     '#type'       => 'container',
-    '#attributes' => array('class' => array('dfb-q-subsection')),
-    '#states'     => array(
-      'visible' => array(
-        ':input[name="type"]' => array('value' => 'file'),
-      ),
-    ),
+    '#attributes' => array('class' => array('dfb-q-subsection'), 'data-dfb-show-for' => 'file'),
   );
   $form['scrollable']['file_settings']['_title'] = array(
     '#markup' => '<p class="dfb-subsection-label">' . t('File Settings') . '</p>',
@@ -611,11 +623,19 @@ function dynamic_form_builder_question_form($form, &$form_state, $form_id) {
   );
 
   // -----------------------------------------------------------------
-  // Validation rules — always visible, add-more / remove per row.
+  // Validation rules — visible only for text-input types.
   // -----------------------------------------------------------------
+  $validation_states = array(
+    'visible' => array(
+      array(':input[name="type"]' => array('value' => 'text')),
+      array(':input[name="type"]' => array('value' => 'textarea')),
+      array(':input[name="type"]' => array('value' => 'date')),
+      array(':input[name="type"]' => array('value' => 'time')),
+    ),
+  );
   $form['scrollable']['validations_wrapper'] = array(
     '#type'       => 'container',
-    '#attributes' => array('id' => 'dfb-q-validations-wrapper', 'class' => array('dfb-q-subsection')),
+    '#attributes' => array('id' => 'dfb-q-validations-wrapper', 'class' => array('dfb-q-subsection'), 'data-dfb-show-for' => 'text textarea date time'),
   );
   $rule_types = array(
     ''           => t('— Rule —'),
@@ -997,4 +1017,618 @@ function dynamic_form_ajax_reorder() {
   }
 
   drupal_exit();
+}
+
+/* =====================================================================
+   QUESTION EDIT — AJAX ENDPOINT + DRUPAL FORM API
+   ===================================================================== */
+
+/**
+ * AJAX endpoint: renders the pre-populated edit form for one question.
+ *
+ * Returns a Drupal AJAX commands array (html + settings) so the JS can
+ * inject the form into #dfb-edit-form-placeholder with all Drupal AJAX
+ * and #states behaviors properly attached.
+ */
+function dynamic_form_ajax_question_edit_form($question_id) {
+  $question_id = (int) $question_id;
+  if (!$question_id) {
+    drupal_not_found();
+    drupal_exit();
+  }
+
+  $html      = drupal_render(drupal_get_form('dynamic_form_builder_question_edit_form', $question_id));
+  $commands  = array();
+  $commands[] = ajax_command_html('#dfb-edit-form-placeholder', $html);
+  print ajax_render($commands);
+  drupal_exit();
+}
+
+/**
+ * Form builder: pre-populated "Edit Question" modal.
+ *
+ * First render: loads question + options + validations from DB into
+ * $form_state. Subsequent rebuilds (add/remove option, save errors)
+ * use the already-hydrated state — same pattern as the add form.
+ *
+ * Reuses the shared add/remove submit handlers (_dfb_question_*_submit)
+ * and the shared persist helpers. Only the AJAX wrapper IDs and submit
+ * handler differ from the add form.
+ */
+function dynamic_form_builder_question_edit_form($form, &$form_state, $question_id) {
+  $form_state['build_info']['files'][] = array(
+    'type'   => 'inc',
+    'module' => 'dynamic_form',
+    'name'   => 'includes/dynamic_form.builder',
+  );
+
+  if (!isset($form_state['dfb_eq_loaded'])) {
+    $q = db_select('dynamic_form_questions', 'q')
+      ->fields('q')
+      ->condition('id', $question_id)
+      ->condition('deleted_at', NULL, 'IS NULL')
+      ->execute()
+      ->fetchObject();
+
+    if (!$q) {
+      $form['error'] = array(
+        '#markup' => '<div class="dfb-modal-header">'
+          . '<div class="dfb-modal-header-text"><h2>' . t('Error') . '</h2></div>'
+          . '<button type="button" class="dfb-modal-close" data-action="close-edit-modal">&times;</button>'
+          . '</div><p style="padding:24px">' . t('Question not found.') . '</p>',
+      );
+      return $form;
+    }
+
+    $section_name = '';
+    if ($q->section_id) {
+      $section_name = db_select('dynamic_form_sections', 's')
+        ->fields('s', array('name'))
+        ->condition('id', $q->section_id)
+        ->execute()
+        ->fetchField();
+    }
+
+    // Existing options.
+    $db_options = db_select('dynamic_form_question_options', 'o')
+      ->fields('o')
+      ->condition('question_id', $question_id)
+      ->condition('deleted_at', NULL, 'IS NULL')
+      ->orderBy('position', 'ASC')
+      ->execute()
+      ->fetchAll();
+    $form_state['options'] = array();
+    foreach ($db_options as $opt) {
+      $form_state['options'][] = array('label' => $opt->option_label);
+    }
+    if (empty($form_state['options'])) {
+      $form_state['options'] = array(array('label' => ''), array('label' => ''));
+    }
+
+    // Existing validation rules (excluding scale meta).
+    $scale_keys  = array('scale_min', 'scale_max', 'scale_min_label', 'scale_max_label');
+    $db_vals = db_select('dynamic_form_question_validations', 'v')
+      ->fields('v')
+      ->condition('question_id', $question_id)
+      ->condition('rule_type', $scale_keys, 'NOT IN')
+      ->execute()
+      ->fetchAll();
+    $form_state['validations'] = array();
+    foreach ($db_vals as $val) {
+      $form_state['validations'][] = array(
+        'rule_type'     => $val->rule_type,
+        'rule_value'    => $val->rule_value,
+        'error_message' => $val->error_message,
+      );
+    }
+
+    // Scale meta (rating / linear_scale).
+    $scale_meta = array();
+    $db_scale = db_select('dynamic_form_question_validations', 'v')
+      ->fields('v')
+      ->condition('question_id', $question_id)
+      ->condition('rule_type', $scale_keys, 'IN')
+      ->execute()
+      ->fetchAll();
+    foreach ($db_scale as $meta) {
+      $scale_meta[$meta->rule_type] = $meta->rule_value;
+    }
+
+    $form_state['dfb_eq_loaded']       = TRUE;
+    $form_state['dfb_eq_question_id']  = (int) $question_id;
+    $form_state['dfb_eq_question']     = $q;
+    $form_state['dfb_eq_section_name'] = $section_name ?: '';
+    $form_state['dfb_eq_scale_meta']   = $scale_meta;
+  }
+
+  $q            = $form_state['dfb_eq_question'];
+  $section_name = $form_state['dfb_eq_section_name'];
+  $scale_meta   = $form_state['dfb_eq_scale_meta'];
+
+  // The #prefix includes the modal header so the injected HTML is self-contained.
+  $form['#action'] = url('system/ajax');
+
+  $form['#prefix'] = '<div id="dfb-edit-question-form-wrapper">'
+    . '<div class="dfb-modal-header">'
+    . '<div class="dfb-modal-header-text">'
+    . '<h2>' . t('Edit Question') . '</h2>'
+    . '<p class="dfb-modal-header-sub">'
+    . t('Section: @name', array('@name' => check_plain($section_name)))
+    . '</p>'
+    . '</div>'
+    . '<button type="button" class="dfb-modal-close" data-action="close-edit-modal">&times;</button>'
+    . '</div>';
+  $form['#suffix'] = '</div>';
+
+  $form['question_id'] = array('#type' => 'hidden', '#default_value' => (int) $q->id);
+  $form['section_id']  = array('#type' => 'hidden', '#default_value' => (int) $q->section_id);
+
+  // -----------------------------------------------------------------
+  // Zone 1 — Type picker (pre-selected to current type).
+  // -----------------------------------------------------------------
+  $form['type_section'] = array(
+    '#type'       => 'container',
+    '#attributes' => array('class' => array('dfb-type-section')),
+  );
+  $form['type_section']['type'] = array(
+    '#type'          => 'radios',
+    '#title'         => t('Question Type'),
+    '#title_display' => 'invisible',
+    '#required'      => TRUE,
+    '#default_value' => $q->type,
+    '#options'       => array(
+      'text'         => t('Short Text'),
+      'textarea'     => t('Long Text'),
+      'radio'        => t('Single Choice'),
+      'checkbox'     => t('Multi Choice'),
+      'select'       => t('Dropdown'),
+      'file'         => t('File Upload'),
+      'date'         => t('Date'),
+      'time'         => t('Time'),
+      'rating'       => t('Rating'),
+      'linear_scale' => t('Scale'),
+    ),
+    '#attributes'    => array('class' => array('dfb-type-picker')),
+  );
+
+  $form['sep'] = array('#markup' => '<hr class="dfb-modal-separator">');
+
+  // -----------------------------------------------------------------
+  // Zone 2 — Scrollable body.
+  // -----------------------------------------------------------------
+  $form['scrollable'] = array(
+    '#type'       => 'container',
+    '#attributes' => array('class' => array('dfb-form-scrollable')),
+  );
+
+  $form['scrollable']['label'] = array(
+    '#type'          => 'textfield',
+    '#title'         => t('Question Label'),
+    '#required'      => TRUE,
+    '#maxlength'     => 512,
+    '#default_value' => $q->label,
+    '#prefix'        => '<div class="dfb-form-row">',
+  );
+  $form['scrollable']['section_display'] = array(
+    '#type'   => 'item',
+    '#title'  => t('Section'),
+    '#markup' => '<span class="dfb-section-name-val">' . check_plain($section_name) . '</span>',
+    '#suffix' => '</div>',
+  );
+
+  $form['scrollable']['is_required'] = array(
+    '#type'          => 'checkbox',
+    '#title'         => t('Required'),
+    '#default_value' => $q->is_required,
+    '#prefix'        => '<div class="dfb-toggle-row">',
+  );
+  $form['scrollable']['is_readonly'] = array(
+    '#type'          => 'checkbox',
+    '#title'         => t('Read-only'),
+    '#default_value' => $q->is_readonly,
+    '#suffix'        => '</div>',
+  );
+
+  $form['scrollable']['description'] = array(
+    '#type'          => 'textarea',
+    '#title'         => t('Help Text'),
+    '#rows'          => 2,
+    '#default_value' => $q->description,
+    '#attributes'    => array('placeholder' => t('Optional — shown to respondents.')),
+  );
+
+  // -----------------------------------------------------------------
+  // Options sub-section. Uses dfb-eq-* IDs to avoid conflicts with
+  // the simultaneously-rendered add form.
+  // -----------------------------------------------------------------
+  $choice_states = array(
+    'visible' => array(
+      array(':input[name="type"]' => array('value' => 'radio')),
+      array(':input[name="type"]' => array('value' => 'checkbox')),
+      array(':input[name="type"]' => array('value' => 'select')),
+    ),
+  );
+  $form['scrollable']['options_wrapper'] = array(
+    '#type'       => 'container',
+    '#attributes' => array('id' => 'dfb-eq-options-wrapper', 'class' => array('dfb-q-subsection'), 'data-dfb-show-for' => 'radio checkbox select'),
+  );
+  $form['scrollable']['options_wrapper']['_title'] = array(
+    '#markup' => '<p class="dfb-subsection-label">' . t('Options') . '</p>',
+  );
+  foreach ($form_state['options'] as $i => $opt) {
+    $form['scrollable']['options_wrapper']['option_' . $i] = array(
+      '#type'          => 'textfield',
+      '#title'         => t('Option @n', array('@n' => $i + 1)),
+      '#title_display' => 'invisible',
+      '#default_value' => isset($opt['label']) ? $opt['label'] : '',
+      '#attributes'    => array('placeholder' => t('Option @n', array('@n' => $i + 1))),
+      '#prefix'        => '<div class="dfb-option-row">',
+    );
+    $form['scrollable']['options_wrapper']['remove_option_' . $i] = array(
+      '#type'                    => 'submit',
+      '#value'                   => t('×'),
+      '#name'                    => 'remove_option_' . $i,
+      '#submit'                  => array('_dfb_question_remove_option_submit'),
+      '#limit_validation_errors' => array(),
+      '#ajax'                    => array(
+        'callback' => '_dfb_eq_options_ajax_callback',
+        'wrapper'  => 'dfb-eq-options-wrapper',
+        'effect'   => 'none',
+      ),
+      '#attributes'              => array('class' => array('dfb-btn-remove'), 'title' => t('Remove')),
+      '#suffix'                  => '</div>',
+    );
+  }
+  $form['scrollable']['options_wrapper']['add_option'] = array(
+    '#type'                    => 'submit',
+    '#value'                   => t('+ Add Option'),
+    '#name'                    => 'add_option',
+    '#submit'                  => array('_dfb_question_add_option_submit'),
+    '#limit_validation_errors' => array(),
+    '#ajax'                    => array(
+      'callback' => '_dfb_eq_options_ajax_callback',
+      'wrapper'  => 'dfb-eq-options-wrapper',
+      'effect'   => 'none',
+    ),
+    '#attributes'              => array('class' => array('dfb-btn-add-more')),
+  );
+
+  // -----------------------------------------------------------------
+  // Scale settings.
+  // -----------------------------------------------------------------
+  $form['scrollable']['scale_settings'] = array(
+    '#type'       => 'container',
+    '#attributes' => array('class' => array('dfb-q-subsection'), 'data-dfb-show-for' => 'rating linear_scale'),
+  );
+  $form['scrollable']['scale_settings']['_title'] = array(
+    '#markup' => '<p class="dfb-subsection-label">' . t('Scale Range') . '</p>',
+  );
+  $form['scrollable']['scale_settings']['scale_min'] = array(
+    '#type'          => 'select',
+    '#title'         => t('Min'),
+    '#options'       => drupal_map_assoc(range(0, 5)),
+    '#default_value' => isset($scale_meta['scale_min']) ? (int) $scale_meta['scale_min'] : 1,
+    '#prefix'        => '<div class="dfb-form-row dfb-scale-row">',
+  );
+  $form['scrollable']['scale_settings']['scale_max'] = array(
+    '#type'          => 'select',
+    '#title'         => t('Max'),
+    '#options'       => drupal_map_assoc(range(2, 10)),
+    '#default_value' => isset($scale_meta['scale_max']) ? (int) $scale_meta['scale_max'] : 5,
+    '#suffix'        => '</div>',
+  );
+  $form['scrollable']['scale_settings']['scale_min_label'] = array(
+    '#type'          => 'textfield',
+    '#title'         => t('Min Label'),
+    '#default_value' => isset($scale_meta['scale_min_label']) ? $scale_meta['scale_min_label'] : '',
+    '#attributes'    => array('placeholder' => t('e.g. Not at all')),
+    '#prefix'        => '<div class="dfb-form-row dfb-scale-row">',
+  );
+  $form['scrollable']['scale_settings']['scale_max_label'] = array(
+    '#type'          => 'textfield',
+    '#title'         => t('Max Label'),
+    '#default_value' => isset($scale_meta['scale_max_label']) ? $scale_meta['scale_max_label'] : '',
+    '#attributes'    => array('placeholder' => t('e.g. Extremely likely')),
+    '#suffix'        => '</div>',
+  );
+
+  // -----------------------------------------------------------------
+  // File settings.
+  // -----------------------------------------------------------------
+  $form['scrollable']['file_settings'] = array(
+    '#type'       => 'container',
+    '#attributes' => array('class' => array('dfb-q-subsection'), 'data-dfb-show-for' => 'file'),
+  );
+  $form['scrollable']['file_settings']['_title'] = array(
+    '#markup' => '<p class="dfb-subsection-label">' . t('File Settings') . '</p>',
+  );
+  $form['scrollable']['file_settings']['allow_file_types'] = array(
+    '#type'          => 'textfield',
+    '#title'         => t('Allowed Extensions'),
+    '#description'   => t('Comma-separated, e.g. pdf,docx,jpg'),
+    '#default_value' => $q->allow_file_types ? $q->allow_file_types : '',
+    '#attributes'    => array('placeholder' => 'pdf,docx,jpg'),
+  );
+  $size_mb_default = $q->max_file_size ? (int) ($q->max_file_size / 1048576) : '';
+  $form['scrollable']['file_settings']['max_file_size_mb'] = array(
+    '#type'          => 'textfield',
+    '#title'         => t('Max Size (MB)'),
+    '#size'          => 6,
+    '#default_value' => $size_mb_default,
+    '#attributes'    => array('placeholder' => '10'),
+    '#prefix'        => '<div class="dfb-form-row dfb-scale-row">',
+  );
+  $form['scrollable']['file_settings']['max_files'] = array(
+    '#type'          => 'select',
+    '#title'         => t('Max Files'),
+    '#options'       => drupal_map_assoc(range(1, 10)),
+    '#default_value' => $q->max_files ? (int) $q->max_files : 1,
+    '#suffix'        => '</div>',
+  );
+
+  // -----------------------------------------------------------------
+  // Validation rules.
+  // -----------------------------------------------------------------
+  $rule_types = array(
+    ''           => t('— Rule —'),
+    'min_length' => t('Min Length'),
+    'max_length' => t('Max Length'),
+    'min_value'  => t('Min Value'),
+    'max_value'  => t('Max Value'),
+    'regex'      => t('Regex'),
+    'email'      => t('Email'),
+    'url'        => t('URL'),
+    'numeric'    => t('Numeric Only'),
+  );
+  $validation_states = array(
+    'visible' => array(
+      array(':input[name="type"]' => array('value' => 'text')),
+      array(':input[name="type"]' => array('value' => 'textarea')),
+      array(':input[name="type"]' => array('value' => 'date')),
+      array(':input[name="type"]' => array('value' => 'time')),
+    ),
+  );
+  $form['scrollable']['validations_wrapper'] = array(
+    '#type'       => 'container',
+    '#attributes' => array('id' => 'dfb-eq-validations-wrapper', 'class' => array('dfb-q-subsection'), 'data-dfb-show-for' => 'text textarea date time'),
+  );
+  $form['scrollable']['validations_wrapper']['_title'] = array(
+    '#markup' => '<p class="dfb-subsection-label">' . t('Validation Rules') . '</p>',
+  );
+  foreach ($form_state['validations'] as $i => $v) {
+    $form['scrollable']['validations_wrapper']['val_type_' . $i] = array(
+      '#type'          => 'select',
+      '#title'         => t('Rule'),
+      '#title_display' => 'invisible',
+      '#options'       => $rule_types,
+      '#default_value' => isset($v['rule_type']) ? $v['rule_type'] : '',
+      '#prefix'        => '<div class="dfb-validation-row">',
+      '#attributes'    => array('class' => array('dfb-val-type')),
+    );
+    $form['scrollable']['validations_wrapper']['val_value_' . $i] = array(
+      '#type'          => 'textfield',
+      '#title'         => t('Value'),
+      '#title_display' => 'invisible',
+      '#default_value' => isset($v['rule_value']) ? $v['rule_value'] : '',
+      '#size'          => 10,
+      '#attributes'    => array('placeholder' => t('Value'), 'class' => array('dfb-val-value')),
+    );
+    $form['scrollable']['validations_wrapper']['val_msg_' . $i] = array(
+      '#type'          => 'textfield',
+      '#title'         => t('Error Message'),
+      '#title_display' => 'invisible',
+      '#default_value' => isset($v['error_message']) ? $v['error_message'] : '',
+      '#attributes'    => array('placeholder' => t('Error message'), 'class' => array('dfb-val-msg')),
+    );
+    $form['scrollable']['validations_wrapper']['remove_validation_' . $i] = array(
+      '#type'                    => 'submit',
+      '#value'                   => t('×'),
+      '#name'                    => 'remove_validation_' . $i,
+      '#submit'                  => array('_dfb_question_remove_validation_submit'),
+      '#limit_validation_errors' => array(),
+      '#ajax'                    => array(
+        'callback' => '_dfb_eq_validations_ajax_callback',
+        'wrapper'  => 'dfb-eq-validations-wrapper',
+        'effect'   => 'none',
+      ),
+      '#attributes'              => array('class' => array('dfb-btn-remove'), 'title' => t('Remove')),
+      '#suffix'                  => '</div>',
+    );
+  }
+  $form['scrollable']['validations_wrapper']['add_validation'] = array(
+    '#type'                    => 'submit',
+    '#value'                   => t('+ Add Validation'),
+    '#name'                    => 'add_validation',
+    '#submit'                  => array('_dfb_question_add_validation_submit'),
+    '#limit_validation_errors' => array(),
+    '#ajax'                    => array(
+      'callback' => '_dfb_eq_validations_ajax_callback',
+      'wrapper'  => 'dfb-eq-validations-wrapper',
+      'effect'   => 'none',
+    ),
+    '#attributes'              => array('class' => array('dfb-btn-add-more')),
+  );
+
+  // -----------------------------------------------------------------
+  // Zone 3 — Action footer.
+  // -----------------------------------------------------------------
+  $form['actions'] = array(
+    '#type'       => 'container',
+    '#attributes' => array('class' => array('dfb-modal-actions')),
+  );
+  $form['actions']['cancel'] = array(
+    '#markup' => '<button type="button" class="dfb-btn-cancel" data-action="close-edit-modal">'
+      . t('Cancel') . '</button>',
+  );
+  $form['actions']['save'] = array(
+    '#type'       => 'submit',
+    '#value'      => t('Save Changes'),
+    '#attributes' => array('class' => array('dfb-btn-save-question')),
+    '#ajax'       => array(
+      'callback' => '_dfb_question_edit_save_ajax_callback',
+    ),
+  );
+
+  return $form;
+}
+
+/* Shared AJAX callbacks for the edit form's dynamic wrappers. */
+
+function _dfb_eq_options_ajax_callback($form, &$form_state) {
+  return $form['scrollable']['options_wrapper'];
+}
+
+function _dfb_eq_validations_ajax_callback($form, &$form_state) {
+  return $form['scrollable']['validations_wrapper'];
+}
+
+/**
+ * Validate handler for the edit form.
+ */
+function dynamic_form_builder_question_edit_form_validate($form, &$form_state) {
+  if (trim($form_state['values']['label']) === '') {
+    form_set_error('label', t('Question label is required.'));
+  }
+}
+
+/**
+ * Submit handler: UPDATE question + soft-delete/re-insert options
+ * + hard-delete/re-insert validations.
+ */
+function dynamic_form_builder_question_edit_form_submit($form, &$form_state) {
+  global $user;
+  $now         = REQUEST_TIME;
+  $values      = $form_state['values'];
+  $question_id = (int) $form_state['dfb_eq_question_id'];
+  $type        = $values['type'];
+
+  $allow_file_types = NULL;
+  $max_file_size    = NULL;
+  $max_files        = NULL;
+  if ($type === 'file') {
+    $allow_file_types = isset($values['allow_file_types']) ? trim($values['allow_file_types']) : NULL;
+    $size_mb          = isset($values['max_file_size_mb'])  ? (int) $values['max_file_size_mb']  : 0;
+    $max_file_size    = $size_mb ? $size_mb * 1048576 : NULL;
+    $max_files        = isset($values['max_files'])         ? (int) $values['max_files']         : NULL;
+  }
+
+  db_update('dynamic_form_questions')
+    ->fields(array(
+      'label'            => trim($values['label']),
+      'description'      => trim(isset($values['description']) ? $values['description'] : ''),
+      'type'             => $type,
+      'is_required'      => !empty($values['is_required']) ? 1 : 0,
+      'is_readonly'      => !empty($values['is_readonly'])  ? 1 : 0,
+      'allow_file_types' => $allow_file_types ?: NULL,
+      'max_file_size'    => $max_file_size,
+      'max_files'        => $max_files,
+      'updated_at'       => $now,
+    ))
+    ->condition('id', $question_id)
+    ->execute();
+
+  // Soft-delete existing options then re-insert survivors.
+  db_update('dynamic_form_question_options')
+    ->fields(array('deleted_at' => $now, 'deleted_by' => (int) $user->uid))
+    ->condition('question_id', $question_id)
+    ->condition('deleted_at', NULL, 'IS NULL')
+    ->execute();
+
+  $choice_types = array('radio', 'checkbox', 'select', 'rating', 'linear_scale');
+  if (in_array($type, $choice_types)) {
+    foreach ($form_state['options'] as $i => $opt) {
+      $label = isset($values['option_' . $i]) ? trim($values['option_' . $i]) : '';
+      if ($label !== '') {
+        db_insert('dynamic_form_question_options')->fields(array(
+          'question_id'  => $question_id,
+          'option_label' => $label,
+          'position'     => $i,
+          'created_by'   => (int) $user->uid,
+          'created_at'   => $now,
+          'updated_at'   => $now,
+        ))->execute();
+      }
+    }
+  }
+
+  // Hard-delete all validation rows then re-insert.
+  db_delete('dynamic_form_question_validations')
+    ->condition('question_id', $question_id)
+    ->execute();
+
+  if (in_array($type, array('rating', 'linear_scale'))) {
+    $scale_fields = array(
+      'scale_min'       => isset($values['scale_min'])       ? (string) $values['scale_min']    : NULL,
+      'scale_max'       => isset($values['scale_max'])       ? (string) $values['scale_max']    : NULL,
+      'scale_min_label' => isset($values['scale_min_label']) ? trim($values['scale_min_label']) : NULL,
+      'scale_max_label' => isset($values['scale_max_label']) ? trim($values['scale_max_label']) : NULL,
+    );
+    foreach ($scale_fields as $rule_type => $rule_value) {
+      if ($rule_value !== NULL && $rule_value !== '') {
+        db_insert('dynamic_form_question_validations')->fields(array(
+          'question_id' => $question_id,
+          'rule_type'   => $rule_type,
+          'rule_value'  => $rule_value,
+          'created_by'  => (int) $user->uid,
+          'created_at'  => $now,
+          'updated_at'  => $now,
+        ))->execute();
+      }
+    }
+  }
+
+  foreach ($form_state['validations'] as $i => $v) {
+    $rule_type = isset($values['val_type_' . $i]) ? $values['val_type_' . $i] : '';
+    if ($rule_type === '') { continue; }
+    db_insert('dynamic_form_question_validations')->fields(array(
+      'question_id'   => $question_id,
+      'rule_type'     => $rule_type,
+      'rule_value'    => isset($values['val_value_' . $i]) ? (trim($values['val_value_' . $i]) ?: NULL) : NULL,
+      'error_message' => isset($values['val_msg_'   . $i]) ? (trim($values['val_msg_'   . $i]) ?: NULL) : NULL,
+      'created_by'    => (int) $user->uid,
+      'created_at'    => $now,
+      'updated_at'    => $now,
+    ))->execute();
+  }
+
+  // Fetch the updated row so the AJAX callback can re-render the card.
+  $form_state['dfb_eq_saved_question'] = db_select('dynamic_form_questions', 'q')
+    ->fields('q')
+    ->condition('id', $question_id)
+    ->execute()
+    ->fetchObject();
+
+  $form_state['rebuild'] = TRUE;
+}
+
+/**
+ * AJAX callback for the "Save Changes" button.
+ *
+ * On success: replaces the question card in the builder, closes the
+ * edit modal, then resets the form wrapper for the next edit.
+ * On error: re-renders the form in place so error messages appear.
+ */
+function _dfb_question_edit_save_ajax_callback($form, &$form_state) {
+  $commands = array();
+
+  if (form_get_errors()) {
+    $commands[] = ajax_command_replace(
+      '#dfb-edit-question-form-wrapper',
+      drupal_render($form)
+    );
+    return array('#type' => 'ajax', '#commands' => $commands);
+  }
+
+  $q = $form_state['dfb_eq_saved_question'];
+  $commands[] = ajax_command_replace(
+    '.dfb-question-card[data-question-id="' . (int) $q->id . '"]',
+    _dynamic_form_render_builder_question($q)
+  );
+  $commands[] = ajax_command_invoke('#dfb-edit-question-modal', 'fadeOut', array('fast'));
+  $commands[] = ajax_command_replace(
+    '#dfb-edit-question-form-wrapper',
+    drupal_render($form)
+  );
+
+  return array('#type' => 'ajax', '#commands' => $commands);
 }
