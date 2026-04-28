@@ -511,6 +511,16 @@ function dynamic_form_builder_question_form($form, &$form_state, $form_id) {
       '</div>',
   );
 
+  // Select settings — allow multiple choice. Shown only for select type.
+  $form['scrollable']['select_settings'] = array(
+    '#type'       => 'container',
+    '#attributes' => array('class' => array('dfb-q-subsection'), 'data-dfb-show-for' => 'select'),
+  );
+  $form['scrollable']['select_settings']['allow_multiple'] = array(
+    '#type'  => 'checkbox',
+    '#title' => t('Allow Multiple Choice'),
+  );
+
   // -----------------------------------------------------------------
   // Options sub-section — radio / checkbox / select / rating / scale.
   // #states keeps this hidden/shown; no AJAX needed for type changes.
@@ -930,6 +940,18 @@ function dynamic_form_builder_question_form_submit($form, &$form_state) {
     }
   }
 
+  // Allow-multiple flag for select questions.
+  if ($type === 'select' && !empty($values['allow_multiple'])) {
+    db_insert('dynamic_form_question_validations')->fields(array(
+      'question_id' => (int) $question_id,
+      'rule_type'   => 'allow_multiple',
+      'rule_value'  => '1',
+      'created_by'  => (int) $user->uid,
+      'created_at'  => $now,
+      'updated_at'  => $now,
+    ))->execute();
+  }
+
   // User-defined validation rules.
   foreach ($form_state['validations'] as $i => $v) {
     $rule_type = isset($values['val_type_' . $i]) ? $values['val_type_' . $i] : '';
@@ -1117,8 +1139,8 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
       $form_state['options'] = array(array('label' => ''), array('label' => ''));
     }
 
-    // Existing validation rules (excluding scale meta).
-    $scale_keys  = array('scale_min', 'scale_max', 'scale_min_label', 'scale_max_label');
+    // Existing validation rules (excluding scale meta + allow_multiple).
+    $scale_keys  = array('scale_min', 'scale_max', 'scale_min_label', 'scale_max_label', 'allow_multiple');
     $db_vals = db_select('dynamic_form_question_validations', 'v')
       ->fields('v')
       ->condition('question_id', $question_id)
@@ -1261,6 +1283,17 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
       '</div>',
   );
 
+  // Select settings — allow multiple choice. Shown only for select type.
+  $form['scrollable']['select_settings'] = array(
+    '#type'       => 'container',
+    '#attributes' => array('class' => array('dfb-q-subsection'), 'data-dfb-show-for' => 'select'),
+  );
+  $form['scrollable']['select_settings']['allow_multiple'] = array(
+    '#type'          => 'checkbox',
+    '#title'         => t('Allow Multiple Choice'),
+    '#default_value' => !empty($scale_meta['allow_multiple']) ? 1 : 0,
+  );
+
   // -----------------------------------------------------------------
   // Options sub-section. Uses dfb-eq-* IDs to avoid conflicts with
   // the simultaneously-rendered add form.
@@ -1274,7 +1307,7 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
   );
   $form['scrollable']['options_wrapper'] = array(
     '#type'       => 'container',
-    '#attributes' => array('id' => 'dfb-eq-options-wrapper', 'class' => array('dfb-q-subsection'), 'data-dfb-show-for' => 'radio checkbox select'),
+    '#attributes' => array('id' => 'dfb-eq-edit-options-wrapper', 'class' => array('dfb-q-subsection'), 'data-dfb-show-for' => 'radio checkbox select'),
   );
   $form['scrollable']['options_wrapper']['_title'] = array(
     '#markup' => '<p class="dfb-subsection-label">' . t('Options') . '</p>',
@@ -1292,11 +1325,12 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
       '#type'                    => 'submit',
       '#value'                   => t('×'),
       '#name'                    => 'remove_option_' . $i,
+      '#id'                      => 'dfb-eq-edit-remove-option-' . $i,
       '#submit'                  => array('_dfb_question_remove_option_submit'),
       '#limit_validation_errors' => array(),
       '#ajax'                    => array(
         'callback' => '_dfb_eq_options_ajax_callback',
-        'wrapper'  => 'dfb-eq-options-wrapper',
+        'wrapper'  => 'dfb-eq-edit-options-wrapper',
         'effect'   => 'none',
       ),
       '#attributes'              => array('class' => array('dfb-btn-remove'), 'title' => t('Remove')),
@@ -1307,11 +1341,12 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
     '#type'                    => 'submit',
     '#value'                   => t('+ Add Option'),
     '#name'                    => 'add_option',
+    '#id'                      => 'dfb-eq-edit-add-option',
     '#submit'                  => array('_dfb_question_add_option_submit'),
     '#limit_validation_errors' => array(),
     '#ajax'                    => array(
       'callback' => '_dfb_eq_options_ajax_callback',
-      'wrapper'  => 'dfb-eq-options-wrapper',
+      'wrapper'  => 'dfb-eq-edit-options-wrapper',
       'effect'   => 'none',
     ),
     '#attributes'              => array('class' => array('dfb-btn-add-more')),
@@ -1414,7 +1449,7 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
   );
   $form['scrollable']['validations_wrapper'] = array(
     '#type'       => 'container',
-    '#attributes' => array('id' => 'dfb-eq-validations-wrapper', 'class' => array('dfb-q-subsection'), 'data-dfb-show-for' => 'text textarea date time'),
+    '#attributes' => array('id' => 'dfb-eq-edit-validations-wrapper', 'class' => array('dfb-q-subsection'), 'data-dfb-show-for' => 'text textarea date time'),
   );
   $form['scrollable']['validations_wrapper']['_title'] = array(
     '#markup' => '<p class="dfb-subsection-label">' . t('Validation Rules') . '</p>',
@@ -1448,11 +1483,12 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
       '#type'                    => 'submit',
       '#value'                   => t('×'),
       '#name'                    => 'remove_validation_' . $i,
+      '#id'                      => 'dfb-eq-edit-remove-validation-' . $i,
       '#submit'                  => array('_dfb_question_remove_validation_submit'),
       '#limit_validation_errors' => array(),
       '#ajax'                    => array(
         'callback' => '_dfb_eq_validations_ajax_callback',
-        'wrapper'  => 'dfb-eq-validations-wrapper',
+        'wrapper'  => 'dfb-eq-edit-validations-wrapper',
         'effect'   => 'none',
       ),
       '#attributes'              => array('class' => array('dfb-btn-remove'), 'title' => t('Remove')),
@@ -1463,11 +1499,12 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
     '#type'                    => 'submit',
     '#value'                   => t('+ Add Validation'),
     '#name'                    => 'add_validation',
+    '#id'                      => 'dfb-eq-edit-add-validation',
     '#submit'                  => array('_dfb_question_add_validation_submit'),
     '#limit_validation_errors' => array(),
     '#ajax'                    => array(
       'callback' => '_dfb_eq_validations_ajax_callback',
-      'wrapper'  => 'dfb-eq-validations-wrapper',
+      'wrapper'  => 'dfb-eq-edit-validations-wrapper',
       'effect'   => 'none',
     ),
     '#attributes'              => array('class' => array('dfb-btn-add-more')),
@@ -1487,6 +1524,7 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
   $form['actions']['save'] = array(
     '#type'       => 'submit',
     '#value'      => t('Save Changes'),
+    '#id'         => 'dfb-eq-edit-save',
     '#attributes' => array('class' => array('dfb-btn-save-question')),
     '#ajax'       => array(
       'callback' => '_dfb_question_edit_save_ajax_callback',
@@ -1496,7 +1534,9 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
   return $form;
 }
 
-/* Shared AJAX callbacks for the edit form's dynamic wrappers. */
+/* AJAX callbacks for the edit form's dynamic wrappers.
+ * These return the same elements as the add-form callbacks but target the
+ * edit-form's uniquely-IDed containers so the DOM replacement is correct. */
 
 function _dfb_eq_options_ajax_callback($form, &$form_state) {
   return $form['scrollable']['options_wrapper'];
@@ -1612,6 +1652,18 @@ function dynamic_form_builder_question_edit_form_submit($form, &$form_state) {
       'created_by'    => (int) $user->uid,
       'created_at'    => $now,
       'updated_at'    => $now,
+    ))->execute();
+  }
+
+  // Allow-multiple flag for select questions.
+  if ($type === 'select' && !empty($values['allow_multiple'])) {
+    db_insert('dynamic_form_question_validations')->fields(array(
+      'question_id' => $question_id,
+      'rule_type'   => 'allow_multiple',
+      'rule_value'  => '1',
+      'created_by'  => (int) $user->uid,
+      'created_at'  => $now,
+      'updated_at'  => $now,
     ))->execute();
   }
 

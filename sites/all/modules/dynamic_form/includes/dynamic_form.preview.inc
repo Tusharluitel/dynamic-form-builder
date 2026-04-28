@@ -29,6 +29,9 @@ function dynamic_form_preview_page($form_id) {
   // Load CKEditor when the form has text_editor questions.
   _dynamic_form_preview_maybe_load_ckeditor($form_id);
 
+  // Load Select2 when the form has select questions.
+  _dynamic_form_preview_maybe_load_select2($form_id);
+
   module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.dashboard');
   $sidebar_html = _dynamic_form_dashboard_sidebar('forms');
 
@@ -73,13 +76,13 @@ function dynamic_form_preview_page($form_id) {
     }
   }
 
-  // Load scale/rating meta-rules, grouped by question_id.
+  // Load scale/rating meta-rules and select flags, grouped by question_id.
   $scale_by_question = array();
   if (!empty($question_ids)) {
     $metas = db_select('dynamic_form_question_validations', 'v')
       ->fields('v')
       ->condition('question_id', $question_ids, 'IN')
-      ->condition('rule_type', array('scale_min', 'scale_max', 'scale_min_label', 'scale_max_label'), 'IN')
+      ->condition('rule_type', array('scale_min', 'scale_max', 'scale_min_label', 'scale_max_label', 'allow_multiple'), 'IN')
       ->execute()
       ->fetchAll();
     foreach ($metas as $meta) {
@@ -214,6 +217,60 @@ JS;
 }
 
 /**
+ * Loads Select2 assets for the preview page if select questions exist.
+ *
+ * Adds Select2 CSS/JS from sites/all/libraries/select2/ and an inline
+ * Drupal behaviour that initialises each .dfp-select2 element.
+ * The init is wrapped in try/catch so it degrades gracefully when
+ * jQuery < 1.7 is installed (Select2 v3 needs .prop() from jQuery 1.6+).
+ *
+ * @param int $form_id  The dynamic_form_forms record ID.
+ */
+function _dynamic_form_preview_maybe_load_select2($form_id) {
+  $has_select = db_select('dynamic_form_questions', 'q')
+    ->fields('q', array('id'))
+    ->condition('form_id', $form_id)
+    ->condition('type', 'select')
+    ->condition('deleted_at', NULL, 'IS NULL')
+    ->range(0, 1)
+    ->execute()
+    ->fetchField();
+
+  if (!$has_select) {
+    return;
+  }
+
+  $select2_base = 'sites/all/libraries/select2';
+  if (!file_exists(DRUPAL_ROOT . '/' . $select2_base . '/select2.min.js')) {
+    return;
+  }
+
+  drupal_add_css($select2_base . '/select2.css');
+  drupal_add_js($select2_base . '/select2.min.js', array('weight' => 10));
+
+  $init_js = <<<JS
+(function ($) {
+  Drupal.behaviors.dfpSelect2Preview = {
+    attach: function (context, settings) {
+      $('.dfp-select2', context).once('dfp-s2-init', function () {
+        try {
+          $(this).select2({
+            placeholder:    $(this).hasClass('dfp-select-multi') ? '' : '-- Select an option --',
+            allowClear:     !$(this).hasClass('dfp-select-multi'),
+            width:          '100%',
+            disabled:       true
+          });
+        } catch (e) { /* graceful fallback for jQuery < 1.7 */ }
+      });
+    }
+  };
+})(jQuery);
+JS;
+
+  drupal_add_js($init_js, array('type' => 'inline', 'scope' => 'footer', 'weight' => 20));
+}
+
+/**
  * Renders one question as a disabled preview form element.
  *
  * @param object $q     Question DB row.
@@ -288,8 +345,13 @@ function _dynamic_form_render_preview_question($q, array $opts, array $scale) {
         $input_html = '<p class="dfp-no-options">' . t('No options defined.') . '</p>';
       }
       else {
-        $input_html = '<select class="dfp-select" disabled>'
-          . '<option value="">' . t('— Select an option —') . '</option>';
+        $allow_multi  = !empty($scale['allow_multiple']);
+        $multi_attr   = $allow_multi ? ' multiple' : '';
+        $select_class = $allow_multi ? 'dfp-select dfp-select-multi dfp-select2' : 'dfp-select dfp-select2';
+        $input_html   = '<select class="' . $select_class . '" disabled' . $multi_attr . '>';
+        if (!$allow_multi) {
+          $input_html .= '<option value="">' . t('— Select an option —') . '</option>';
+        }
         foreach ($opts as $opt) {
           $input_html .= '<option>' . check_plain($opt->option_label) . '</option>';
         }

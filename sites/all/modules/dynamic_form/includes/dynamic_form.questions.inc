@@ -57,8 +57,8 @@ function dynamic_form_edit_question_form($form, &$form_state, $question_id) {
     }
 
     // Separate scale meta-rules from user validations.
-    $scale_keys  = array('scale_min', 'scale_max', 'scale_min_label', 'scale_max_label');
-    $scale_vals  = array('scale_min' => 1, 'scale_max' => 5, 'scale_min_label' => '', 'scale_max_label' => '');
+    $scale_keys  = array('scale_min', 'scale_max', 'scale_min_label', 'scale_max_label', 'allow_multiple');
+    $scale_vals  = array('scale_min' => 1, 'scale_max' => 5, 'scale_min_label' => '', 'scale_max_label' => '', 'allow_multiple' => '0');
     $db_vals     = array();
     $db_val_rows = db_select('dynamic_form_question_validations', 'v')
       ->fields('v', array('rule_type', 'rule_value', 'error_message'))
@@ -174,6 +174,20 @@ function dynamic_form_edit_question_form($form, &$form_state, $question_id) {
           t('Respondents will see a CKEditor rich text editor for their answer. No additional configuration needed.') .
         '</p>' .
       '</div>',
+  );
+
+  // Select settings — allow multiple choice.
+  $form['scrollable']['select_settings'] = array(
+    '#type'       => 'container',
+    '#attributes' => array('class' => array('dfb-q-subsection')),
+    '#states'     => array(
+      'visible' => array(':input[name="type"]' => array('value' => 'select')),
+    ),
+  );
+  $form['scrollable']['select_settings']['allow_multiple'] = array(
+    '#type'          => 'checkbox',
+    '#title'         => t('Allow Multiple Choice'),
+    '#default_value' => !empty($scale_vals['allow_multiple']) ? 1 : 0,
   );
 
   // Placeholder.
@@ -482,7 +496,7 @@ function dynamic_form_edit_question_form_submit($form, &$form_state) {
   }
 
   // --- Validations: delete old user rules, re-insert ---
-  $scale_keys = array('scale_min', 'scale_max', 'scale_min_label', 'scale_max_label');
+  $scale_keys = array('scale_min', 'scale_max', 'scale_min_label', 'scale_max_label', 'allow_multiple');
   db_delete('dynamic_form_question_validations')
     ->condition('question_id', $qid)
     ->condition('rule_type', $scale_keys, 'NOT IN')
@@ -505,11 +519,23 @@ function dynamic_form_edit_question_form_submit($form, &$form_state) {
     ))->execute();
   }
 
-  // --- Scale settings: delete and re-insert ---
+  // --- Scale / select meta: delete and re-insert ---
   db_delete('dynamic_form_question_validations')
     ->condition('question_id', $qid)
     ->condition('rule_type', $scale_keys, 'IN')
     ->execute();
+
+  // Allow-multiple flag for select questions.
+  if ($type === 'select' && !empty($values['allow_multiple'])) {
+    db_insert('dynamic_form_question_validations')->fields(array(
+      'question_id' => $qid,
+      'rule_type'   => 'allow_multiple',
+      'rule_value'  => '1',
+      'created_by'  => $user->uid,
+      'created_at'  => $now,
+      'updated_at'  => $now,
+    ))->execute();
+  }
 
   if (in_array($type, array('rating', 'linear_scale'))) {
     $scale_fields = array(
