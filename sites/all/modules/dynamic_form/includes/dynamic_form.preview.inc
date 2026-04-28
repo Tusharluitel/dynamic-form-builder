@@ -26,6 +26,9 @@ function dynamic_form_preview_page($form_id) {
   $module_path = drupal_get_path('module', 'dynamic_form');
   drupal_add_css($module_path . '/css/preview.css');
 
+  // Load CKEditor when the form has text_editor questions.
+  _dynamic_form_preview_maybe_load_ckeditor($form_id);
+
   module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.dashboard');
   $sidebar_html = _dynamic_form_dashboard_sidebar('forms');
 
@@ -149,6 +152,68 @@ function dynamic_form_preview_page($form_id) {
 }
 
 /**
+ * Loads CKEditor assets for the preview page if text_editor questions exist.
+ *
+ * Adds CKEditor's JS (resolved via the ckeditor module) and an inline
+ * Drupal behaviour that initialises each .dfp-text-editor-area textarea
+ * in read-only mode once the library is ready.
+ *
+ * @param int $form_id  The dynamic_form_forms record ID.
+ */
+function _dynamic_form_preview_maybe_load_ckeditor($form_id) {
+  $has_editor = db_select('dynamic_form_questions', 'q')
+    ->fields('q', array('id'))
+    ->condition('form_id', $form_id)
+    ->condition('type', 'text_editor')
+    ->condition('deleted_at', NULL, 'IS NULL')
+    ->range(0, 1)
+    ->execute()
+    ->fetchField();
+
+  if (!$has_editor) {
+    return;
+  }
+
+  if (!module_exists('ckeditor')) {
+    return;
+  }
+
+  $cke_dir = ckeditor_path('url');
+  if (empty($cke_dir)) {
+    return;
+  }
+
+  // Load the CKEditor library JS.
+  drupal_add_js($cke_dir . '/ckeditor.js', array('type' => 'external', 'weight' => 10));
+
+  // Drupal behaviour: initialise each preview textarea as read-only CKEditor.
+  $init_js = <<<JS
+(function ($) {
+  Drupal.behaviors.dfpCkeditorPreview = {
+    attach: function (context, settings) {
+      \$('.dfp-text-editor-area', context).once('dfp-cke-init', function () {
+        var id = this.id;
+        if (typeof CKEDITOR !== 'undefined' && id) {
+          CKEDITOR.replace(id, {
+            readOnly : true,
+            height   : 180,
+            toolbar  : [
+              { name: 'basicstyles', items: ['Bold','Italic','Underline','Strike'] },
+              { name: 'paragraph',   items: ['NumberedList','BulletedList','Blockquote'] },
+              { name: 'links',       items: ['Link'] }
+            ]
+          });
+        }
+      });
+    }
+  };
+})(jQuery);
+JS;
+
+  drupal_add_js($init_js, array('type' => 'inline', 'scope' => 'footer', 'weight' => 20));
+}
+
+/**
  * Renders one question as a disabled preview form element.
  *
  * @param object $q     Question DB row.
@@ -179,6 +244,11 @@ function _dynamic_form_render_preview_question($q, array $opts, array $scale) {
     case 'textarea':
       $input_html = '<textarea class="dfp-textarea" disabled rows="4"'
         . ' placeholder="' . t('Long answer text') . '"></textarea>';
+      break;
+
+    case 'text_editor':
+      $editor_id  = 'dfp-cke-' . (int) $q->id;
+      $input_html = '<textarea id="' . $editor_id . '" class="dfp-text-editor-area" rows="6"></textarea>';
       break;
 
     case 'radio':

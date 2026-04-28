@@ -242,6 +242,13 @@ function dynamic_form_menu()
     'type'             => MENU_CALLBACK,
   );
 
+  $items['dynamic-form/ajax/members/search'] = array(
+    'page callback'   => 'dynamic_form_ajax_member_search',
+    'access callback' => 'user_is_logged_in',
+    'file'            => 'includes/dynamic_form.members.inc',
+    'type'            => MENU_CALLBACK,
+  );
+
   return $items;
 }
 
@@ -378,5 +385,66 @@ function dynamic_form_custom_login_error_override($form, &$form_state) {
         $_SESSION['messages']['error'][$key] = t('Incorrect email or password for login.');
       }
     }
+  }
+}
+
+/* =====================================================================
+   FORM MEMBERS — QUEUE, MAIL, WORKER
+   ===================================================================== */
+
+/**
+ * Implements hook_cron_queue_info().
+ */
+function dynamic_form_cron_queue_info() {
+  return array(
+    'dynamic_form_member_notify' => array(
+      'worker callback' => 'dynamic_form_member_notify_worker',
+      'time'            => 30,
+    ),
+  );
+}
+
+/**
+ * Queue worker: sends a member-added notification email.
+ *
+ * @param array $item  Keyed array with form_id, form_title, user_id, role, form_url.
+ */
+function dynamic_form_member_notify_worker(array $item) {
+  module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.members');
+  _dynamic_form_send_member_notification($item);
+}
+
+/**
+ * Implements hook_mail().
+ */
+function dynamic_form_mail($key, &$message, $params) {
+  $language = $message['language'];
+  $options  = array('langcode' => $language->language);
+
+  switch ($key) {
+    case 'member_added':
+      $message['subject'] = t(
+        'You have been added to the form: @title',
+        array('@title' => $params['form_title']),
+        $options
+      );
+      $message['body'][] = t('Hi @name,', array('@name' => $params['user_name']), $options);
+      $message['body'][] = '';
+      $message['body'][] = t(
+        'You have been added as @role to the form "@title".',
+        array('@role' => $params['role_label'], '@title' => $params['form_title']),
+        $options
+      );
+      if (!empty($params['form_url'])) {
+        $message['body'][] = '';
+        $message['body'][] = t(
+          'Access the form here: @url',
+          array('@url' => $params['form_url']),
+          $options
+        );
+      }
+      $message['body'][] = '';
+      $message['body'][] = t('This is an automated notification. Please do not reply to this email.', array(), $options);
+      break;
   }
 }

@@ -439,6 +439,7 @@ function dynamic_form_builder_question_form($form, &$form_state, $form_id) {
     '#options'       => array(
       'text'         => t('Short Text'),
       'textarea'     => t('Long Text'),
+      'text_editor'  => t('Text Editor'),
       'radio'        => t('Single Choice'),
       'checkbox'     => t('Multi Choice'),
       'select'       => t('Dropdown'),
@@ -497,6 +498,17 @@ function dynamic_form_builder_question_form($form, &$form_state, $form_id) {
     '#rows'       => 2,
     '#required'   => FALSE,
     '#attributes' => array('placeholder' => t('Optional — shown to respondents.')),
+  );
+
+  // Text editor info — shown only when text_editor type is selected.
+  $form['scrollable']['text_editor_info'] = array(
+    '#markup' =>
+      '<div class="dfb-q-subsection dfb-text-editor-info" data-dfb-show-for="text_editor">' .
+        '<p class="dfb-subsection-label">' . t('Rich Text Editor') . '</p>' .
+        '<p class="dfb-text-editor-hint">' .
+          t('Respondents will see a CKEditor rich text editor for their answer. No additional configuration needed.') .
+        '</p>' .
+      '</div>',
   );
 
   // -----------------------------------------------------------------
@@ -1179,6 +1191,7 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
     '#options'       => array(
       'text'         => t('Short Text'),
       'textarea'     => t('Long Text'),
+      'text_editor'  => t('Text Editor'),
       'radio'        => t('Single Choice'),
       'checkbox'     => t('Multi Choice'),
       'select'       => t('Dropdown'),
@@ -1235,6 +1248,17 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
     '#rows'          => 2,
     '#default_value' => $q->description,
     '#attributes'    => array('placeholder' => t('Optional — shown to respondents.')),
+  );
+
+  // Text editor info — shown only when text_editor type is selected.
+  $form['scrollable']['text_editor_info'] = array(
+    '#markup' =>
+      '<div class="dfb-q-subsection dfb-text-editor-info" data-dfb-show-for="text_editor">' .
+        '<p class="dfb-subsection-label">' . t('Rich Text Editor') . '</p>' .
+        '<p class="dfb-text-editor-hint">' .
+          t('Respondents will see a CKEditor rich text editor for their answer. No additional configuration needed.') .
+        '</p>' .
+      '</div>',
   );
 
   // -----------------------------------------------------------------

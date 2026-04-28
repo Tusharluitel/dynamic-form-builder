@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(php -r ' *)"
+      "Bash(php -r ' *)",
+      "Bash(php -l /Applications/XAMPP/xamppfiles/htdocs/dynamic-form-builder/sites/all/modules/dynamic_form/includes/dynamic_form.members.inc)",
+      "Bash(php -l /Applications/XAMPP/xamppfiles/htdocs/dynamic-form-builder/sites/all/modules/dynamic_form/includes/dynamic_form.forms.inc)",
+      "Bash(php -l /Applications/XAMPP/xamppfiles/htdocs/dynamic-form-builder/sites/all/modules/dynamic_form/dynamic_form.module)",
+      "Bash(php -l /Applications/XAMPP/xamppfiles/htdocs/dynamic-form-builder/sites/all/modules/dynamic_form/includes/dynamic_form.builder.inc)",
+      "Bash(php -l /Applications/XAMPP/xamppfiles/htdocs/dynamic-form-builder/sites/all/modules/dynamic_form/includes/dynamic_form.questions.inc)",
+      "Bash(php -l /Applications/XAMPP/xamppfiles/htdocs/dynamic-form-builder/sites/all/modules/dynamic_form/includes/dynamic_form.preview.inc)"
     ]
   }
 }

@@ -17,6 +17,20 @@
  */
 function dynamic_form_create_form($form, &$form_state)
 {
+  module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.members');
+
+  $module_path = drupal_get_path('module', 'dynamic_form');
+  $form['#attached']['css'][] = $module_path . '/css/members.css';
+  $form['#attached']['js'][]  = $module_path . '/js/members.js';
+  $form['#attached']['js'][]  = array(
+    'data' => array(
+      'dynamicFormMembers' => array(
+        'searchUrl' => url('dynamic-form/ajax/members/search'),
+      ),
+    ),
+    'type' => 'setting',
+  );
+
   // Wrapper for dashboard styling.
   $form['#prefix'] = '<div class="dfb-form-wrapper">';
   $form['#suffix'] = '</div>';
@@ -112,6 +126,37 @@ function dynamic_form_create_form($form, &$form_state)
     '#description' => t('Leave blank for no expiry. Example: 2026-12-31 23:59'),
   );
 
+  // -- Members section --
+  $form['members'] = array(
+    '#type'        => 'fieldset',
+    '#title'       => t('Form Members'),
+    '#attributes'  => array('class' => array('dfb-form-section')),
+    '#description' => t('Add editors and form applicants. They will be notified by email when added.'),
+  );
+
+  $form['members']['members_search'] = array(
+    '#type'       => 'textfield',
+    '#title'      => t('Search Users'),
+    '#prefix'     => '<div class="dfb-member-picker-wrap">',
+    '#suffix'     => '<div id="dfb-members-results" class="dfb-members-results" style="display:none;"></div></div>',
+    '#attributes' => array(
+      'id'           => 'dfb-members-search',
+      'placeholder'  => t('Type a name or email to search…'),
+      'autocomplete' => 'off',
+    ),
+    '#description' => t('Search by name or email. Click a result to add the user.'),
+  );
+
+  $form['members']['members_selected'] = array(
+    '#type'          => 'hidden',
+    '#default_value' => '[]',
+    '#attributes'    => array('id' => 'dfb-members-selected'),
+  );
+
+  $form['members']['members_chips_wrap'] = array(
+    '#markup' => '<div id="dfb-members-chips" class="dfb-members-chips"></div>',
+  );
+
   // -- Actions --
   $form['actions'] = array(
     '#type' => 'container',
@@ -164,6 +209,8 @@ function dynamic_form_create_form_validate($form, &$form_state)
 function dynamic_form_create_form_submit($form, &$form_state)
 {
   global $user;
+  module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.members');
+
   $values = $form_state['values'];
   $now = REQUEST_TIME;
 
@@ -197,6 +244,11 @@ function dynamic_form_create_form_submit($form, &$form_state)
   $id = db_insert('dynamic_form_forms')
     ->fields($fields)
     ->execute();
+
+  // Save members and queue email notifications for newly added ones.
+  $members_json = isset($values['members_selected']) ? $values['members_selected'] : '[]';
+  $newly_added  = _dynamic_form_save_members($id, $members_json, TRUE);
+  _dynamic_form_queue_member_notifications($id, trim($values['title']), $newly_added);
 
   drupal_set_message(t('Form "@title" has been created.', array('@title' => $values['title'])));
   $form_state['redirect'] = 'dashboard/forms';
@@ -281,6 +333,20 @@ function dynamic_form_list_page()
  */
 function dynamic_form_edit_form($form, &$form_state, $form_id)
 {
+  module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.members');
+
+  $module_path = drupal_get_path('module', 'dynamic_form');
+  $form['#attached']['css'][] = $module_path . '/css/members.css';
+  $form['#attached']['js'][]  = $module_path . '/js/members.js';
+  $form['#attached']['js'][]  = array(
+    'data' => array(
+      'dynamicFormMembers' => array(
+        'searchUrl' => url('dynamic-form/ajax/members/search'),
+      ),
+    ),
+    'type' => 'setting',
+  );
+
   $record = db_select('dynamic_form_forms', 'f')
     ->fields('f')
     ->condition('id', $form_id)
@@ -389,6 +455,41 @@ function dynamic_form_edit_form($form, &$form_state, $form_id)
     '#description' => t('Leave blank for no expiry. Example: 2026-12-31 23:59'),
   );
 
+  // -- Members section --
+  // Load existing members to pre-populate on first render.
+  $existing_members      = _dynamic_form_load_existing_members($form_id);
+  $existing_members_json = json_encode($existing_members);
+
+  $form['members'] = array(
+    '#type'        => 'fieldset',
+    '#title'       => t('Form Members'),
+    '#attributes'  => array('class' => array('dfb-form-section')),
+    '#description' => t('Add editors and form applicants. They will be notified by email when added.'),
+  );
+
+  $form['members']['members_search'] = array(
+    '#type'       => 'textfield',
+    '#title'      => t('Search Users'),
+    '#prefix'     => '<div class="dfb-member-picker-wrap">',
+    '#suffix'     => '<div id="dfb-members-results" class="dfb-members-results" style="display:none;"></div></div>',
+    '#attributes' => array(
+      'id'           => 'dfb-members-search',
+      'placeholder'  => t('Type a name or email to search…'),
+      'autocomplete' => 'off',
+    ),
+    '#description' => t('Search by name or email. Click a result to add the user.'),
+  );
+
+  $form['members']['members_selected'] = array(
+    '#type'          => 'hidden',
+    '#default_value' => $existing_members_json,
+    '#attributes'    => array('id' => 'dfb-members-selected'),
+  );
+
+  $form['members']['members_chips_wrap'] = array(
+    '#markup' => '<div id="dfb-members-chips" class="dfb-members-chips"></div>',
+  );
+
   // -- Actions --
   $form['actions'] = array(
     '#type' => 'container',
@@ -446,6 +547,8 @@ function dynamic_form_edit_form_validate($form, &$form_state)
 function dynamic_form_edit_form_submit($form, &$form_state)
 {
   global $user;
+  module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.members');
+
   $values = $form_state['values'];
   $record = $form_state['dynamic_form_record'];
   $now = REQUEST_TIME;
@@ -476,6 +579,11 @@ function dynamic_form_edit_form_submit($form, &$form_state)
     ->fields($fields)
     ->condition('id', $record->id)
     ->execute();
+
+  // Sync members and queue emails for newly added ones.
+  $members_json = isset($values['members_selected']) ? $values['members_selected'] : '[]';
+  $newly_added  = _dynamic_form_save_members($record->id, $members_json, FALSE);
+  _dynamic_form_queue_member_notifications($record->id, trim($values['title']), $newly_added);
 
   drupal_set_message(t('Form "@title" has been updated.', array('@title' => $values['title'])));
   $form_state['redirect'] = 'dashboard/forms';

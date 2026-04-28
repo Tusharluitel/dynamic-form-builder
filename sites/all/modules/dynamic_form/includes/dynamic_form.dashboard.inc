@@ -25,6 +25,14 @@ function dynamic_form_dashboard_page($section = 'overview')
 {
   drupal_set_title(t('Dashboard'));
 
+  // Load Select2 + table-search assets on listing pages.
+  if (in_array($section, array('forms', 'questions', 'sections'))) {
+    $module_path  = drupal_get_path('module', 'dynamic_form');
+    drupal_add_css($module_path . '/css/dashboard-search.css');
+    drupal_add_js($module_path . '/js/dashboard-search.js');
+    drupal_add_js(array('dynamicFormSearch' => array('section' => $section)), 'setting');
+  }
+
   // Build sidebar.
   $sidebar_html = _dynamic_form_dashboard_sidebar($section);
 
