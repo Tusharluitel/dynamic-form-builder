@@ -1000,6 +1000,7 @@ function _dfb_question_form_save_ajax_callback($form, &$form_state) {
   );
   $commands[] = ajax_command_invoke('#dfb-question-modal', 'fadeOut', array('fast'));
   $commands[] = ajax_command_replace('#dfb-question-form-wrapper', drupal_render($form));
+  $commands[] = ajax_command_dfb_toast('success', t('Question added successfully.'));
 
   return array('#type' => 'ajax', '#commands' => $commands);
 }
@@ -1705,6 +1706,7 @@ function _dfb_question_edit_save_ajax_callback($form, &$form_state) {
     '#dfb-edit-question-form-wrapper',
     drupal_render($form)
   );
+  $commands[] = ajax_command_dfb_toast('success', t('Question updated successfully.'));
 
   return array('#type' => 'ajax', '#commands' => $commands);
 }

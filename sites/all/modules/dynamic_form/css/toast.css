@@ -1,0 +1,100 @@
+/**
+ * @file
+ * DFBToast — custom toast notification styles.
+ */
+
+#dfb-toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 99999;
+  width: 320px;
+}
+
+.dfb-toast {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-align: start;
+      -ms-flex-align: start;
+          align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.22);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.45;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ---- Icon ---- */
+.dfb-toast-icon {
+  font-size: 20px;
+  line-height: 1;
+  -ms-flex-negative: 0;
+      flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ---- Text body ---- */
+.dfb-toast-body {
+  -webkit-box-flex: 1;
+      -ms-flex: 1 1 auto;
+          flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dfb-toast-heading {
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+  opacity: 0.95;
+}
+
+.dfb-toast-message {
+  font-size: 13px;
+  opacity: 0.9;
+  word-wrap: break-word;
+}
+
+/* ---- Close button ---- */
+.dfb-toast-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0;
+  -ms-flex-negative: 0;
+      flex-shrink: 0;
+  -ms-flex-item-align: start;
+      align-self: flex-start;
+  margin-top: -1px;
+}
+
+.dfb-toast-close:hover {
+  color: #fff;
+}
+
+/* ---- Progress bar ---- */
+.dfb-toast-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* ---- Type variants ---- */
+.dfb-toast-success { background: #16a34a; }
+.dfb-toast-error   { background: #dc2626; }
+.dfb-toast-warning { background: #d97706; }
+.dfb-toast-info    { background: #2563eb; }

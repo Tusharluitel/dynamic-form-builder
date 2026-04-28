@@ -6,6 +6,41 @@
  */
 
 /**
+ * Implements hook_init().
+ *
+ * Loads jQuery Toast Plugin (CDN) and the DFBToast utility on every page
+ * served by this module (dashboard/*, form/*, dynamic-form/* paths).
+ */
+function dynamic_form_init() {
+  $path = current_path();
+  if (
+    strpos($path, 'dashboard')    === 0 ||
+    strpos($path, 'form/')        === 0 ||
+    strpos($path, 'dynamic-form/') === 0
+  ) {
+    $module_path = drupal_get_path('module', 'dynamic_form');
+    drupal_add_css($module_path . '/css/toast.css');
+    drupal_add_js($module_path . '/js/toast.js');
+  }
+}
+
+/**
+ * Returns an AJAX command array that triggers a DFBToast notification.
+ *
+ * @param string $type     One of: success, error, warning, info.
+ * @param string $message  The message to display (already translated).
+ *
+ * @return array  AJAX command array for use in AJAX callbacks.
+ */
+function ajax_command_dfb_toast($type, $message) {
+  return array(
+    'command'    => 'dfbToast',
+    'toast_type' => $type,
+    'message'    => $message,
+  );
+}
+
+/**
  * Implements hook_permission().
  */
 function dynamic_form_permission()
@@ -38,6 +73,14 @@ function dynamic_form_permission()
     'delete own form' => array(
       'title' => t('Delete own form'),
       'description' => t('Delete own forms.'),
+    ),
+    'view soft delete' => array(
+      'title' => t('View soft deleted items'),
+      'description' => t('Access the Trash page to view soft-deleted forms, sections, and questions.'),
+    ),
+    'restore deleted' => array(
+      'title' => t('Restore deleted items'),
+      'description' => t('Restore soft-deleted items from Trash or permanently remove them from the database.'),
     ),
   );
 }
@@ -247,6 +290,42 @@ function dynamic_form_menu()
     'access callback' => 'user_is_logged_in',
     'file'            => 'includes/dynamic_form.members.inc',
     'type'            => MENU_CALLBACK,
+  );
+
+  // AJAX soft-delete endpoint (used by the dashboard delete modal).
+  $items['dynamic-form/ajax/delete/%/%'] = array(
+    'page callback'   => 'dynamic_form_ajax_entity_delete',
+    'page arguments'  => array(3, 4),
+    'access callback' => 'user_is_logged_in',
+    'file'            => 'includes/dynamic_form.dashboard.inc',
+    'type'            => MENU_CALLBACK,
+  );
+
+  // Trash routes.
+  $items['dashboard/trash'] = array(
+    'title'            => 'Trash',
+    'page callback'    => 'dynamic_form_dashboard_trash_page',
+    'access arguments' => array('view soft delete'),
+    'file'             => 'includes/dynamic_form.trash.inc',
+    'type'             => MENU_CALLBACK,
+  );
+
+  $items['dashboard/trash/%/%/restore'] = array(
+    'title'            => 'Restore Item',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('dynamic_form_trash_restore_confirm', 2, 3),
+    'access arguments' => array('restore deleted'),
+    'file'             => 'includes/dynamic_form.trash.inc',
+    'type'             => MENU_CALLBACK,
+  );
+
+  $items['dashboard/trash/%/%/delete-permanent'] = array(
+    'title'            => 'Delete Permanently',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('dynamic_form_trash_delete_permanent_confirm', 2, 3),
+    'access arguments' => array('restore deleted'),
+    'file'             => 'includes/dynamic_form.trash.inc',
+    'type'             => MENU_CALLBACK,
   );
 
   return $items;

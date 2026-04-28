@@ -187,7 +187,7 @@
             },
             error: function () {
               $('#dfb-edit-question-modal').hide();
-              alert(Drupal.t('Failed to load question editor. Please try again.'));
+              if (window.DFBToast) { DFBToast.error(Drupal.t('Failed to load question editor. Please try again.')); }
             }
           });
         });
@@ -303,11 +303,11 @@
           data:        JSON.stringify({ type: itemType, order: order }),
           success: function (response) {
             if (response.status !== 'success') {
-              alert(Drupal.t('Failed to save order: ') + response.message);
+              if (window.DFBToast) { DFBToast.warning(Drupal.t('Could not save order: ') + response.message); }
             }
           },
           error: function () {
-            alert(Drupal.t('A network error occurred while saving the new order.'));
+            if (window.DFBToast) { DFBToast.error(Drupal.t('A network error occurred while saving the new order.')); }
           }
         });
       }

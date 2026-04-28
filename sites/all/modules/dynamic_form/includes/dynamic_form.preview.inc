@@ -91,6 +91,29 @@ function dynamic_form_preview_page($form_id) {
   }
 
   // -----------------------------------------------------------------------
+  // Pagination setup — Drupal server-side pager
+  // -----------------------------------------------------------------------
+  $qpp = max(1, (int) $form_record->question_per_page);
+
+  // Flatten all questions in section order, carrying section context.
+  $flat = array();
+  foreach ($sections as $section) {
+    $sid = (int) $section->id;
+    $qs  = isset($questions_by_section[$sid]) ? $questions_by_section[$sid] : array();
+    foreach ($qs as $q) {
+      $flat[] = array('q' => $q, 'section' => $section);
+    }
+  }
+
+  $total_q   = count($flat);
+  $use_pager = $total_q > $qpp;
+
+  // pager_default_initialize() registers the pager globally and returns the
+  // current 0-based page derived from $_GET['page'].
+  $current_page = $use_pager ? pager_default_initialize($total_q, $qpp) : 0;
+  $page_items   = array_slice($flat, $current_page * $qpp, $qpp);
+
+  // -----------------------------------------------------------------------
   // Render
   // -----------------------------------------------------------------------
   $output  = '<div class="dfp-preview-container">';
@@ -113,36 +136,47 @@ function dynamic_form_preview_page($form_id) {
   }
   $output .= '</div>';
 
-  if (empty($sections)) {
+  if (empty($flat)) {
     $output .= '<p class="dfp-empty">' . t('No sections or questions have been added yet.') . '</p>';
   }
   else {
-    foreach ($sections as $section) {
-      $sid = (int) $section->id;
-      $qs  = isset($questions_by_section[$sid]) ? $questions_by_section[$sid] : array();
+    $output .= '<div class="dfp-paginated-form">';
 
-      $output .= '<div class="dfp-section">';
-      $output .= '<div class="dfp-section-header">';
-      $output .= '<h2 class="dfp-section-title">' . check_plain($section->name) . '</h2>';
-      if (!empty($section->description)) {
-        $output .= '<p class="dfp-section-desc">' . check_plain($section->description) . '</p>';
-      }
-      $output .= '</div>';
+    $prev_sid = -1;
+    foreach ($page_items as $item) {
+      $q   = $item['q'];
+      $sec = $item['section'];
+      $sid = (int) $sec->id;
 
-      if (empty($qs)) {
-        $output .= '<p class="dfp-no-questions">' . t('No questions in this section yet.') . '</p>';
-      }
-      else {
-        foreach ($qs as $q) {
-          $qid   = (int) $q->id;
-          $opts  = isset($options_by_question[$qid]) ? $options_by_question[$qid] : array();
-          $scale = isset($scale_by_question[$qid])   ? $scale_by_question[$qid]   : array();
-          $output .= _dynamic_form_render_preview_question($q, $opts, $scale);
+      if ($sid !== $prev_sid) {
+        if ($prev_sid !== -1) {
+          $output .= '</div>'; // close previous .dfp-section
         }
+        $output .= '<div class="dfp-section">';
+        $output .= '<div class="dfp-section-header">';
+        $output .= '<h2 class="dfp-section-title">' . check_plain($sec->name) . '</h2>';
+        if (!empty($sec->description)) {
+          $output .= '<p class="dfp-section-desc">' . check_plain($sec->description) . '</p>';
+        }
+        $output .= '</div>';
+        $prev_sid = $sid;
       }
 
-      $output .= '</div>';
+      $qid   = (int) $q->id;
+      $opts  = isset($options_by_question[$qid]) ? $options_by_question[$qid] : array();
+      $scale = isset($scale_by_question[$qid])   ? $scale_by_question[$qid]   : array();
+      $output .= _dynamic_form_render_preview_question($q, $opts, $scale);
     }
+
+    if ($prev_sid !== -1) {
+      $output .= '</div>'; // close last .dfp-section
+    }
+
+    if ($use_pager) {
+      $output .= theme('pager', array('element' => 0));
+    }
+
+    $output .= '</div>'; // close .dfp-paginated-form
   }
 
   $output .= '</div>'; // .dfp-form-card

@@ -262,7 +262,6 @@ body.admin-menu .dfb-auth-wrapper { padding-top: 129px; }
 /* ===== Content / Messages ===== */
 .dfb-content-region {
   max-width: 1100px; 
-  margin-top: 50px;
   padding: 40px 24px;
 }
 .dfb-messages { max-width: 600px; margin: 0 auto 20px; }
@@ -399,11 +398,8 @@ body.page-dashboard .dfb-features { display: none; }
 body.page-dashboard .dfb-content-region {
   max-width: none;
   padding: 0;
-  margin-top: 64px;
 }
-body.admin-menu.page-dashboard .dfb-content-region {
-  margin-top: 93px;
-}
+
 body.page-dashboard .dfb-footer { display: none; }
 
 /* Dashboard grid */
@@ -1106,4 +1102,82 @@ body.admin-menu .dfb-dashboard-sidebar {
     text-align: center;
     justify-content: center;
   }
+}
+
+/* ================================================================
+   TRASH PAGE
+   ================================================================ */
+
+/* Sidebar: Trash item separator and danger-tone active state */
+.dfb-sidebar-item--trash {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+.dfb-sidebar-item--trash.active a {
+  background: rgba(239,68,68,.08);
+  color: #f87171;
+  border-left-color: var(--color-error);
+}
+.dfb-sidebar-item--trash a:hover {
+  color: #fca5a5;
+}
+
+/* Trash section block */
+.dfb-trash-section {
+  margin-bottom: 32px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.dfb-trash-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 22px;
+  margin: 0;
+  font-size: .95rem;
+  font-weight: 700;
+  color: var(--color-text);
+  background: var(--color-surface-alt);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.dfb-trash-section-icon {
+  font-size: 1.1rem;
+}
+
+.dfb-trash-count {
+  font-size: .85rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+/* Table inside trash section: remove outer border (already on the card) */
+.dfb-trash-table {
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+/* Inline empty notice */
+.dfb-trash-empty {
+  padding: 24px 22px;
+  color: var(--color-text-muted);
+  font-size: .9rem;
+  font-style: italic;
+}
+.dfb-trash-empty p {
+  margin: 0;
+}
+
+/* Restore action link */
+.dfb-action-restore {
+  color: #16a34a !important;
+  font-weight: 500;
+}
+.dfb-action-restore:hover {
+  color: #15803d !important;
+  text-decoration: underline;
 }
