@@ -321,6 +321,8 @@ function _dynamic_form_render_builder_section($section, array $questions) {
     . ' title="' . t('Drag to reorder') . '">&#8942;&#8942;</div>';
   $output .= '<div class="dfb-section-title-wrap">';
   $output .= '<h2 class="dfb-section-title">' . check_plain($section->name) . '</h2>';
+  $output .= '<button class="dfb-section-edit-icon" data-action="inline-rename-section"'
+    . ' title="' . t('Rename section') . '">&#9998;</button>';
   if (!empty($section->description)) {
     $output .= '<p class="dfb-section-desc">' . check_plain($section->description) . '</p>';
   }
@@ -443,6 +445,7 @@ function dynamic_form_builder_question_form($form, &$form_state, $form_id) {
       'radio'        => t('Single Choice'),
       'checkbox'     => t('Multi Choice'),
       'select'       => t('Dropdown'),
+      'tags'         => t('Tags'),
       'file'         => t('File Upload'),
       'date'         => t('Date'),
       'time'         => t('Time'),
@@ -506,7 +509,18 @@ function dynamic_form_builder_question_form($form, &$form_state, $form_id) {
       '<div class="dfb-q-subsection dfb-text-editor-info" data-dfb-show-for="text_editor">' .
         '<p class="dfb-subsection-label">' . t('Rich Text Editor') . '</p>' .
         '<p class="dfb-text-editor-hint">' .
-          t('Respondents will see a CKEditor rich text editor for their answer. No additional configuration needed.') .
+          t('Respondents will see a TinyMCE rich text editor for their answer. No additional configuration needed.') .
+        '</p>' .
+      '</div>',
+  );
+
+  // Tags info — shown only when tags type is selected.
+  $form['scrollable']['tags_info'] = array(
+    '#markup' =>
+      '<div class="dfb-q-subsection dfb-tags-info" data-dfb-show-for="tags">' .
+        '<p class="dfb-subsection-label">' . t('Tags') . '</p>' .
+        '<p class="dfb-text-editor-hint">' .
+          t('Respondents can search existing tags or type new ones. Tags are automatically normalized (lowercase, symbols removed) for analytics.') .
         '</p>' .
       '</div>',
   );
@@ -900,6 +914,8 @@ function dynamic_form_builder_question_form_submit($form, &$form_state) {
 
   $question_id = db_insert('dynamic_form_questions')->fields($q_fields)->execute();
 
+  _dynamic_form_audit_log('question', $question_id, 'created', NULL, $q_fields);
+
   // Options for choice types.
   $choice_types = array('radio', 'checkbox', 'select', 'rating', 'linear_scale');
   if (in_array($type, $choice_types)) {
@@ -1218,6 +1234,7 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
       'radio'        => t('Single Choice'),
       'checkbox'     => t('Multi Choice'),
       'select'       => t('Dropdown'),
+      'tags'         => t('Tags'),
       'file'         => t('File Upload'),
       'date'         => t('Date'),
       'time'         => t('Time'),
@@ -1279,7 +1296,18 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
       '<div class="dfb-q-subsection dfb-text-editor-info" data-dfb-show-for="text_editor">' .
         '<p class="dfb-subsection-label">' . t('Rich Text Editor') . '</p>' .
         '<p class="dfb-text-editor-hint">' .
-          t('Respondents will see a CKEditor rich text editor for their answer. No additional configuration needed.') .
+          t('Respondents will see a TinyMCE rich text editor for their answer. No additional configuration needed.') .
+        '</p>' .
+      '</div>',
+  );
+
+  // Tags info — shown only when tags type is selected.
+  $form['scrollable']['tags_info'] = array(
+    '#markup' =>
+      '<div class="dfb-q-subsection dfb-tags-info" data-dfb-show-for="tags">' .
+        '<p class="dfb-subsection-label">' . t('Tags') . '</p>' .
+        '<p class="dfb-text-editor-hint">' .
+          t('Respondents can search existing tags or type new ones. Tags are automatically normalized (lowercase, symbols removed) for analytics.') .
         '</p>' .
       '</div>',
   );
@@ -1577,20 +1605,24 @@ function dynamic_form_builder_question_edit_form_submit($form, &$form_state) {
     $max_files        = isset($values['max_files'])         ? (int) $values['max_files']         : NULL;
   }
 
+  $new_q_fields = array(
+    'label'            => trim($values['label']),
+    'description'      => trim(isset($values['description']) ? $values['description'] : ''),
+    'type'             => $type,
+    'is_required'      => !empty($values['is_required']) ? 1 : 0,
+    'is_readonly'      => !empty($values['is_readonly'])  ? 1 : 0,
+    'allow_file_types' => $allow_file_types ?: NULL,
+    'max_file_size'    => $max_file_size,
+    'max_files'        => $max_files,
+    'updated_at'       => $now,
+  );
+
   db_update('dynamic_form_questions')
-    ->fields(array(
-      'label'            => trim($values['label']),
-      'description'      => trim(isset($values['description']) ? $values['description'] : ''),
-      'type'             => $type,
-      'is_required'      => !empty($values['is_required']) ? 1 : 0,
-      'is_readonly'      => !empty($values['is_readonly'])  ? 1 : 0,
-      'allow_file_types' => $allow_file_types ?: NULL,
-      'max_file_size'    => $max_file_size,
-      'max_files'        => $max_files,
-      'updated_at'       => $now,
-    ))
+    ->fields($new_q_fields)
     ->condition('id', $question_id)
     ->execute();
+
+  _dynamic_form_audit_log('question', $question_id, 'updated', (array) $form_state['dfb_eq_question'], $new_q_fields);
 
   // Soft-delete existing options then re-insert survivors.
   db_update('dynamic_form_question_options')
@@ -1709,4 +1741,55 @@ function _dfb_question_edit_save_ajax_callback($form, &$form_state) {
   $commands[] = ajax_command_dfb_toast('success', t('Question updated successfully.'));
 
   return array('#type' => 'ajax', '#commands' => $commands);
+}
+
+/**
+ * AJAX endpoint: rename a section inline.
+ *
+ * Accepts POST body: { "name": "New Section Name" }
+ * Returns JSON: { "status": "success", "name": "New Section Name" }
+ *             | { "status": "error",   "message": "..." }
+ */
+function dynamic_form_ajax_section_rename($section_id) {
+  $section_id = (int) $section_id;
+  $body       = file_get_contents('php://input');
+  $data       = json_decode($body, TRUE);
+  $name       = isset($data['name']) ? trim($data['name']) : '';
+
+  if ($name === '') {
+    drupal_json_output(array('status' => 'error', 'message' => t('Section name cannot be empty.')));
+    drupal_exit();
+  }
+  if (drupal_strlen($name) > 255) {
+    drupal_json_output(array('status' => 'error', 'message' => t('Section name is too long.')));
+    drupal_exit();
+  }
+
+  $section = db_select('dynamic_form_sections', 's')
+    ->fields('s', array('id', 'form_id', 'name'))
+    ->condition('s.id', $section_id)
+    ->isNull('s.deleted_at')
+    ->execute()
+    ->fetchObject();
+
+  if (!$section) {
+    drupal_json_output(array('status' => 'error', 'message' => t('Section not found.')));
+    drupal_exit();
+  }
+
+  db_update('dynamic_form_sections')
+    ->fields(array('name' => $name, 'updated_at' => REQUEST_TIME))
+    ->condition('id', $section_id)
+    ->execute();
+
+  _dynamic_form_audit_log(
+    'section',
+    $section_id,
+    'updated',
+    array('name' => $section->name),
+    array('name' => $name)
+  );
+
+  drupal_json_output(array('status' => 'success', 'name' => $name));
+  drupal_exit();
 }

@@ -7,7 +7,10 @@
       "Bash(php -l /Applications/XAMPP/xamppfiles/htdocs/dynamic-form-builder/sites/all/modules/dynamic_form/dynamic_form.module)",
       "Bash(php -l /Applications/XAMPP/xamppfiles/htdocs/dynamic-form-builder/sites/all/modules/dynamic_form/includes/dynamic_form.builder.inc)",
       "Bash(php -l /Applications/XAMPP/xamppfiles/htdocs/dynamic-form-builder/sites/all/modules/dynamic_form/includes/dynamic_form.questions.inc)",
-      "Bash(php -l /Applications/XAMPP/xamppfiles/htdocs/dynamic-form-builder/sites/all/modules/dynamic_form/includes/dynamic_form.preview.inc)"
+      "Bash(php -l /Applications/XAMPP/xamppfiles/htdocs/dynamic-form-builder/sites/all/modules/dynamic_form/includes/dynamic_form.preview.inc)",
+      "Bash(php -r \"var_dump\\(strtotime\\('2026-06-01T09:00'\\)\\);\")",
+      "Bash(/Applications/XAMPP/xamppfiles/bin/mysql -u root -e \"SHOW DATABASES;\")",
+      "Bash(/Applications/XAMPP/xamppfiles/bin/mysql -u root \"form-builder\" -e \"DESCRIBE dynamic_form_sections; SELECT id, name, deleted_at FROM dynamic_form_sections LIMIT 5;\")"
     ]
   }
 }

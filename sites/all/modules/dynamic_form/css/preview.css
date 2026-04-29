@@ -201,18 +201,100 @@
   appearance: auto;
 }
 
-.dfp-file {
-  display: block;
-  font-size: 0.875rem;
-  color: #64748b;
+/* -----------------------------------------------------------------
+   File upload dropzone
+   ----------------------------------------------------------------- */
+.dfp-file-dropzone {
+  position: relative;
+  border: 2px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 36px 24px 28px;
+  text-align: center;
+  background: #f8fafc;
   cursor: not-allowed;
-  margin-bottom: 4px;
+  transition: border-color 0.2s;
 }
 
-.dfp-file-hint {
-  margin-top: 4px;
+.dfp-file-hidden {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: not-allowed;
+}
+
+.dfp-file-dropzone-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.dfp-file-upload-icon {
+  width: 48px;
+  height: 48px;
   color: #94a3b8;
+}
+
+.dfp-file-upload-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.dfp-file-upload-prompt {
+  font-size: 0.9375rem;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.dfp-file-upload-btn {
+  color: #6366f1;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
+.dfp-file-upload-or {
+  color: #94a3b8;
+}
+
+.dfp-file-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.dfp-file-types {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.dfp-file-type-badge {
+  background: #e0e7ff;
+  color: #4338ca;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: monospace;
+  letter-spacing: 0.04em;
+}
+
+.dfp-file-size-pill {
   font-size: 0.8125rem;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  white-space: nowrap;
 }
 
 /* -----------------------------------------------------------------

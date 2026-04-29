@@ -109,6 +109,67 @@
   border-color: #cbd5e1;
 }
 
+/* ================================================================
+   Restore-confirmation modal (shares dialog card styles with delete)
+   ================================================================ */
+
+#dfb-restore-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Green confirm button for restore */
+.dfb-restore-confirm-btn {
+  padding: 10px 28px;
+  background: #16a34a;
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: .875rem;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: var(--transition);
+  line-height: 1.4;
+}
+.dfb-restore-confirm-btn:hover:not(:disabled) {
+  background: #15803d;
+  box-shadow: 0 4px 14px rgba(22, 163, 74, .35);
+  transform: translateY(-1px);
+}
+.dfb-restore-confirm-btn:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+/* Reuse cancel button styles from delete modal */
+.dfb-restore-cancel-btn {
+  padding: 10px 24px;
+  background: transparent;
+  color: var(--color-text-muted);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: .875rem;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: var(--transition);
+  line-height: 1.4;
+}
+.dfb-restore-cancel-btn:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  border-color: #cbd5e1;
+}
+
 /* Mobile adjustments */
 @media (max-width: 480px) {
   .dfb-delete-modal-dialog {

@@ -26,10 +26,10 @@ function dynamic_form_preview_page($form_id) {
   $module_path = drupal_get_path('module', 'dynamic_form');
   drupal_add_css($module_path . '/css/preview.css');
 
-  // Load CKEditor when the form has text_editor questions.
-  _dynamic_form_preview_maybe_load_ckeditor($form_id);
+  // Load TinyMCE when the form has text_editor questions.
+  _dynamic_form_preview_maybe_load_tinymce($form_id);
 
-  // Load Select2 when the form has select questions.
+  // Load Select2 when the form has select or tags questions.
   _dynamic_form_preview_maybe_load_select2($form_id);
 
   module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.dashboard');
@@ -189,15 +189,14 @@ function dynamic_form_preview_page($form_id) {
 }
 
 /**
- * Loads CKEditor assets for the preview page if text_editor questions exist.
+ * Loads TinyMCE assets for the preview page if text_editor questions exist.
  *
- * Adds CKEditor's JS (resolved via the ckeditor module) and an inline
- * Drupal behaviour that initialises each .dfp-text-editor-area textarea
- * in read-only mode once the library is ready.
+ * Uses the library at sites/all/libraries/tinymce/js/tinymce/tinymce.min.js
+ * and initialises each .dfp-text-editor-area textarea in read-only mode.
  *
  * @param int $form_id  The dynamic_form_forms record ID.
  */
-function _dynamic_form_preview_maybe_load_ckeditor($form_id) {
+function _dynamic_form_preview_maybe_load_tinymce($form_id) {
   $has_editor = db_select('dynamic_form_questions', 'q')
     ->fields('q', array('id'))
     ->condition('form_id', $form_id)
@@ -211,36 +210,28 @@ function _dynamic_form_preview_maybe_load_ckeditor($form_id) {
     return;
   }
 
-  if (!module_exists('ckeditor')) {
+  $tinymce_js = 'sites/all/libraries/tinymce/js/tinymce/tinymce.min.js';
+  if (!file_exists(DRUPAL_ROOT . '/' . $tinymce_js)) {
     return;
   }
 
-  $cke_dir = ckeditor_path('url');
-  if (empty($cke_dir)) {
-    return;
-  }
+  drupal_add_js($tinymce_js, array('type' => 'file', 'weight' => 10));
 
-  // Load the CKEditor library JS.
-  drupal_add_js($cke_dir . '/ckeditor.js', array('type' => 'external', 'weight' => 10));
-
-  // Drupal behaviour: initialise each preview textarea as read-only CKEditor.
   $init_js = <<<JS
 (function ($) {
-  Drupal.behaviors.dfpCkeditorPreview = {
+  Drupal.behaviors.dfpTinymcePreview = {
     attach: function (context, settings) {
-      \$('.dfp-text-editor-area', context).once('dfp-cke-init', function () {
-        var id = this.id;
-        if (typeof CKEDITOR !== 'undefined' && id) {
-          CKEDITOR.replace(id, {
-            readOnly : true,
-            height   : 180,
-            toolbar  : [
-              { name: 'basicstyles', items: ['Bold','Italic','Underline','Strike'] },
-              { name: 'paragraph',   items: ['NumberedList','BulletedList','Blockquote'] },
-              { name: 'links',       items: ['Link'] }
-            ]
-          });
-        }
+      \$('.dfp-text-editor-area', context).once('dfp-tinymce-init', function () {
+        if (typeof tinymce === 'undefined') { return; }
+        tinymce.init({
+          selector  : '#' + this.id,
+          readonly  : true,
+          height    : 200,
+          menubar   : false,
+          statusbar : false,
+          plugins   : 'lists link',
+          toolbar   : 'bold italic underline strikethrough | bullist numlist blockquote | link'
+        });
       });
     }
   };
@@ -251,26 +242,24 @@ JS;
 }
 
 /**
- * Loads Select2 assets for the preview page if select questions exist.
+ * Loads Select2 assets when the form has 'select' or 'tags' questions.
  *
- * Adds Select2 CSS/JS from sites/all/libraries/select2/ and an inline
- * Drupal behaviour that initialises each .dfp-select2 element.
- * The init is wrapped in try/catch so it degrades gracefully when
- * jQuery < 1.7 is installed (Select2 v3 needs .prop() from jQuery 1.6+).
+ * Adds Select2 CSS/JS from sites/all/libraries/select2/ and inline
+ * Drupal behaviours for both question types.
  *
  * @param int $form_id  The dynamic_form_forms record ID.
  */
 function _dynamic_form_preview_maybe_load_select2($form_id) {
-  $has_select = db_select('dynamic_form_questions', 'q')
+  $has_select2 = db_select('dynamic_form_questions', 'q')
     ->fields('q', array('id'))
     ->condition('form_id', $form_id)
-    ->condition('type', 'select')
+    ->condition('type', array('select', 'tags'), 'IN')
     ->condition('deleted_at', NULL, 'IS NULL')
     ->range(0, 1)
     ->execute()
     ->fetchField();
 
-  if (!$has_select) {
+  if (!$has_select2) {
     return;
   }
 
@@ -282,19 +271,54 @@ function _dynamic_form_preview_maybe_load_select2($form_id) {
   drupal_add_css($select2_base . '/select2.css');
   drupal_add_js($select2_base . '/select2.min.js', array('weight' => 10));
 
+  $autocomplete_url = url('dynamic-form/ajax/tags/autocomplete');
+
   $init_js = <<<JS
 (function ($) {
+  // Regular dropdown (select type) — disabled preview.
   Drupal.behaviors.dfpSelect2Preview = {
     attach: function (context, settings) {
       $('.dfp-select2', context).once('dfp-s2-init', function () {
         try {
           $(this).select2({
-            placeholder:    $(this).hasClass('dfp-select-multi') ? '' : '-- Select an option --',
-            allowClear:     !$(this).hasClass('dfp-select-multi'),
-            width:          '100%',
-            disabled:       true
+            placeholder: $(this).hasClass('dfp-select-multi') ? '' : '-- Select an option --',
+            allowClear:  !$(this).hasClass('dfp-select-multi'),
+            width:       '100%',
+            disabled:    true
           });
-        } catch (e) { /* graceful fallback for jQuery < 1.7 */ }
+        } catch (e) {}
+      });
+    }
+  };
+
+  // Tags input (tags type) — disabled preview with AJAX autocomplete wired up.
+  Drupal.behaviors.dfpTagsPreview = {
+    attach: function (context, settings) {
+      $('.dfp-tags-select2', context).once('dfp-tags-s2-init', function () {
+        try {
+          $(this).select2({
+            tags:        true,
+            width:       '100%',
+            disabled:    true,
+            placeholder: 'Type to search or add tags…',
+            ajax: {
+              url:      '{$autocomplete_url}',
+              dataType: 'json',
+              quietMillis: 250,
+              data: function (term) {
+                return { term: term };
+              },
+              results: function (data) {
+                return { results: data };
+              }
+            },
+            createSearchChoice: function (term, data) {
+              if (!data.length) {
+                return { id: term, text: term + ' (new tag)' };
+              }
+            }
+          });
+        } catch (e) {}
       });
     }
   };
@@ -338,7 +362,7 @@ function _dynamic_form_render_preview_question($q, array $opts, array $scale) {
       break;
 
     case 'text_editor':
-      $editor_id  = 'dfp-cke-' . (int) $q->id;
+      $editor_id  = 'dfp-tinymce-' . (int) $q->id;
       $input_html = '<textarea id="' . $editor_id . '" class="dfp-text-editor-area" rows="6"></textarea>';
       break;
 
@@ -394,18 +418,59 @@ function _dynamic_form_render_preview_question($q, array $opts, array $scale) {
       break;
 
     case 'file':
-      $input_html = '<input type="file" class="dfp-file" disabled>';
+      // File type badges.
+      $type_badges = '';
       if (!empty($q->allow_file_types)) {
-        $input_html .= '<p class="dfp-help-text dfp-file-hint">'
-          . t('Accepted types: @types', array('@types' => check_plain($q->allow_file_types)))
-          . '</p>';
+        $types = array_filter(array_map('trim', explode(',', $q->allow_file_types)));
+        foreach ($types as $ft) {
+          $type_badges .= '<span class="dfp-file-type-badge">' . check_plain(drupal_strtoupper($ft)) . '</span>';
+        }
       }
+
+      // Size pill.
+      $size_pill = '';
       if (!empty($q->max_file_size)) {
-        $mb = round($q->max_file_size / 1048576, 1);
-        $input_html .= '<p class="dfp-help-text dfp-file-hint">'
-          . t('Max size: @mb MB', array('@mb' => $mb))
-          . '</p>';
+        $mb        = round($q->max_file_size / 1048576, 1);
+        $size_pill = '<span class="dfp-file-size-pill">' . t('Max @mb MB', array('@mb' => $mb)) . '</span>';
       }
+
+      // Max files pill.
+      $files_pill = '';
+      if (!empty($q->max_files)) {
+        $files_pill = '<span class="dfp-file-size-pill">'
+          . t('Up to @n file(s)', array('@n' => (int) $q->max_files))
+          . '</span>';
+      }
+
+      $meta_html = '';
+      if ($type_badges || $size_pill || $files_pill) {
+        $meta_html = '<div class="dfp-file-meta">';
+        if ($type_badges) {
+          $meta_html .= '<div class="dfp-file-types">' . $type_badges . '</div>';
+        }
+        $meta_html .= $size_pill;
+        $meta_html .= $files_pill;
+        $meta_html .= '</div>';
+      }
+
+      $input_html = '<div class="dfp-file-dropzone">'
+        . '<input type="file" class="dfp-file-hidden" disabled>'
+        . '<div class="dfp-file-dropzone-inner">'
+        . '<div class="dfp-file-upload-icon">'
+        . '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"'
+        . ' stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'
+        . '<path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>'
+        . '<polyline points="16 16 12 12 8 16"/>'
+        . '<line x1="12" y1="12" x2="12" y2="21"/>'
+        . '</svg>'
+        . '</div>'
+        . '<div class="dfp-file-upload-prompt">'
+        . '<span class="dfp-file-upload-btn">' . t('Click to upload') . '</span>'
+        . '<span class="dfp-file-upload-or"> ' . t('or drag and drop') . '</span>'
+        . '</div>'
+        . $meta_html
+        . '</div>'
+        . '</div>';
       break;
 
     case 'date':
@@ -456,6 +521,14 @@ function _dynamic_form_render_preview_question($q, array $opts, array $scale) {
         $input_html .= '</div>';
       }
       $input_html .= '</div>';
+      break;
+
+    case 'tags':
+      $input_html  = '<select class="dfp-tags-select2" multiple disabled>';
+      $input_html .= '</select>';
+      $input_html .= '<p class="dfp-help-text">'
+        . t('Respondents can search existing tags or type new ones.')
+        . '</p>';
       break;
 
     default:

@@ -32,7 +32,6 @@
         <?php else: ?>
 
           <a href="<?php print url('dashboard'); ?>">Dashboard</a>
-          <a href="<?php print url('dashboard/forms/create') ?>">Create Form</a>
           <a href="<?php print url('user/logout'); ?>" class="dfb-btn-ghost">Log Out</a>
         <?php endif; ?>
       </div>

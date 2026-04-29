@@ -127,6 +127,19 @@ function _dynamic_form_dashboard_sidebar($active = 'overview')
     $output .= '</li>';
   }
 
+  if (user_access('view activity log')) {
+    $log_classes = 'dfb-sidebar-item dfb-sidebar-item--activity-log';
+    if ($active === 'activity-log') {
+      $log_classes .= ' active';
+    }
+    $output .= '<li class="' . $log_classes . '">';
+    $output .= '<a href="' . url('dashboard/activity-log') . '">';
+    $output .= '<span class="dfb-sidebar-item-icon">&#128203;</span>';
+    $output .= '<span class="dfb-sidebar-item-label">' . t('Activity Log') . '</span>';
+    $output .= '</a>';
+    $output .= '</li>';
+  }
+
   if (user_access('view soft delete')) {
     $trash_classes = 'dfb-sidebar-item dfb-sidebar-item--trash';
     if ($active === 'trash') {
@@ -848,6 +861,8 @@ function dynamic_form_ajax_entity_delete($entity_type, $entity_id) {
     ->condition('id', $entity_id)
     ->execute();
 
+  _dynamic_form_audit_log($entity_type, $entity_id, 'deleted', (array) $record, NULL);
+
   switch ($entity_type) {
     case 'form':     $label = $record->title; break;
     case 'section':  $label = $record->name;  break;
@@ -872,4 +887,133 @@ function _dynamic_form_dashboard_entity_table($entity_type) {
     'question' => 'dynamic_form_questions',
   );
   return isset($map[$entity_type]) ? $map[$entity_type] : NULL;
+}
+
+/* =====================================================================
+   ACTIVITY LOG PAGE
+   ===================================================================== */
+
+/**
+ * Page callback: dashboard/activity-log
+ *
+ * Displays a paginated table of all audit log entries showing who
+ * created, edited, or deleted forms, sections, and questions.
+ */
+function dynamic_form_activity_log_page() {
+  drupal_set_title(t('Activity Log'));
+
+  $module_path = drupal_get_path('module', 'dynamic_form');
+  drupal_add_css($module_path . '/css/builder.css');
+
+  $sidebar_html = _dynamic_form_dashboard_sidebar('activity-log');
+
+  $action_labels = array(
+    'created' => t('Created'),
+    'updated' => t('Updated'),
+    'deleted' => t('Deleted'),
+  );
+
+  $action_classes = array(
+    'created' => 'dfb-log-action--created',
+    'updated' => 'dfb-log-action--updated',
+    'deleted' => 'dfb-log-action--deleted',
+  );
+
+  $per_page = 50;
+  $total    = db_select('dynamic_form_audit_log', 'l')->countQuery()->execute()->fetchField();
+
+  pager_default_initialize($total, $per_page);
+
+  $logs = db_select('dynamic_form_audit_log', 'l')
+    ->fields('l')
+    ->orderBy('created_at', 'DESC')
+    ->extend('PagerDefault')
+    ->limit($per_page)
+    ->execute()
+    ->fetchAll();
+
+  // Pre-load actor usernames in one query.
+  $actor_ids = array_filter(array_unique(array_map(function($r) { return (int) $r->actor_uid; }, $logs)));
+  $usernames  = array();
+  if (!empty($actor_ids)) {
+    $users = db_select('users', 'u')
+      ->fields('u', array('uid', 'name'))
+      ->condition('uid', $actor_ids, 'IN')
+      ->execute()
+      ->fetchAll();
+    foreach ($users as $u) {
+      $usernames[(int) $u->uid] = $u->name;
+    }
+  }
+
+  $output  = '<div class="dfb-activity-log-page">';
+  $output .= '<div class="dfb-page-header">';
+  $output .= '<h1 class="dfb-page-title">' . t('Activity Log') . '</h1>';
+  $output .= '<p class="dfb-page-subtitle">' . t('A record of all create, edit, and delete actions on forms, sections, and questions.') . '</p>';
+  $output .= '</div>';
+
+  if (empty($logs)) {
+    $output .= '<p class="dfb-empty-state">' . t('No activity has been recorded yet.') . '</p>';
+  }
+  else {
+    $output .= '<table class="dfb-log-table">';
+    $output .= '<thead><tr>';
+    $output .= '<th>' . t('When') . '</th>';
+    $output .= '<th>' . t('Who') . '</th>';
+    $output .= '<th>' . t('Action') . '</th>';
+    $output .= '<th>' . t('Entity') . '</th>';
+    $output .= '<th>' . t('Detail') . '</th>';
+    $output .= '</tr></thead>';
+    $output .= '<tbody>';
+
+    foreach ($logs as $log) {
+      $actor_name = isset($usernames[(int) $log->actor_uid])
+        ? check_plain($usernames[(int) $log->actor_uid])
+        : t('System');
+
+      $action_label = isset($action_labels[$log->action])
+        ? $action_labels[$log->action]
+        : check_plain($log->action);
+
+      $action_class = isset($action_classes[$log->action])
+        ? $action_classes[$log->action]
+        : '';
+
+      // Extract a human-readable label from the JSON snapshot.
+      $detail = '';
+      $snapshot = $log->new_value ?: $log->old_value;
+      if ($snapshot) {
+        $data = json_decode($snapshot, TRUE);
+        if (is_array($data)) {
+          if (!empty($data['title'])) {
+            $detail = check_plain($data['title']);
+          }
+          elseif (!empty($data['name'])) {
+            $detail = check_plain($data['name']);
+          }
+          elseif (!empty($data['label'])) {
+            $detail = check_plain(truncate_utf8($data['label'], 60, TRUE, TRUE));
+          }
+        }
+      }
+
+      $output .= '<tr>';
+      $output .= '<td class="dfb-log-time">' . format_date($log->created_at, 'short') . '</td>';
+      $output .= '<td class="dfb-log-actor">' . $actor_name . '</td>';
+      $output .= '<td><span class="dfb-log-action ' . $action_class . '">' . $action_label . '</span></td>';
+      $output .= '<td class="dfb-log-entity">' . check_plain($log->entity_type) . ' #' . (int) $log->entity_id . '</td>';
+      $output .= '<td class="dfb-log-detail">' . $detail . '</td>';
+      $output .= '</tr>';
+    }
+
+    $output .= '</tbody></table>';
+    $output .= theme('pager');
+  }
+
+  $output .= '</div>';
+
+  return theme('dynamic_form_dashboard', array(
+    'sidebar' => $sidebar_html,
+    'content' => $output,
+  ));
 }

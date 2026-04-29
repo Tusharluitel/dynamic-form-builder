@@ -145,6 +145,8 @@ function dynamic_form_create_section_form_submit($form, &$form_state)
     ->fields($fields)
     ->execute();
 
+  _dynamic_form_audit_log('section', $id, 'created', NULL, $fields);
+
   drupal_set_message(t('Section "@name" has been created.', array('@name' => $values['name'])));
   $form_state['redirect'] = 'dashboard/sections';
 }
@@ -301,6 +303,8 @@ function dynamic_form_edit_section_form_submit($form, &$form_state)
     ->condition('id', $record->id)
     ->execute();
 
+  _dynamic_form_audit_log('section', $record->id, 'updated', (array) $record, $fields);
+
   drupal_set_message(t('Section "@name" has been updated.', array('@name' => $values['name'])));
   $form_state['redirect'] = 'dashboard/sections';
 }
@@ -363,6 +367,8 @@ function dynamic_form_delete_section_confirm_submit($form, &$form_state)
     ))
     ->condition('id', $record->id)
     ->execute();
+
+  _dynamic_form_audit_log('section', $record->id, 'deleted', (array) $record, NULL);
 
   drupal_set_message(t('Section "@name" has been deleted.', array('@name' => $record->name)));
   $form_state['redirect'] = 'dashboard/sections';

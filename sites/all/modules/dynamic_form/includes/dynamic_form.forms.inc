@@ -30,6 +30,11 @@ function dynamic_form_create_form($form, &$form_state)
     ),
     'type' => 'setting',
   );
+  // Swap rendered text inputs to datetime-local after Drupal renders them.
+  $form['#attached']['js'][] = array(
+    'data' => '(function($){Drupal.behaviors.dfbDatetimePicker={attach:function(ctx){$("input.dfb-datetime-input",ctx).each(function(){var o=$(this),n=document.createElement("input");n.type="datetime-local";n.name=o.attr("name");n.id=o.attr("id");n.value=o.val();n.className=this.className;o.replaceWith(n);});}};})(jQuery);',
+    'type' => 'inline',
+  );
 
   // Wrapper for dashboard styling.
   $form['#prefix'] = '<div class="dfb-form-wrapper">';
@@ -109,21 +114,21 @@ function dynamic_form_create_form($form, &$form_state)
   );
 
   $form['schedule']['opens_at'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Opens At'),
-    '#required' => FALSE,
+    '#type'          => 'textfield',
+    '#title'         => t('Opens At'),
+    '#required'      => FALSE,
     '#default_value' => '',
-    '#attributes' => array('placeholder' => t('YYYY-MM-DD HH:MM')),
-    '#description' => t('Leave blank to open immediately. Example: 2026-06-01 09:00'),
+    '#attributes'    => array('class' => array('dfb-datetime-input')),
+    '#description'   => t('Leave blank to open immediately.'),
   );
 
   $form['schedule']['closes_at'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Closes At'),
-    '#required' => FALSE,
+    '#type'          => 'textfield',
+    '#title'         => t('Closes At'),
+    '#required'      => FALSE,
     '#default_value' => '',
-    '#attributes' => array('placeholder' => t('YYYY-MM-DD HH:MM')),
-    '#description' => t('Leave blank for no expiry. Example: 2026-12-31 23:59'),
+    '#attributes'    => array('class' => array('dfb-datetime-input')),
+    '#description'   => t('Leave blank for no expiry.'),
   );
 
   // -- Members section --
@@ -245,6 +250,8 @@ function dynamic_form_create_form_submit($form, &$form_state)
     ->fields($fields)
     ->execute();
 
+  _dynamic_form_audit_log('form', $id, 'created', NULL, $fields);
+
   // Save members and queue email notifications for newly added ones.
   $members_json = isset($values['members_selected']) ? $values['members_selected'] : '[]';
   $newly_added  = _dynamic_form_save_members($id, $members_json, TRUE);
@@ -346,6 +353,10 @@ function dynamic_form_edit_form($form, &$form_state, $form_id)
     ),
     'type' => 'setting',
   );
+  $form['#attached']['js'][] = array(
+    'data' => '(function($){Drupal.behaviors.dfbDatetimePicker={attach:function(ctx){$("input.dfb-datetime-input",ctx).each(function(){var o=$(this),n=document.createElement("input");n.type="datetime-local";n.name=o.attr("name");n.id=o.attr("id");n.value=o.val();n.className=this.className;o.replaceWith(n);});}};})(jQuery);',
+    'type' => 'inline',
+  );
 
   $record = db_select('dynamic_form_forms', 'f')
     ->fields('f')
@@ -438,21 +449,21 @@ function dynamic_form_edit_form($form, &$form_state, $form_id)
   );
 
   $form['schedule']['opens_at'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Opens At'),
-    '#required' => FALSE,
-    '#default_value' => !empty($record->opens_at) ? format_date($record->opens_at, 'custom', 'Y-m-d H:i') : '',
-    '#attributes' => array('placeholder' => t('YYYY-MM-DD HH:MM')),
-    '#description' => t('Leave blank to open immediately. Example: 2026-06-01 09:00'),
+    '#type'          => 'textfield',
+    '#title'         => t('Opens At'),
+    '#required'      => FALSE,
+    '#default_value' => !empty($record->opens_at) ? format_date($record->opens_at, 'custom', 'Y-m-d\TH:i') : '',
+    '#attributes'    => array('class' => array('dfb-datetime-input')),
+    '#description'   => t('Leave blank to open immediately.'),
   );
 
   $form['schedule']['closes_at'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Closes At'),
-    '#required' => FALSE,
-    '#default_value' => !empty($record->closes_at) ? format_date($record->closes_at, 'custom', 'Y-m-d H:i') : '',
-    '#attributes' => array('placeholder' => t('YYYY-MM-DD HH:MM')),
-    '#description' => t('Leave blank for no expiry. Example: 2026-12-31 23:59'),
+    '#type'          => 'textfield',
+    '#title'         => t('Closes At'),
+    '#required'      => FALSE,
+    '#default_value' => !empty($record->closes_at) ? format_date($record->closes_at, 'custom', 'Y-m-d\TH:i') : '',
+    '#attributes'    => array('class' => array('dfb-datetime-input')),
+    '#description'   => t('Leave blank for no expiry.'),
   );
 
   // -- Members section --
@@ -580,6 +591,8 @@ function dynamic_form_edit_form_submit($form, &$form_state)
     ->condition('id', $record->id)
     ->execute();
 
+  _dynamic_form_audit_log('form', $record->id, 'updated', (array) $record, $fields);
+
   // Sync members and queue emails for newly added ones.
   $members_json = isset($values['members_selected']) ? $values['members_selected'] : '[]';
   $newly_added  = _dynamic_form_save_members($record->id, $members_json, FALSE);
@@ -639,6 +652,8 @@ function dynamic_form_delete_confirm_submit($form, &$form_state)
     ))
     ->condition('id', $record->id)
     ->execute();
+
+  _dynamic_form_audit_log('form', $record->id, 'deleted', (array) $record, NULL);
 
   drupal_set_message(t('Form "@title" has been deleted.', array('@title' => $record->title)));
   $form_state['redirect'] = 'dashboard/forms';

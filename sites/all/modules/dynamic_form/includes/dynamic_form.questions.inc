@@ -171,7 +171,7 @@ function dynamic_form_edit_question_form($form, &$form_state, $question_id) {
       '<div class="dfb-q-subsection dfb-text-editor-info" data-dfb-show-for="text_editor">' .
         '<p class="dfb-subsection-label">' . t('Rich Text Editor') . '</p>' .
         '<p class="dfb-text-editor-hint">' .
-          t('Respondents will see a CKEditor rich text editor for their answer. No additional configuration needed.') .
+          t('Respondents will see a TinyMCE rich text editor for their answer. No additional configuration needed.') .
         '</p>' .
       '</div>',
   );
@@ -455,21 +455,25 @@ function dynamic_form_edit_question_form_submit($form, &$form_state) {
   }
 
   // Update the question record.
+  $new_q_fields = array(
+    'label'            => trim($values['label']),
+    'description'      => isset($values['description'])  ? trim($values['description'])  : '',
+    'placeholder'      => isset($values['placeholder'])  ? trim($values['placeholder'])  : '',
+    'type'             => $type,
+    'is_required'      => (int) $values['is_required'],
+    'is_readonly'      => (int) $values['is_readonly'],
+    'allow_file_types' => $allow_file_types,
+    'max_file_size'    => $max_file_size,
+    'max_files'        => $max_files,
+    'updated_at'       => $now,
+  );
+
   db_update('dynamic_form_questions')
-    ->fields(array(
-      'label'            => trim($values['label']),
-      'description'      => isset($values['description'])  ? trim($values['description'])  : '',
-      'placeholder'      => isset($values['placeholder'])  ? trim($values['placeholder'])  : '',
-      'type'             => $type,
-      'is_required'      => (int) $values['is_required'],
-      'is_readonly'      => (int) $values['is_readonly'],
-      'allow_file_types' => $allow_file_types,
-      'max_file_size'    => $max_file_size,
-      'max_files'        => $max_files,
-      'updated_at'       => $now,
-    ))
+    ->fields($new_q_fields)
     ->condition('id', $qid)
     ->execute();
+
+  _dynamic_form_audit_log('question', $qid, 'updated', (array) $record, $new_q_fields);
 
   // --- Options: soft-delete old, re-insert ---
   db_update('dynamic_form_question_options')
@@ -604,6 +608,8 @@ function dynamic_form_delete_question_confirm_submit($form, &$form_state) {
     ->fields(array('deleted_at' => $now, 'deleted_by' => $user->uid, 'updated_at' => $now))
     ->condition('id', $record->id)
     ->execute();
+
+  _dynamic_form_audit_log('question', $record->id, 'deleted', (array) $record, NULL);
 
   drupal_set_message(t('Question "@label" has been deleted.', array('@label' => $record->label)));
   $form_state['redirect'] = 'dashboard/questions';

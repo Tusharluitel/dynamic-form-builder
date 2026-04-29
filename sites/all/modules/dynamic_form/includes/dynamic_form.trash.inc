@@ -17,8 +17,13 @@ function dynamic_form_dashboard_trash_page() {
 
   module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.dashboard');
 
+  $module_path = drupal_get_path('module', 'dynamic_form');
+  drupal_add_css($module_path . '/css/dashboard-delete.css');
+  drupal_add_js($module_path . '/js/dashboard-delete.js');
+
   $sidebar_html = _dynamic_form_dashboard_sidebar('trash');
   $content_html = _dynamic_form_dashboard_trash_content();
+  $content_html .= _dynamic_form_restore_confirm_modal();
 
   return theme('dynamic_form_dashboard', array(
     'sidebar' => $sidebar_html,
@@ -132,12 +137,24 @@ function _dynamic_form_trash_section_block($title, $icon, $count, $header, $reco
  * Builds one table row for a deleted entity.
  */
 function _dynamic_form_trash_build_row($record, $entity_type, $can_act) {
+  switch ($entity_type) {
+    case 'form':     $entity_name = $record->title; break;
+    case 'section':  $entity_name = $record->name;  break;
+    case 'question': $entity_name = truncate_utf8($record->label, 60, TRUE, TRUE); break;
+    default:         $entity_name = '';
+  }
+
   $actions = array();
   if ($can_act) {
     $actions[] = l(
       t('Restore'),
       'dashboard/trash/' . $entity_type . '/' . $record->id . '/restore',
-      array('attributes' => array('class' => array('dfb-action-restore')))
+      array('attributes' => array(
+        'class'            => array('dfb-action-restore', 'dfb-restore-trigger'),
+        'data-entity-type' => $entity_type,
+        'data-entity-id'   => (string) $record->id,
+        'data-entity-name' => $entity_name,
+      ))
     );
     $actions[] = l(
       t('Delete Permanently'),
@@ -439,4 +456,83 @@ function _dynamic_form_trash_label($entity_type, $record) {
       return check_plain(truncate_utf8($record->label, 60, TRUE, TRUE));
   }
   return t('Item');
+}
+
+/**
+ * Returns the HTML for the restore-confirmation modal on the trash page.
+ */
+function _dynamic_form_restore_confirm_modal() {
+  return '
+<div id="dfb-restore-modal" role="alertdialog" aria-modal="true" aria-labelledby="dfb-restore-modal-title" style="display:none;">
+  <div class="dfb-delete-modal-dialog">
+    <span class="dfb-delete-modal-icon">&#9850;</span>
+    <h3 class="dfb-delete-modal-title" id="dfb-restore-modal-title">'
+      . t('Restore this') . ' <span class="dfb-restore-modal-type"></span>?
+    </h3>
+    <p class="dfb-delete-modal-body">'
+      . t('You are about to restore') . ' <strong class="dfb-restore-modal-name"></strong>. '
+      . t('The item will become active again.') . '
+    </p>
+    <div class="dfb-delete-modal-actions">
+      <button class="dfb-restore-confirm-btn" type="button">' . t('Restore') . '</button>
+      <button class="dfb-restore-cancel-btn"  type="button">' . t('Cancel') . '</button>
+    </div>
+  </div>
+</div>';
+}
+
+/* =====================================================================
+   TRASH — AJAX RESTORE
+   ===================================================================== */
+
+/**
+ * AJAX endpoint: restores a soft-deleted entity.
+ *
+ * Route: POST dynamic-form/ajax/trash/{entity_type}/{entity_id}/restore
+ * Returns JSON: {status: "ok"|"error", message: "..."}
+ */
+function dynamic_form_ajax_entity_restore($entity_type, $entity_id) {
+  if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    drupal_json_output(array('status' => 'error', 'message' => t('Invalid request method.')));
+    drupal_exit();
+  }
+
+  if (!in_array($entity_type, array('form', 'section', 'question'))) {
+    drupal_json_output(array('status' => 'error', 'message' => t('Invalid entity type.')));
+    drupal_exit();
+  }
+
+  $entity_id = (int) $entity_id;
+  $table     = _dynamic_form_trash_table($entity_type);
+
+  $record = db_select($table, 'e')
+    ->fields('e')
+    ->condition('id', $entity_id)
+    ->condition('deleted_at', NULL, 'IS NOT NULL')
+    ->execute()
+    ->fetchObject();
+
+  if (!$record) {
+    drupal_json_output(array('status' => 'error', 'message' => t('Item not found in trash.')));
+    drupal_exit();
+  }
+
+  db_update($table)
+    ->fields(array(
+      'deleted_at' => NULL,
+      'deleted_by' => NULL,
+      'updated_at' => REQUEST_TIME,
+    ))
+    ->condition('id', $entity_id)
+    ->execute();
+
+  $label = _dynamic_form_trash_label($entity_type, $record);
+
+  _dynamic_form_audit_log($entity_type, $entity_id, 'created', NULL, (array) $record);
+
+  drupal_json_output(array(
+    'status'  => 'ok',
+    'message' => t('"@label" has been restored.', array('@label' => $label)),
+  ));
+  drupal_exit();
 }

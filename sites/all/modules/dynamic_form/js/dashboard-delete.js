@@ -117,6 +117,99 @@
     }
   };
 
+  // -----------------------------------------------------------------
+  // Restore modal: intercept .dfb-restore-trigger clicks
+  // -----------------------------------------------------------------
+  Drupal.behaviors.dfbDashboardRestore = {
+    attach: function (context) {
+      var $modal = $('#dfb-restore-modal');
+      if (!$modal.length) { return; }
+
+      $(context).find('.dfb-restore-trigger').once('dfb-restore-open', function () {
+        $(this).bind('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+
+          var $trigger   = $(this);
+          var entityType = $trigger.data('entity-type');
+          var entityId   = $trigger.data('entity-id');
+          var entityName = $trigger.data('entity-name');
+
+          $modal.find('.dfb-restore-modal-type').text(entityType);
+          $modal.find('.dfb-restore-modal-name').text(entityName);
+
+          $modal
+            .data('entity-type', entityType)
+            .data('entity-id',   entityId)
+            .data('target-row',  $trigger.closest('tr'));
+
+          $modal.find('.dfb-restore-confirm-btn')
+            .removeAttr('disabled')
+            .text(Drupal.t('Restore'));
+
+          $modal.css({ display: 'flex', opacity: 0 }).animate({ opacity: 1 }, 150);
+        });
+      });
+
+      $modal.once('dfb-restore-modal-init', function () {
+        var $m = $(this);
+
+        $m.find('.dfb-restore-cancel-btn').bind('click', function () {
+          _close($m);
+        });
+
+        $m.bind('click', function (e) {
+          if ($(e.target).is($m)) { _close($m); }
+        });
+
+        $m.find('.dfb-restore-confirm-btn').bind('click', function () {
+          var $btn = $(this);
+          var type = $m.data('entity-type');
+          var id   = $m.data('entity-id');
+          var $row = $m.data('target-row');
+          var url  = Drupal.settings.basePath + 'dynamic-form/ajax/trash/' + type + '/' + id + '/restore';
+
+          $btn.attr('disabled', 'disabled').text(Drupal.t('Restoring…'));
+
+          $.ajax({
+            url:      url,
+            type:     'POST',
+            dataType: 'json',
+            success: function (res) {
+              if (res && res.status === 'ok') {
+                _close($m);
+                if ($row && $row.length) {
+                  $row.animate({ opacity: 0 }, 250, function () { $row.remove(); });
+                }
+                if (window.DFBToast) { DFBToast.success(res.message); }
+              }
+              else {
+                $btn.removeAttr('disabled').text(Drupal.t('Restore'));
+                if (window.DFBToast) {
+                  DFBToast.error((res && res.message) || Drupal.t('Could not restore item.'));
+                }
+              }
+            },
+            error: function () {
+              $btn.removeAttr('disabled').text(Drupal.t('Restore'));
+              if (window.DFBToast) {
+                DFBToast.error(Drupal.t('An error occurred. Please try again.'));
+              }
+            }
+          });
+        });
+      });
+
+      $(document).once('dfb-restore-esc', function () {
+        $(this).bind('keydown', function (e) {
+          if ((e.key === 'Escape' || e.keyCode === 27) && $('#dfb-restore-modal').is(':visible')) {
+            _close($('#dfb-restore-modal'));
+          }
+        });
+      });
+    }
+  };
+
   function _close($modal) {
     $modal.animate({ opacity: 0 }, 150, function () {
       $modal.css('display', 'none');
