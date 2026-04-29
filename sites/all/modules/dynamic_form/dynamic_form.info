@@ -6,3 +6,4 @@ package = Dynamic Forms
 dependencies[] = file
 dependencies[] = field
 dependencies[] = field_ui
+depencencies[] = ckeditor

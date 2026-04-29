@@ -26,6 +26,12 @@ function dynamic_form_preview_page($form_id) {
   $module_path = drupal_get_path('module', 'dynamic_form');
   drupal_add_css($module_path . '/css/preview.css');
 
+  // Load TinyMCE when the form has text_editor questions.
+  _dynamic_form_preview_maybe_load_tinymce($form_id);
+
+  // Load Select2 when the form has select or tags questions.
+  _dynamic_form_preview_maybe_load_select2($form_id);
+
   module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.dashboard');
   $sidebar_html = _dynamic_form_dashboard_sidebar('forms');
 
@@ -70,19 +76,42 @@ function dynamic_form_preview_page($form_id) {
     }
   }
 
-  // Load scale/rating meta-rules, grouped by question_id.
+  // Load scale/rating meta-rules and select flags, grouped by question_id.
   $scale_by_question = array();
   if (!empty($question_ids)) {
     $metas = db_select('dynamic_form_question_validations', 'v')
       ->fields('v')
       ->condition('question_id', $question_ids, 'IN')
-      ->condition('rule_type', array('scale_min', 'scale_max', 'scale_min_label', 'scale_max_label'), 'IN')
+      ->condition('rule_type', array('scale_min', 'scale_max', 'scale_min_label', 'scale_max_label', 'allow_multiple'), 'IN')
       ->execute()
       ->fetchAll();
     foreach ($metas as $meta) {
       $scale_by_question[(int) $meta->question_id][$meta->rule_type] = $meta->rule_value;
     }
   }
+
+  // -----------------------------------------------------------------------
+  // Pagination setup — Drupal server-side pager
+  // -----------------------------------------------------------------------
+  $qpp = max(1, (int) $form_record->question_per_page);
+
+  // Flatten all questions in section order, carrying section context.
+  $flat = array();
+  foreach ($sections as $section) {
+    $sid = (int) $section->id;
+    $qs  = isset($questions_by_section[$sid]) ? $questions_by_section[$sid] : array();
+    foreach ($qs as $q) {
+      $flat[] = array('q' => $q, 'section' => $section);
+    }
+  }
+
+  $total_q   = count($flat);
+  $use_pager = $total_q > $qpp;
+
+  // pager_default_initialize() registers the pager globally and returns the
+  // current 0-based page derived from $_GET['page'].
+  $current_page = $use_pager ? pager_default_initialize($total_q, $qpp) : 0;
+  $page_items   = array_slice($flat, $current_page * $qpp, $qpp);
 
   // -----------------------------------------------------------------------
   // Render
@@ -107,36 +136,47 @@ function dynamic_form_preview_page($form_id) {
   }
   $output .= '</div>';
 
-  if (empty($sections)) {
+  if (empty($flat)) {
     $output .= '<p class="dfp-empty">' . t('No sections or questions have been added yet.') . '</p>';
   }
   else {
-    foreach ($sections as $section) {
-      $sid = (int) $section->id;
-      $qs  = isset($questions_by_section[$sid]) ? $questions_by_section[$sid] : array();
+    $output .= '<div class="dfp-paginated-form">';
 
-      $output .= '<div class="dfp-section">';
-      $output .= '<div class="dfp-section-header">';
-      $output .= '<h2 class="dfp-section-title">' . check_plain($section->name) . '</h2>';
-      if (!empty($section->description)) {
-        $output .= '<p class="dfp-section-desc">' . check_plain($section->description) . '</p>';
-      }
-      $output .= '</div>';
+    $prev_sid = -1;
+    foreach ($page_items as $item) {
+      $q   = $item['q'];
+      $sec = $item['section'];
+      $sid = (int) $sec->id;
 
-      if (empty($qs)) {
-        $output .= '<p class="dfp-no-questions">' . t('No questions in this section yet.') . '</p>';
-      }
-      else {
-        foreach ($qs as $q) {
-          $qid   = (int) $q->id;
-          $opts  = isset($options_by_question[$qid]) ? $options_by_question[$qid] : array();
-          $scale = isset($scale_by_question[$qid])   ? $scale_by_question[$qid]   : array();
-          $output .= _dynamic_form_render_preview_question($q, $opts, $scale);
+      if ($sid !== $prev_sid) {
+        if ($prev_sid !== -1) {
+          $output .= '</div>'; // close previous .dfp-section
         }
+        $output .= '<div class="dfp-section">';
+        $output .= '<div class="dfp-section-header">';
+        $output .= '<h2 class="dfp-section-title">' . check_plain($sec->name) . '</h2>';
+        if (!empty($sec->description)) {
+          $output .= '<p class="dfp-section-desc">' . check_plain($sec->description) . '</p>';
+        }
+        $output .= '</div>';
+        $prev_sid = $sid;
       }
 
-      $output .= '</div>';
+      $qid   = (int) $q->id;
+      $opts  = isset($options_by_question[$qid]) ? $options_by_question[$qid] : array();
+      $scale = isset($scale_by_question[$qid])   ? $scale_by_question[$qid]   : array();
+      $output .= _dynamic_form_render_preview_question($q, $opts, $scale);
     }
+
+    if ($prev_sid !== -1) {
+      $output .= '</div>'; // close last .dfp-section
+    }
+
+    if ($use_pager) {
+      $output .= theme('pager', array('element' => 0));
+    }
+
+    $output .= '</div>'; // close .dfp-paginated-form
   }
 
   $output .= '</div>'; // .dfp-form-card
@@ -146,6 +186,146 @@ function dynamic_form_preview_page($form_id) {
     'sidebar' => $sidebar_html,
     'content' => $output,
   ));
+}
+
+/**
+ * Loads TinyMCE assets for the preview page if text_editor questions exist.
+ *
+ * Uses the library at sites/all/libraries/tinymce/js/tinymce/tinymce.min.js
+ * and initialises each .dfp-text-editor-area textarea in read-only mode.
+ *
+ * @param int $form_id  The dynamic_form_forms record ID.
+ */
+function _dynamic_form_preview_maybe_load_tinymce($form_id) {
+  $has_editor = db_select('dynamic_form_questions', 'q')
+    ->fields('q', array('id'))
+    ->condition('form_id', $form_id)
+    ->condition('type', 'text_editor')
+    ->condition('deleted_at', NULL, 'IS NULL')
+    ->range(0, 1)
+    ->execute()
+    ->fetchField();
+
+  if (!$has_editor) {
+    return;
+  }
+
+  $tinymce_js = 'sites/all/libraries/tinymce/js/tinymce/tinymce.min.js';
+  if (!file_exists(DRUPAL_ROOT . '/' . $tinymce_js)) {
+    return;
+  }
+
+  drupal_add_js($tinymce_js, array('type' => 'file', 'weight' => 10));
+
+  $init_js = <<<JS
+(function ($) {
+  Drupal.behaviors.dfpTinymcePreview = {
+    attach: function (context, settings) {
+      \$('.dfp-text-editor-area', context).once('dfp-tinymce-init', function () {
+        if (typeof tinymce === 'undefined') { return; }
+        tinymce.init({
+          selector  : '#' + this.id,
+          readonly  : true,
+          height    : 200,
+          menubar   : false,
+          statusbar : false,
+          plugins   : 'lists link',
+          toolbar   : 'bold italic underline strikethrough | bullist numlist blockquote | link'
+        });
+      });
+    }
+  };
+})(jQuery);
+JS;
+
+  drupal_add_js($init_js, array('type' => 'inline', 'scope' => 'footer', 'weight' => 20));
+}
+
+/**
+ * Loads Select2 assets when the form has 'select' or 'tags' questions.
+ *
+ * Adds Select2 CSS/JS from sites/all/libraries/select2/ and inline
+ * Drupal behaviours for both question types.
+ *
+ * @param int $form_id  The dynamic_form_forms record ID.
+ */
+function _dynamic_form_preview_maybe_load_select2($form_id) {
+  $has_select2 = db_select('dynamic_form_questions', 'q')
+    ->fields('q', array('id'))
+    ->condition('form_id', $form_id)
+    ->condition('type', array('select', 'tags'), 'IN')
+    ->condition('deleted_at', NULL, 'IS NULL')
+    ->range(0, 1)
+    ->execute()
+    ->fetchField();
+
+  if (!$has_select2) {
+    return;
+  }
+
+  $select2_base = 'sites/all/libraries/select2';
+  if (!file_exists(DRUPAL_ROOT . '/' . $select2_base . '/select2.min.js')) {
+    return;
+  }
+
+  drupal_add_css($select2_base . '/select2.css');
+  drupal_add_js($select2_base . '/select2.min.js', array('weight' => 10));
+
+  $autocomplete_url = url('dynamic-form/ajax/tags/autocomplete');
+
+  $init_js = <<<JS
+(function ($) {
+  // Regular dropdown (select type) — disabled preview.
+  Drupal.behaviors.dfpSelect2Preview = {
+    attach: function (context, settings) {
+      $('.dfp-select2', context).once('dfp-s2-init', function () {
+        try {
+          $(this).select2({
+            placeholder: $(this).hasClass('dfp-select-multi') ? '' : '-- Select an option --',
+            allowClear:  !$(this).hasClass('dfp-select-multi'),
+            width:       '100%',
+            disabled:    true
+          });
+        } catch (e) {}
+      });
+    }
+  };
+
+  // Tags input (tags type) — disabled preview with AJAX autocomplete wired up.
+  Drupal.behaviors.dfpTagsPreview = {
+    attach: function (context, settings) {
+      $('.dfp-tags-select2', context).once('dfp-tags-s2-init', function () {
+        try {
+          $(this).select2({
+            tags:        true,
+            width:       '100%',
+            disabled:    true,
+            placeholder: 'Type to search or add tags…',
+            ajax: {
+              url:      '{$autocomplete_url}',
+              dataType: 'json',
+              quietMillis: 250,
+              data: function (term) {
+                return { term: term };
+              },
+              results: function (data) {
+                return { results: data };
+              }
+            },
+            createSearchChoice: function (term, data) {
+              if (!data.length) {
+                return { id: term, text: term + ' (new tag)' };
+              }
+            }
+          });
+        } catch (e) {}
+      });
+    }
+  };
+})(jQuery);
+JS;
+
+  drupal_add_js($init_js, array('type' => 'inline', 'scope' => 'footer', 'weight' => 20));
 }
 
 /**
@@ -179,6 +359,11 @@ function _dynamic_form_render_preview_question($q, array $opts, array $scale) {
     case 'textarea':
       $input_html = '<textarea class="dfp-textarea" disabled rows="4"'
         . ' placeholder="' . t('Long answer text') . '"></textarea>';
+      break;
+
+    case 'text_editor':
+      $editor_id  = 'dfp-tinymce-' . (int) $q->id;
+      $input_html = '<textarea id="' . $editor_id . '" class="dfp-text-editor-area" rows="6"></textarea>';
       break;
 
     case 'radio':
@@ -218,8 +403,13 @@ function _dynamic_form_render_preview_question($q, array $opts, array $scale) {
         $input_html = '<p class="dfp-no-options">' . t('No options defined.') . '</p>';
       }
       else {
-        $input_html = '<select class="dfp-select" disabled>'
-          . '<option value="">' . t('— Select an option —') . '</option>';
+        $allow_multi  = !empty($scale['allow_multiple']);
+        $multi_attr   = $allow_multi ? ' multiple' : '';
+        $select_class = $allow_multi ? 'dfp-select dfp-select-multi dfp-select2' : 'dfp-select dfp-select2';
+        $input_html   = '<select class="' . $select_class . '" disabled' . $multi_attr . '>';
+        if (!$allow_multi) {
+          $input_html .= '<option value="">' . t('— Select an option —') . '</option>';
+        }
         foreach ($opts as $opt) {
           $input_html .= '<option>' . check_plain($opt->option_label) . '</option>';
         }
@@ -228,18 +418,59 @@ function _dynamic_form_render_preview_question($q, array $opts, array $scale) {
       break;
 
     case 'file':
-      $input_html = '<input type="file" class="dfp-file" disabled>';
+      // File type badges.
+      $type_badges = '';
       if (!empty($q->allow_file_types)) {
-        $input_html .= '<p class="dfp-help-text dfp-file-hint">'
-          . t('Accepted types: @types', array('@types' => check_plain($q->allow_file_types)))
-          . '</p>';
+        $types = array_filter(array_map('trim', explode(',', $q->allow_file_types)));
+        foreach ($types as $ft) {
+          $type_badges .= '<span class="dfp-file-type-badge">' . check_plain(drupal_strtoupper($ft)) . '</span>';
+        }
       }
+
+      // Size pill.
+      $size_pill = '';
       if (!empty($q->max_file_size)) {
-        $mb = round($q->max_file_size / 1048576, 1);
-        $input_html .= '<p class="dfp-help-text dfp-file-hint">'
-          . t('Max size: @mb MB', array('@mb' => $mb))
-          . '</p>';
+        $mb        = round($q->max_file_size / 1048576, 1);
+        $size_pill = '<span class="dfp-file-size-pill">' . t('Max @mb MB', array('@mb' => $mb)) . '</span>';
       }
+
+      // Max files pill.
+      $files_pill = '';
+      if (!empty($q->max_files)) {
+        $files_pill = '<span class="dfp-file-size-pill">'
+          . t('Up to @n file(s)', array('@n' => (int) $q->max_files))
+          . '</span>';
+      }
+
+      $meta_html = '';
+      if ($type_badges || $size_pill || $files_pill) {
+        $meta_html = '<div class="dfp-file-meta">';
+        if ($type_badges) {
+          $meta_html .= '<div class="dfp-file-types">' . $type_badges . '</div>';
+        }
+        $meta_html .= $size_pill;
+        $meta_html .= $files_pill;
+        $meta_html .= '</div>';
+      }
+
+      $input_html = '<div class="dfp-file-dropzone">'
+        . '<input type="file" class="dfp-file-hidden" disabled>'
+        . '<div class="dfp-file-dropzone-inner">'
+        . '<div class="dfp-file-upload-icon">'
+        . '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"'
+        . ' stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'
+        . '<path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>'
+        . '<polyline points="16 16 12 12 8 16"/>'
+        . '<line x1="12" y1="12" x2="12" y2="21"/>'
+        . '</svg>'
+        . '</div>'
+        . '<div class="dfp-file-upload-prompt">'
+        . '<span class="dfp-file-upload-btn">' . t('Click to upload') . '</span>'
+        . '<span class="dfp-file-upload-or"> ' . t('or drag and drop') . '</span>'
+        . '</div>'
+        . $meta_html
+        . '</div>'
+        . '</div>';
       break;
 
     case 'date':
@@ -290,6 +521,14 @@ function _dynamic_form_render_preview_question($q, array $opts, array $scale) {
         $input_html .= '</div>';
       }
       $input_html .= '</div>';
+      break;
+
+    case 'tags':
+      $input_html  = '<select class="dfp-tags-select2" multiple disabled>';
+      $input_html .= '</select>';
+      $input_html .= '<p class="dfp-help-text">'
+        . t('Respondents can search existing tags or type new ones.')
+        . '</p>';
       break;
 
     default:

@@ -6,6 +6,41 @@
  */
 
 /**
+ * Implements hook_init().
+ *
+ * Loads jQuery Toast Plugin (CDN) and the DFBToast utility on every page
+ * served by this module (dashboard/*, form/*, dynamic-form/* paths).
+ */
+function dynamic_form_init() {
+  $path = current_path();
+  if (
+    strpos($path, 'dashboard')    === 0 ||
+    strpos($path, 'form/')        === 0 ||
+    strpos($path, 'dynamic-form/') === 0
+  ) {
+    $module_path = drupal_get_path('module', 'dynamic_form');
+    drupal_add_css($module_path . '/css/toast.css');
+    drupal_add_js($module_path . '/js/toast.js');
+  }
+}
+
+/**
+ * Returns an AJAX command array that triggers a DFBToast notification.
+ *
+ * @param string $type     One of: success, error, warning, info.
+ * @param string $message  The message to display (already translated).
+ *
+ * @return array  AJAX command array for use in AJAX callbacks.
+ */
+function ajax_command_dfb_toast($type, $message) {
+  return array(
+    'command'    => 'dfbToast',
+    'toast_type' => $type,
+    'message'    => $message,
+  );
+}
+
+/**
  * Implements hook_permission().
  */
 function dynamic_form_permission()
@@ -38,6 +73,18 @@ function dynamic_form_permission()
     'delete own form' => array(
       'title' => t('Delete own form'),
       'description' => t('Delete own forms.'),
+    ),
+    'view soft delete' => array(
+      'title' => t('View soft deleted items'),
+      'description' => t('Access the Trash page to view soft-deleted forms, sections, and questions.'),
+    ),
+    'restore deleted' => array(
+      'title' => t('Restore deleted items'),
+      'description' => t('Restore soft-deleted items from Trash or permanently remove them from the database.'),
+    ),
+    'view activity log' => array(
+      'title' => t('View activity log'),
+      'description' => t('Access the Activity Log page to see who created, edited, or deleted forms, sections, and questions.'),
     ),
   );
 }
@@ -242,6 +289,80 @@ function dynamic_form_menu()
     'type'             => MENU_CALLBACK,
   );
 
+  $items['dynamic-form/ajax/builder/section/%/rename'] = array(
+    'page callback'   => 'dynamic_form_ajax_section_rename',
+    'page arguments'  => array(4),
+    'access callback' => 'user_is_logged_in',
+    'file'            => 'includes/dynamic_form.builder.inc',
+    'type'            => MENU_CALLBACK,
+  );
+
+  $items['dynamic-form/ajax/members/search'] = array(
+    'page callback'   => 'dynamic_form_ajax_member_search',
+    'access callback' => 'user_is_logged_in',
+    'file'            => 'includes/dynamic_form.members.inc',
+    'type'            => MENU_CALLBACK,
+  );
+
+  $items['dynamic-form/ajax/tags/autocomplete'] = array(
+    'page callback'   => 'dynamic_form_ajax_tags_autocomplete',
+    'access callback' => 'user_is_logged_in',
+    'file'            => 'includes/dynamic_form.tags.inc',
+    'type'            => MENU_CALLBACK,
+  );
+
+  $items['dynamic-form/ajax/trash/%/%/restore'] = array(
+    'page callback'   => 'dynamic_form_ajax_entity_restore',
+    'page arguments'  => array(3, 4),
+    'access arguments' => array('restore deleted'),
+    'file'            => 'includes/dynamic_form.trash.inc',
+    'type'            => MENU_CALLBACK,
+  );
+
+  // AJAX soft-delete endpoint (used by the dashboard delete modal).
+  $items['dynamic-form/ajax/delete/%/%'] = array(
+    'page callback'   => 'dynamic_form_ajax_entity_delete',
+    'page arguments'  => array(3, 4),
+    'access callback' => 'user_is_logged_in',
+    'file'            => 'includes/dynamic_form.dashboard.inc',
+    'type'            => MENU_CALLBACK,
+  );
+
+  // Trash routes.
+  $items['dashboard/trash'] = array(
+    'title'            => 'Trash',
+    'page callback'    => 'dynamic_form_dashboard_trash_page',
+    'access arguments' => array('view soft delete'),
+    'file'             => 'includes/dynamic_form.trash.inc',
+    'type'             => MENU_CALLBACK,
+  );
+
+  $items['dashboard/trash/%/%/restore'] = array(
+    'title'            => 'Restore Item',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('dynamic_form_trash_restore_confirm', 2, 3),
+    'access arguments' => array('restore deleted'),
+    'file'             => 'includes/dynamic_form.trash.inc',
+    'type'             => MENU_CALLBACK,
+  );
+
+  $items['dashboard/trash/%/%/delete-permanent'] = array(
+    'title'            => 'Delete Permanently',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('dynamic_form_trash_delete_permanent_confirm', 2, 3),
+    'access arguments' => array('restore deleted'),
+    'file'             => 'includes/dynamic_form.trash.inc',
+    'type'             => MENU_CALLBACK,
+  );
+
+  $items['dashboard/activity-log'] = array(
+    'title'            => 'Activity Log',
+    'page callback'    => 'dynamic_form_activity_log_page',
+    'access arguments' => array('view activity log'),
+    'file'             => 'includes/dynamic_form.dashboard.inc',
+    'type'             => MENU_CALLBACK,
+  );
+
   return $items;
 }
 
@@ -257,6 +378,35 @@ function dynamic_form_theme($existing, $type, $theme, $path)
       'path' => drupal_get_path('theme', 'dynamic_form') . '/template',
     ),
   );
+}
+
+/* =====================================================================
+   AUDIT LOG HELPER
+   ===================================================================== */
+
+/**
+ * Appends one row to dynamic_form_audit_log.
+ *
+ * @param string     $entity_type  'form', 'section', or 'question'.
+ * @param int        $entity_id    Primary key of the affected row.
+ * @param string     $action       'created', 'updated', or 'deleted'.
+ * @param array|null $old_value    State before the action (NULL for created).
+ * @param array|null $new_value    State after the action (NULL for deleted).
+ */
+function _dynamic_form_audit_log($entity_type, $entity_id, $action, $old_value = NULL, $new_value = NULL) {
+  global $user;
+  db_insert('dynamic_form_audit_log')
+    ->fields(array(
+      'entity_type' => $entity_type,
+      'entity_id'   => (int) $entity_id,
+      'action'      => $action,
+      'actor_uid'   => isset($user->uid) ? (int) $user->uid : 0,
+      'old_value'   => $old_value !== NULL ? json_encode($old_value) : NULL,
+      'new_value'   => $new_value !== NULL ? json_encode($new_value) : NULL,
+      'ip_address'  => ip_address(),
+      'created_at'  => REQUEST_TIME,
+    ))
+    ->execute();
 }
 
 /* =====================================================================
@@ -378,5 +528,66 @@ function dynamic_form_custom_login_error_override($form, &$form_state) {
         $_SESSION['messages']['error'][$key] = t('Incorrect email or password for login.');
       }
     }
+  }
+}
+
+/* =====================================================================
+   FORM MEMBERS — QUEUE, MAIL, WORKER
+   ===================================================================== */
+
+/**
+ * Implements hook_cron_queue_info().
+ */
+function dynamic_form_cron_queue_info() {
+  return array(
+    'dynamic_form_member_notify' => array(
+      'worker callback' => 'dynamic_form_member_notify_worker',
+      'time'            => 30,
+    ),
+  );
+}
+
+/**
+ * Queue worker: sends a member-added notification email.
+ *
+ * @param array $item  Keyed array with form_id, form_title, user_id, role, form_url.
+ */
+function dynamic_form_member_notify_worker(array $item) {
+  module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.members');
+  _dynamic_form_send_member_notification($item);
+}
+
+/**
+ * Implements hook_mail().
+ */
+function dynamic_form_mail($key, &$message, $params) {
+  $language = $message['language'];
+  $options  = array('langcode' => $language->language);
+
+  switch ($key) {
+    case 'member_added':
+      $message['subject'] = t(
+        'You have been added to the form: @title',
+        array('@title' => $params['form_title']),
+        $options
+      );
+      $message['body'][] = t('Hi @name,', array('@name' => $params['user_name']), $options);
+      $message['body'][] = '';
+      $message['body'][] = t(
+        'You have been added as @role to the form "@title".',
+        array('@role' => $params['role_label'], '@title' => $params['form_title']),
+        $options
+      );
+      if (!empty($params['form_url'])) {
+        $message['body'][] = '';
+        $message['body'][] = t(
+          'Access the form here: @url',
+          array('@url' => $params['form_url']),
+          $options
+        );
+      }
+      $message['body'][] = '';
+      $message['body'][] = t('This is an automated notification. Please do not reply to this email.', array(), $options);
+      break;
   }
 }

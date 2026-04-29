@@ -187,7 +187,7 @@
             },
             error: function () {
               $('#dfb-edit-question-modal').hide();
-              alert(Drupal.t('Failed to load question editor. Please try again.'));
+              if (window.DFBToast) { DFBToast.error(Drupal.t('Failed to load question editor. Please try again.')); }
             }
           });
         });
@@ -233,6 +233,76 @@
       // edit form is handled when Drupal.attachBehaviors fires after inject).
       $('.dfb-type-section input[type="radio"]:checked', context)
         .closest('.form-type-radio').addClass('dfb-type-selected');
+
+      // Inline section rename: click the edit icon to make the h2 editable.
+      $('#dfb-builder-container', context).once('dfb-section-rename', function () {
+        $(this).delegate('[data-action="inline-rename-section"]', 'click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+
+          var $btn    = $(this);
+          var $card   = $btn.closest('.dfb-section-card');
+          var $h2     = $card.find('.dfb-section-title');
+          var current = $h2.text();
+
+          if ($h2.hasClass('dfb-renaming')) { return; }
+          $h2.addClass('dfb-renaming');
+
+          var $input = $('<input>')
+            .attr('type', 'text')
+            .addClass('dfb-section-title-input')
+            .val(current);
+
+          $h2.hide().after($input);
+          $input[0].focus();
+          $input[0].select();
+
+          function _save() {
+            var newName = $.trim($input.val());
+            if (!newName) { _cancel(); return; }
+            if (newName === current) { _cancel(); return; }
+
+            var sectionId = $card.data('section-id');
+            $input.attr('disabled', 'disabled');
+
+            $.ajax({
+              url:         basePath + '/section/' + sectionId + '/rename',
+              type:        'POST',
+              contentType: 'application/json',
+              dataType:    'json',
+              data:        JSON.stringify({ name: newName }),
+              success: function (resp) {
+                if (resp.status === 'success') {
+                  $h2.text(resp.name).removeClass('dfb-renaming').show();
+                  $input.remove();
+                  // Keep the Add Question button's data-section-name in sync.
+                  $card.find('[data-section-name]').attr('data-section-name', resp.name);
+                  if (window.DFBToast) { DFBToast.success(Drupal.t('Section renamed.')); }
+                }
+                else {
+                  if (window.DFBToast) { DFBToast.error(resp.message || Drupal.t('Could not rename section.')); }
+                  _cancel();
+                }
+              },
+              error: function () {
+                if (window.DFBToast) { DFBToast.error(Drupal.t('A network error occurred.')); }
+                _cancel();
+              }
+            });
+          }
+
+          function _cancel() {
+            $h2.removeClass('dfb-renaming').show();
+            $input.remove();
+          }
+
+          $input.bind('keydown', function (e) {
+            if (e.which === 13) { e.preventDefault(); $input.unbind('blur'); _save(); }
+            if (e.which === 27) { $input.unbind('blur'); _cancel(); }
+          });
+          $input.bind('blur', function () { _save(); });
+        });
+      });
     }
   };
 
@@ -303,11 +373,11 @@
           data:        JSON.stringify({ type: itemType, order: order }),
           success: function (response) {
             if (response.status !== 'success') {
-              alert(Drupal.t('Failed to save order: ') + response.message);
+              if (window.DFBToast) { DFBToast.warning(Drupal.t('Could not save order: ') + response.message); }
             }
           },
           error: function () {
-            alert(Drupal.t('A network error occurred while saving the new order.'));
+            if (window.DFBToast) { DFBToast.error(Drupal.t('A network error occurred while saving the new order.')); }
           }
         });
       }

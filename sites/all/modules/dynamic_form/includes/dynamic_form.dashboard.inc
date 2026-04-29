@@ -25,6 +25,16 @@ function dynamic_form_dashboard_page($section = 'overview')
 {
   drupal_set_title(t('Dashboard'));
 
+  // Load Select2 + table-search assets on listing pages.
+  if (in_array($section, array('forms', 'questions', 'sections'))) {
+    $module_path  = drupal_get_path('module', 'dynamic_form');
+    drupal_add_css($module_path . '/css/dashboard-search.css');
+    drupal_add_js($module_path . '/js/dashboard-search.js');
+    drupal_add_js(array('dynamicFormSearch' => array('section' => $section)), 'setting');
+    drupal_add_css($module_path . '/css/dashboard-delete.css');
+    drupal_add_js($module_path . '/js/dashboard-delete.js');
+  }
+
   // Build sidebar.
   $sidebar_html = _dynamic_form_dashboard_sidebar($section);
 
@@ -46,6 +56,11 @@ function dynamic_form_dashboard_page($section = 'overview')
     default:
       $content_html = _dynamic_form_dashboard_overview();
       break;
+  }
+
+  // Append delete-confirmation modal to listing pages.
+  if (in_array($section, array('forms', 'questions', 'sections'))) {
+    $content_html .= _dynamic_form_delete_confirm_modal();
   }
 
   return theme('dynamic_form_dashboard', array(
@@ -100,7 +115,7 @@ function _dynamic_form_dashboard_sidebar($active = 'overview')
   $output .= '<ul class="dfb-sidebar-menu">';
 
   foreach ($items as $key => $item) {
-    $classes = 'dfb-sidebar-item';
+    $classes = 'dfb-sidebar-item dfb-sidebar-item--' . $key;
     if ($key === $active) {
       $classes .= ' active';
     }
@@ -108,6 +123,32 @@ function _dynamic_form_dashboard_sidebar($active = 'overview')
     $output .= '<a href="' . url($item['path']) . '">';
     $output .= '<span class="dfb-sidebar-item-icon">' . $item['icon'] . '</span>';
     $output .= '<span class="dfb-sidebar-item-label">' . $item['label'] . '</span>';
+    $output .= '</a>';
+    $output .= '</li>';
+  }
+
+  if (user_access('view activity log')) {
+    $log_classes = 'dfb-sidebar-item dfb-sidebar-item--activity-log';
+    if ($active === 'activity-log') {
+      $log_classes .= ' active';
+    }
+    $output .= '<li class="' . $log_classes . '">';
+    $output .= '<a href="' . url('dashboard/activity-log') . '">';
+    $output .= '<span class="dfb-sidebar-item-icon">&#128203;</span>';
+    $output .= '<span class="dfb-sidebar-item-label">' . t('Activity Log') . '</span>';
+    $output .= '</a>';
+    $output .= '</li>';
+  }
+
+  if (user_access('view soft delete')) {
+    $trash_classes = 'dfb-sidebar-item dfb-sidebar-item--trash';
+    if ($active === 'trash') {
+      $trash_classes .= ' active';
+    }
+    $output .= '<li class="' . $trash_classes . '">';
+    $output .= '<a href="' . url('dashboard/trash') . '">';
+    $output .= '<span class="dfb-sidebar-item-icon">&#128465;</span>';
+    $output .= '<span class="dfb-sidebar-item-label">' . t('Trash') . '</span>';
     $output .= '</a>';
     $output .= '</li>';
   }
@@ -337,7 +378,14 @@ function _dynamic_form_dashboard_forms()
     $actions = array();
     $actions[] = l(t('Builder'), 'dashboard/forms/' . $record->id . '/builder', array('attributes' => array('class' => array('dfb-action-builder'))));
     $actions[] = l(t('Edit'), 'dashboard/forms/' . $record->id . '/edit');
-    $actions[] = l(t('Delete'), 'form/' . $record->id . '/delete', array('attributes' => array('class' => array('dfb-action-delete'))));
+    $actions[] = l(t('Delete'), 'form/' . $record->id . '/delete', array(
+      'attributes' => array(
+        'class'            => array('dfb-action-delete', 'dfb-delete-trigger'),
+        'data-entity-type' => 'form',
+        'data-entity-id'   => (string) $record->id,
+        'data-entity-name' => $record->title,
+      ),
+    ));
 
     $rows[] = array(
       check_plain($record->title),
@@ -414,7 +462,14 @@ function _dynamic_form_dashboard_questions()
       $actions[] = l(t('Edit'), 'dashboard/questions/' . $record->id . '/edit');
     }
     if (user_access('delete any form') || $record->created_by == $GLOBALS['user']->uid) {
-      $actions[] = l(t('Delete'), 'dashboard/questions/' . $record->id . '/delete', array('attributes' => array('class' => array('dfb-action-delete'))));
+      $actions[] = l(t('Delete'), 'dashboard/questions/' . $record->id . '/delete', array(
+        'attributes' => array(
+          'class'            => array('dfb-action-delete', 'dfb-delete-trigger'),
+          'data-entity-type' => 'question',
+          'data-entity-id'   => (string) $record->id,
+          'data-entity-name' => truncate_utf8($record->label, 60, TRUE, TRUE),
+        ),
+      ));
     }
 
     $rows[] = array(
@@ -496,7 +551,14 @@ function _dynamic_form_dashboard_sections()
 
     $actions = array();
     $actions[] = l(t('Edit'), 'dashboard/sections/' . $record->id . '/edit');
-    $actions[] = l(t('Delete'), 'dashboard/sections/' . $record->id . '/delete', array('attributes' => array('class' => array('dfb-action-delete'))));
+    $actions[] = l(t('Delete'), 'dashboard/sections/' . $record->id . '/delete', array(
+      'attributes' => array(
+        'class'            => array('dfb-action-delete', 'dfb-delete-trigger'),
+        'data-entity-type' => 'section',
+        'data-entity-id'   => (string) $record->id,
+        'data-entity-name' => $record->name,
+      ),
+    ));
 
     $rows[] = array(
       check_plain($record->name),
@@ -709,5 +771,249 @@ function dynamic_form_dashboard_question_edit_page($question_id)
   return theme('dynamic_form_dashboard', array(
     'sidebar' => $sidebar_html,
     'content' => $content_html,
+  ));
+}
+
+/* =====================================================================
+   DASHBOARD — DELETE MODAL HTML HELPER
+   ===================================================================== */
+
+/**
+ * Returns the HTML for the shared dashboard delete-confirmation modal.
+ */
+function _dynamic_form_delete_confirm_modal() {
+  return '
+<div id="dfb-delete-modal" role="alertdialog" aria-modal="true" aria-labelledby="dfb-delete-modal-title" style="display:none;">
+  <div class="dfb-delete-modal-dialog">
+    <span class="dfb-delete-modal-icon">&#128465;</span>
+    <h3 class="dfb-delete-modal-title" id="dfb-delete-modal-title">'
+      . t('Delete this') . ' <span class="dfb-delete-modal-type"></span>?
+    </h3>
+    <p class="dfb-delete-modal-body">'
+      . t('You are about to delete') . ' <strong class="dfb-delete-modal-name"></strong>. '
+      . t('The item will be moved to Trash and can be restored later.') . '
+    </p>
+    <div class="dfb-delete-modal-actions">
+      <button class="dfb-delete-confirm-btn" type="button">' . t('Delete') . '</button>
+      <button class="dfb-delete-cancel-btn"  type="button">' . t('Cancel') . '</button>
+    </div>
+  </div>
+</div>';
+}
+
+/* =====================================================================
+   DASHBOARD — AJAX ENTITY SOFT-DELETE
+   ===================================================================== */
+
+/**
+ * AJAX callback: soft-deletes a form, section, or question.
+ *
+ * Route: POST dynamic-form/ajax/delete/{entity_type}/{entity_id}
+ * Returns JSON: {status: "ok"|"error", message: "..."}.
+ *
+ * @param string $entity_type  One of: form, section, question.
+ * @param int    $entity_id    Primary key of the entity.
+ */
+function dynamic_form_ajax_entity_delete($entity_type, $entity_id) {
+  global $user;
+
+  if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    drupal_json_output(array('status' => 'error', 'message' => t('Invalid request method.')));
+    drupal_exit();
+  }
+
+  if (!in_array($entity_type, array('form', 'section', 'question'))) {
+    drupal_json_output(array('status' => 'error', 'message' => t('Invalid entity type.')));
+    drupal_exit();
+  }
+
+  $entity_id = (int) $entity_id;
+  $table     = _dynamic_form_dashboard_entity_table($entity_type);
+
+  $record = db_select($table, 'e')
+    ->fields('e')
+    ->condition('id', $entity_id)
+    ->condition('deleted_at', NULL, 'IS NULL')
+    ->execute()
+    ->fetchObject();
+
+  if (!$record) {
+    drupal_json_output(array('status' => 'error', 'message' => t('Item not found.')));
+    drupal_exit();
+  }
+
+  // Access: 'delete any form' OR user owns the item and has 'delete own form'.
+  $is_owner   = isset($record->created_by) && (int) $record->created_by === (int) $user->uid;
+  $can_delete = user_access('delete any form') || ($is_owner && user_access('delete own form'));
+
+  if (!$can_delete) {
+    drupal_json_output(array('status' => 'error', 'message' => t('Access denied.')));
+    drupal_exit();
+  }
+
+  $now = REQUEST_TIME;
+  db_update($table)
+    ->fields(array(
+      'deleted_at' => $now,
+      'deleted_by' => $user->uid,
+      'updated_at' => $now,
+    ))
+    ->condition('id', $entity_id)
+    ->execute();
+
+  _dynamic_form_audit_log($entity_type, $entity_id, 'deleted', (array) $record, NULL);
+
+  switch ($entity_type) {
+    case 'form':     $label = $record->title; break;
+    case 'section':  $label = $record->name;  break;
+    case 'question': $label = truncate_utf8($record->label, 60, TRUE, TRUE); break;
+    default:         $label = 'Item';
+  }
+
+  drupal_json_output(array(
+    'status'  => 'ok',
+    'message' => t('"@label" has been moved to Trash.', array('@label' => $label)),
+  ));
+  drupal_exit();
+}
+
+/**
+ * Maps entity type string to its database table name.
+ */
+function _dynamic_form_dashboard_entity_table($entity_type) {
+  $map = array(
+    'form'     => 'dynamic_form_forms',
+    'section'  => 'dynamic_form_sections',
+    'question' => 'dynamic_form_questions',
+  );
+  return isset($map[$entity_type]) ? $map[$entity_type] : NULL;
+}
+
+/* =====================================================================
+   ACTIVITY LOG PAGE
+   ===================================================================== */
+
+/**
+ * Page callback: dashboard/activity-log
+ *
+ * Displays a paginated table of all audit log entries showing who
+ * created, edited, or deleted forms, sections, and questions.
+ */
+function dynamic_form_activity_log_page() {
+  drupal_set_title(t('Activity Log'));
+
+  $module_path = drupal_get_path('module', 'dynamic_form');
+  drupal_add_css($module_path . '/css/builder.css');
+
+  $sidebar_html = _dynamic_form_dashboard_sidebar('activity-log');
+
+  $action_labels = array(
+    'created' => t('Created'),
+    'updated' => t('Updated'),
+    'deleted' => t('Deleted'),
+  );
+
+  $action_classes = array(
+    'created' => 'dfb-log-action--created',
+    'updated' => 'dfb-log-action--updated',
+    'deleted' => 'dfb-log-action--deleted',
+  );
+
+  $per_page = 50;
+  $total    = db_select('dynamic_form_audit_log', 'l')->countQuery()->execute()->fetchField();
+
+  pager_default_initialize($total, $per_page);
+
+  $logs = db_select('dynamic_form_audit_log', 'l')
+    ->fields('l')
+    ->orderBy('created_at', 'DESC')
+    ->extend('PagerDefault')
+    ->limit($per_page)
+    ->execute()
+    ->fetchAll();
+
+  // Pre-load actor usernames in one query.
+  $actor_ids = array_filter(array_unique(array_map(function($r) { return (int) $r->actor_uid; }, $logs)));
+  $usernames  = array();
+  if (!empty($actor_ids)) {
+    $users = db_select('users', 'u')
+      ->fields('u', array('uid', 'name'))
+      ->condition('uid', $actor_ids, 'IN')
+      ->execute()
+      ->fetchAll();
+    foreach ($users as $u) {
+      $usernames[(int) $u->uid] = $u->name;
+    }
+  }
+
+  $output  = '<div class="dfb-activity-log-page">';
+  $output .= '<div class="dfb-page-header">';
+  $output .= '<h1 class="dfb-page-title">' . t('Activity Log') . '</h1>';
+  $output .= '<p class="dfb-page-subtitle">' . t('A record of all create, edit, and delete actions on forms, sections, and questions.') . '</p>';
+  $output .= '</div>';
+
+  if (empty($logs)) {
+    $output .= '<p class="dfb-empty-state">' . t('No activity has been recorded yet.') . '</p>';
+  }
+  else {
+    $output .= '<table class="dfb-log-table">';
+    $output .= '<thead><tr>';
+    $output .= '<th>' . t('When') . '</th>';
+    $output .= '<th>' . t('Who') . '</th>';
+    $output .= '<th>' . t('Action') . '</th>';
+    $output .= '<th>' . t('Entity') . '</th>';
+    $output .= '<th>' . t('Detail') . '</th>';
+    $output .= '</tr></thead>';
+    $output .= '<tbody>';
+
+    foreach ($logs as $log) {
+      $actor_name = isset($usernames[(int) $log->actor_uid])
+        ? check_plain($usernames[(int) $log->actor_uid])
+        : t('System');
+
+      $action_label = isset($action_labels[$log->action])
+        ? $action_labels[$log->action]
+        : check_plain($log->action);
+
+      $action_class = isset($action_classes[$log->action])
+        ? $action_classes[$log->action]
+        : '';
+
+      // Extract a human-readable label from the JSON snapshot.
+      $detail = '';
+      $snapshot = $log->new_value ?: $log->old_value;
+      if ($snapshot) {
+        $data = json_decode($snapshot, TRUE);
+        if (is_array($data)) {
+          if (!empty($data['title'])) {
+            $detail = check_plain($data['title']);
+          }
+          elseif (!empty($data['name'])) {
+            $detail = check_plain($data['name']);
+          }
+          elseif (!empty($data['label'])) {
+            $detail = check_plain(truncate_utf8($data['label'], 60, TRUE, TRUE));
+          }
+        }
+      }
+
+      $output .= '<tr>';
+      $output .= '<td class="dfb-log-time">' . format_date($log->created_at, 'short') . '</td>';
+      $output .= '<td class="dfb-log-actor">' . $actor_name . '</td>';
+      $output .= '<td><span class="dfb-log-action ' . $action_class . '">' . $action_label . '</span></td>';
+      $output .= '<td class="dfb-log-entity">' . check_plain($log->entity_type) . ' #' . (int) $log->entity_id . '</td>';
+      $output .= '<td class="dfb-log-detail">' . $detail . '</td>';
+      $output .= '</tr>';
+    }
+
+    $output .= '</tbody></table>';
+    $output .= theme('pager');
+  }
+
+  $output .= '</div>';
+
+  return theme('dynamic_form_dashboard', array(
+    'sidebar' => $sidebar_html,
+    'content' => $output,
   ));
 }

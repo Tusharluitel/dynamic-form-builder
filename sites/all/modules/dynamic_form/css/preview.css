@@ -201,18 +201,100 @@
   appearance: auto;
 }
 
-.dfp-file {
-  display: block;
-  font-size: 0.875rem;
-  color: #64748b;
+/* -----------------------------------------------------------------
+   File upload dropzone
+   ----------------------------------------------------------------- */
+.dfp-file-dropzone {
+  position: relative;
+  border: 2px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 36px 24px 28px;
+  text-align: center;
+  background: #f8fafc;
   cursor: not-allowed;
-  margin-bottom: 4px;
+  transition: border-color 0.2s;
 }
 
-.dfp-file-hint {
-  margin-top: 4px;
+.dfp-file-hidden {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: not-allowed;
+}
+
+.dfp-file-dropzone-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.dfp-file-upload-icon {
+  width: 48px;
+  height: 48px;
   color: #94a3b8;
+}
+
+.dfp-file-upload-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.dfp-file-upload-prompt {
+  font-size: 0.9375rem;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.dfp-file-upload-btn {
+  color: #6366f1;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
+.dfp-file-upload-or {
+  color: #94a3b8;
+}
+
+.dfp-file-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.dfp-file-types {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.dfp-file-type-badge {
+  background: #e0e7ff;
+  color: #4338ca;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: monospace;
+  letter-spacing: 0.04em;
+}
+
+.dfp-file-size-pill {
   font-size: 0.8125rem;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  white-space: nowrap;
 }
 
 /* -----------------------------------------------------------------
@@ -309,4 +391,115 @@
 .dfp-scale-label {
   font-size: 0.8125rem;
   color: #64748b;
+}
+
+/* ================================================================
+   Preview pagination — Drupal theme('pager') output
+   ================================================================ */
+
+.dfp-paginated-form .pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  list-style: none;
+  margin: 32px 0 0;
+  padding: 20px 0 0;
+  border-top: 1px solid #e2e8f0;
+}
+
+.dfp-paginated-form .pager li {
+  margin: 0;
+  padding: 0;
+}
+
+/* All page-number and ellipsis links */
+.dfp-paginated-form .pager li a,
+.dfp-paginated-form .pager li.pager-current {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm, 8px);
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-family: var(--font-sans, inherit);
+  line-height: 1;
+  text-decoration: none;
+  transition: var(--transition, 0.18s ease);
+  border: 1.5px solid transparent;
+  color: var(--color-text, #1e293b);
+  background: transparent;
+}
+
+.dfp-paginated-form .pager li a:hover {
+  background: var(--color-surface-alt, #f8fafc);
+  border-color: #cbd5e1;
+  color: var(--color-primary, #6366f1);
+}
+
+/* Active / current page */
+.dfp-paginated-form .pager li.pager-current {
+  background: var(--color-primary, #6366f1);
+  border-color: var(--color-primary, #6366f1);
+  color: #fff;
+  font-weight: 700;
+  cursor: default;
+}
+
+/* Previous / Next */
+.dfp-paginated-form .pager li.pager-previous a,
+.dfp-paginated-form .pager li.pager-next a {
+  padding: 0 16px;
+  font-weight: 600;
+  border-color: var(--color-border, #e2e8f0);
+}
+
+.dfp-paginated-form .pager li.pager-next a {
+  background: var(--color-primary, #6366f1);
+  border-color: var(--color-primary, #6366f1);
+  color: #fff;
+}
+
+.dfp-paginated-form .pager li.pager-next a:hover {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+  transform: translateY(-1px);
+}
+
+.dfp-paginated-form .pager li.pager-previous a:hover {
+  background: var(--color-surface-alt, #f8fafc);
+  border-color: #cbd5e1;
+  color: var(--color-text, #1e293b);
+}
+
+/* Ellipsis */
+.dfp-paginated-form .pager li.pager-ellipsis {
+  color: var(--color-text-muted, #64748b);
+  padding: 0 4px;
+  line-height: 36px;
+  font-size: 0.875rem;
+}
+
+/* Mobile adjustments */
+@media (max-width: 480px) {
+  .dfp-paginated-form .pager {
+    gap: 6px;
+  }
+
+  .dfp-paginated-form .pager li.pager-item {
+    display: none;
+  }
+
+  .dfp-paginated-form .pager li.pager-current,
+  .dfp-paginated-form .pager li.pager-previous,
+  .dfp-paginated-form .pager li.pager-next,
+  .dfp-paginated-form .pager li.pager-first,
+  .dfp-paginated-form .pager li.pager-last {
+    display: block;
+  }
 }

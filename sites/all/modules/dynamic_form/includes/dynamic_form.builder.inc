@@ -321,6 +321,8 @@ function _dynamic_form_render_builder_section($section, array $questions) {
     . ' title="' . t('Drag to reorder') . '">&#8942;&#8942;</div>';
   $output .= '<div class="dfb-section-title-wrap">';
   $output .= '<h2 class="dfb-section-title">' . check_plain($section->name) . '</h2>';
+  $output .= '<button class="dfb-section-edit-icon" data-action="inline-rename-section"'
+    . ' title="' . t('Rename section') . '">&#9998;</button>';
   if (!empty($section->description)) {
     $output .= '<p class="dfb-section-desc">' . check_plain($section->description) . '</p>';
   }
@@ -439,9 +441,11 @@ function dynamic_form_builder_question_form($form, &$form_state, $form_id) {
     '#options'       => array(
       'text'         => t('Short Text'),
       'textarea'     => t('Long Text'),
+      'text_editor'  => t('Text Editor'),
       'radio'        => t('Single Choice'),
       'checkbox'     => t('Multi Choice'),
       'select'       => t('Dropdown'),
+      'tags'         => t('Tags'),
       'file'         => t('File Upload'),
       'date'         => t('Date'),
       'time'         => t('Time'),
@@ -497,6 +501,38 @@ function dynamic_form_builder_question_form($form, &$form_state, $form_id) {
     '#rows'       => 2,
     '#required'   => FALSE,
     '#attributes' => array('placeholder' => t('Optional — shown to respondents.')),
+  );
+
+  // Text editor info — shown only when text_editor type is selected.
+  $form['scrollable']['text_editor_info'] = array(
+    '#markup' =>
+      '<div class="dfb-q-subsection dfb-text-editor-info" data-dfb-show-for="text_editor">' .
+        '<p class="dfb-subsection-label">' . t('Rich Text Editor') . '</p>' .
+        '<p class="dfb-text-editor-hint">' .
+          t('Respondents will see a TinyMCE rich text editor for their answer. No additional configuration needed.') .
+        '</p>' .
+      '</div>',
+  );
+
+  // Tags info — shown only when tags type is selected.
+  $form['scrollable']['tags_info'] = array(
+    '#markup' =>
+      '<div class="dfb-q-subsection dfb-tags-info" data-dfb-show-for="tags">' .
+        '<p class="dfb-subsection-label">' . t('Tags') . '</p>' .
+        '<p class="dfb-text-editor-hint">' .
+          t('Respondents can search existing tags or type new ones. Tags are automatically normalized (lowercase, symbols removed) for analytics.') .
+        '</p>' .
+      '</div>',
+  );
+
+  // Select settings — allow multiple choice. Shown only for select type.
+  $form['scrollable']['select_settings'] = array(
+    '#type'       => 'container',
+    '#attributes' => array('class' => array('dfb-q-subsection'), 'data-dfb-show-for' => 'select'),
+  );
+  $form['scrollable']['select_settings']['allow_multiple'] = array(
+    '#type'  => 'checkbox',
+    '#title' => t('Allow Multiple Choice'),
   );
 
   // -----------------------------------------------------------------
@@ -878,6 +914,8 @@ function dynamic_form_builder_question_form_submit($form, &$form_state) {
 
   $question_id = db_insert('dynamic_form_questions')->fields($q_fields)->execute();
 
+  _dynamic_form_audit_log('question', $question_id, 'created', NULL, $q_fields);
+
   // Options for choice types.
   $choice_types = array('radio', 'checkbox', 'select', 'rating', 'linear_scale');
   if (in_array($type, $choice_types)) {
@@ -916,6 +954,18 @@ function dynamic_form_builder_question_form_submit($form, &$form_state) {
         ))->execute();
       }
     }
+  }
+
+  // Allow-multiple flag for select questions.
+  if ($type === 'select' && !empty($values['allow_multiple'])) {
+    db_insert('dynamic_form_question_validations')->fields(array(
+      'question_id' => (int) $question_id,
+      'rule_type'   => 'allow_multiple',
+      'rule_value'  => '1',
+      'created_by'  => (int) $user->uid,
+      'created_at'  => $now,
+      'updated_at'  => $now,
+    ))->execute();
   }
 
   // User-defined validation rules.
@@ -966,6 +1016,7 @@ function _dfb_question_form_save_ajax_callback($form, &$form_state) {
   );
   $commands[] = ajax_command_invoke('#dfb-question-modal', 'fadeOut', array('fast'));
   $commands[] = ajax_command_replace('#dfb-question-form-wrapper', drupal_render($form));
+  $commands[] = ajax_command_dfb_toast('success', t('Question added successfully.'));
 
   return array('#type' => 'ajax', '#commands' => $commands);
 }
@@ -1105,8 +1156,8 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
       $form_state['options'] = array(array('label' => ''), array('label' => ''));
     }
 
-    // Existing validation rules (excluding scale meta).
-    $scale_keys  = array('scale_min', 'scale_max', 'scale_min_label', 'scale_max_label');
+    // Existing validation rules (excluding scale meta + allow_multiple).
+    $scale_keys  = array('scale_min', 'scale_max', 'scale_min_label', 'scale_max_label', 'allow_multiple');
     $db_vals = db_select('dynamic_form_question_validations', 'v')
       ->fields('v')
       ->condition('question_id', $question_id)
@@ -1179,9 +1230,11 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
     '#options'       => array(
       'text'         => t('Short Text'),
       'textarea'     => t('Long Text'),
+      'text_editor'  => t('Text Editor'),
       'radio'        => t('Single Choice'),
       'checkbox'     => t('Multi Choice'),
       'select'       => t('Dropdown'),
+      'tags'         => t('Tags'),
       'file'         => t('File Upload'),
       'date'         => t('Date'),
       'time'         => t('Time'),
@@ -1237,6 +1290,39 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
     '#attributes'    => array('placeholder' => t('Optional — shown to respondents.')),
   );
 
+  // Text editor info — shown only when text_editor type is selected.
+  $form['scrollable']['text_editor_info'] = array(
+    '#markup' =>
+      '<div class="dfb-q-subsection dfb-text-editor-info" data-dfb-show-for="text_editor">' .
+        '<p class="dfb-subsection-label">' . t('Rich Text Editor') . '</p>' .
+        '<p class="dfb-text-editor-hint">' .
+          t('Respondents will see a TinyMCE rich text editor for their answer. No additional configuration needed.') .
+        '</p>' .
+      '</div>',
+  );
+
+  // Tags info — shown only when tags type is selected.
+  $form['scrollable']['tags_info'] = array(
+    '#markup' =>
+      '<div class="dfb-q-subsection dfb-tags-info" data-dfb-show-for="tags">' .
+        '<p class="dfb-subsection-label">' . t('Tags') . '</p>' .
+        '<p class="dfb-text-editor-hint">' .
+          t('Respondents can search existing tags or type new ones. Tags are automatically normalized (lowercase, symbols removed) for analytics.') .
+        '</p>' .
+      '</div>',
+  );
+
+  // Select settings — allow multiple choice. Shown only for select type.
+  $form['scrollable']['select_settings'] = array(
+    '#type'       => 'container',
+    '#attributes' => array('class' => array('dfb-q-subsection'), 'data-dfb-show-for' => 'select'),
+  );
+  $form['scrollable']['select_settings']['allow_multiple'] = array(
+    '#type'          => 'checkbox',
+    '#title'         => t('Allow Multiple Choice'),
+    '#default_value' => !empty($scale_meta['allow_multiple']) ? 1 : 0,
+  );
+
   // -----------------------------------------------------------------
   // Options sub-section. Uses dfb-eq-* IDs to avoid conflicts with
   // the simultaneously-rendered add form.
@@ -1250,7 +1336,7 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
   );
   $form['scrollable']['options_wrapper'] = array(
     '#type'       => 'container',
-    '#attributes' => array('id' => 'dfb-eq-options-wrapper', 'class' => array('dfb-q-subsection'), 'data-dfb-show-for' => 'radio checkbox select'),
+    '#attributes' => array('id' => 'dfb-eq-edit-options-wrapper', 'class' => array('dfb-q-subsection'), 'data-dfb-show-for' => 'radio checkbox select'),
   );
   $form['scrollable']['options_wrapper']['_title'] = array(
     '#markup' => '<p class="dfb-subsection-label">' . t('Options') . '</p>',
@@ -1268,11 +1354,12 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
       '#type'                    => 'submit',
       '#value'                   => t('×'),
       '#name'                    => 'remove_option_' . $i,
+      '#id'                      => 'dfb-eq-edit-remove-option-' . $i,
       '#submit'                  => array('_dfb_question_remove_option_submit'),
       '#limit_validation_errors' => array(),
       '#ajax'                    => array(
         'callback' => '_dfb_eq_options_ajax_callback',
-        'wrapper'  => 'dfb-eq-options-wrapper',
+        'wrapper'  => 'dfb-eq-edit-options-wrapper',
         'effect'   => 'none',
       ),
       '#attributes'              => array('class' => array('dfb-btn-remove'), 'title' => t('Remove')),
@@ -1283,11 +1370,12 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
     '#type'                    => 'submit',
     '#value'                   => t('+ Add Option'),
     '#name'                    => 'add_option',
+    '#id'                      => 'dfb-eq-edit-add-option',
     '#submit'                  => array('_dfb_question_add_option_submit'),
     '#limit_validation_errors' => array(),
     '#ajax'                    => array(
       'callback' => '_dfb_eq_options_ajax_callback',
-      'wrapper'  => 'dfb-eq-options-wrapper',
+      'wrapper'  => 'dfb-eq-edit-options-wrapper',
       'effect'   => 'none',
     ),
     '#attributes'              => array('class' => array('dfb-btn-add-more')),
@@ -1390,7 +1478,7 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
   );
   $form['scrollable']['validations_wrapper'] = array(
     '#type'       => 'container',
-    '#attributes' => array('id' => 'dfb-eq-validations-wrapper', 'class' => array('dfb-q-subsection'), 'data-dfb-show-for' => 'text textarea date time'),
+    '#attributes' => array('id' => 'dfb-eq-edit-validations-wrapper', 'class' => array('dfb-q-subsection'), 'data-dfb-show-for' => 'text textarea date time'),
   );
   $form['scrollable']['validations_wrapper']['_title'] = array(
     '#markup' => '<p class="dfb-subsection-label">' . t('Validation Rules') . '</p>',
@@ -1424,11 +1512,12 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
       '#type'                    => 'submit',
       '#value'                   => t('×'),
       '#name'                    => 'remove_validation_' . $i,
+      '#id'                      => 'dfb-eq-edit-remove-validation-' . $i,
       '#submit'                  => array('_dfb_question_remove_validation_submit'),
       '#limit_validation_errors' => array(),
       '#ajax'                    => array(
         'callback' => '_dfb_eq_validations_ajax_callback',
-        'wrapper'  => 'dfb-eq-validations-wrapper',
+        'wrapper'  => 'dfb-eq-edit-validations-wrapper',
         'effect'   => 'none',
       ),
       '#attributes'              => array('class' => array('dfb-btn-remove'), 'title' => t('Remove')),
@@ -1439,11 +1528,12 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
     '#type'                    => 'submit',
     '#value'                   => t('+ Add Validation'),
     '#name'                    => 'add_validation',
+    '#id'                      => 'dfb-eq-edit-add-validation',
     '#submit'                  => array('_dfb_question_add_validation_submit'),
     '#limit_validation_errors' => array(),
     '#ajax'                    => array(
       'callback' => '_dfb_eq_validations_ajax_callback',
-      'wrapper'  => 'dfb-eq-validations-wrapper',
+      'wrapper'  => 'dfb-eq-edit-validations-wrapper',
       'effect'   => 'none',
     ),
     '#attributes'              => array('class' => array('dfb-btn-add-more')),
@@ -1463,6 +1553,7 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
   $form['actions']['save'] = array(
     '#type'       => 'submit',
     '#value'      => t('Save Changes'),
+    '#id'         => 'dfb-eq-edit-save',
     '#attributes' => array('class' => array('dfb-btn-save-question')),
     '#ajax'       => array(
       'callback' => '_dfb_question_edit_save_ajax_callback',
@@ -1472,7 +1563,9 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
   return $form;
 }
 
-/* Shared AJAX callbacks for the edit form's dynamic wrappers. */
+/* AJAX callbacks for the edit form's dynamic wrappers.
+ * These return the same elements as the add-form callbacks but target the
+ * edit-form's uniquely-IDed containers so the DOM replacement is correct. */
 
 function _dfb_eq_options_ajax_callback($form, &$form_state) {
   return $form['scrollable']['options_wrapper'];
@@ -1512,20 +1605,24 @@ function dynamic_form_builder_question_edit_form_submit($form, &$form_state) {
     $max_files        = isset($values['max_files'])         ? (int) $values['max_files']         : NULL;
   }
 
+  $new_q_fields = array(
+    'label'            => trim($values['label']),
+    'description'      => trim(isset($values['description']) ? $values['description'] : ''),
+    'type'             => $type,
+    'is_required'      => !empty($values['is_required']) ? 1 : 0,
+    'is_readonly'      => !empty($values['is_readonly'])  ? 1 : 0,
+    'allow_file_types' => $allow_file_types ?: NULL,
+    'max_file_size'    => $max_file_size,
+    'max_files'        => $max_files,
+    'updated_at'       => $now,
+  );
+
   db_update('dynamic_form_questions')
-    ->fields(array(
-      'label'            => trim($values['label']),
-      'description'      => trim(isset($values['description']) ? $values['description'] : ''),
-      'type'             => $type,
-      'is_required'      => !empty($values['is_required']) ? 1 : 0,
-      'is_readonly'      => !empty($values['is_readonly'])  ? 1 : 0,
-      'allow_file_types' => $allow_file_types ?: NULL,
-      'max_file_size'    => $max_file_size,
-      'max_files'        => $max_files,
-      'updated_at'       => $now,
-    ))
+    ->fields($new_q_fields)
     ->condition('id', $question_id)
     ->execute();
+
+  _dynamic_form_audit_log('question', $question_id, 'updated', (array) $form_state['dfb_eq_question'], $new_q_fields);
 
   // Soft-delete existing options then re-insert survivors.
   db_update('dynamic_form_question_options')
@@ -1591,6 +1688,18 @@ function dynamic_form_builder_question_edit_form_submit($form, &$form_state) {
     ))->execute();
   }
 
+  // Allow-multiple flag for select questions.
+  if ($type === 'select' && !empty($values['allow_multiple'])) {
+    db_insert('dynamic_form_question_validations')->fields(array(
+      'question_id' => $question_id,
+      'rule_type'   => 'allow_multiple',
+      'rule_value'  => '1',
+      'created_by'  => (int) $user->uid,
+      'created_at'  => $now,
+      'updated_at'  => $now,
+    ))->execute();
+  }
+
   // Fetch the updated row so the AJAX callback can re-render the card.
   $form_state['dfb_eq_saved_question'] = db_select('dynamic_form_questions', 'q')
     ->fields('q')
@@ -1629,6 +1738,58 @@ function _dfb_question_edit_save_ajax_callback($form, &$form_state) {
     '#dfb-edit-question-form-wrapper',
     drupal_render($form)
   );
+  $commands[] = ajax_command_dfb_toast('success', t('Question updated successfully.'));
 
   return array('#type' => 'ajax', '#commands' => $commands);
+}
+
+/**
+ * AJAX endpoint: rename a section inline.
+ *
+ * Accepts POST body: { "name": "New Section Name" }
+ * Returns JSON: { "status": "success", "name": "New Section Name" }
+ *             | { "status": "error",   "message": "..." }
+ */
+function dynamic_form_ajax_section_rename($section_id) {
+  $section_id = (int) $section_id;
+  $body       = file_get_contents('php://input');
+  $data       = json_decode($body, TRUE);
+  $name       = isset($data['name']) ? trim($data['name']) : '';
+
+  if ($name === '') {
+    drupal_json_output(array('status' => 'error', 'message' => t('Section name cannot be empty.')));
+    drupal_exit();
+  }
+  if (drupal_strlen($name) > 255) {
+    drupal_json_output(array('status' => 'error', 'message' => t('Section name is too long.')));
+    drupal_exit();
+  }
+
+  $section = db_select('dynamic_form_sections', 's')
+    ->fields('s', array('id', 'form_id', 'name'))
+    ->condition('s.id', $section_id)
+    ->isNull('s.deleted_at')
+    ->execute()
+    ->fetchObject();
+
+  if (!$section) {
+    drupal_json_output(array('status' => 'error', 'message' => t('Section not found.')));
+    drupal_exit();
+  }
+
+  db_update('dynamic_form_sections')
+    ->fields(array('name' => $name, 'updated_at' => REQUEST_TIME))
+    ->condition('id', $section_id)
+    ->execute();
+
+  _dynamic_form_audit_log(
+    'section',
+    $section_id,
+    'updated',
+    array('name' => $section->name),
+    array('name' => $name)
+  );
+
+  drupal_json_output(array('status' => 'success', 'name' => $name));
+  drupal_exit();
 }
