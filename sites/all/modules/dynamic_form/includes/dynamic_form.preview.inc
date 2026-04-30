@@ -32,6 +32,67 @@ function dynamic_form_preview_page($form_id) {
   // Load Select2 when the form has select or tags questions.
   _dynamic_form_preview_maybe_load_select2($form_id);
 
+  // Interactive behaviours for rating stars and linear scale buttons.
+  $interactive_js = <<<JS
+(function ($) {
+  Drupal.behaviors.dfpPreviewInteractive = {
+    attach: function (context, settings) {
+      // Star rating — highlight stars on hover/click.
+      $('.dfp-stars', context).once('dfp-stars-init', function () {
+        var stars = $(this).find('.dfp-star');
+        stars.bind('mouseover', function () {
+          var idx = stars.index(this);
+          stars.each(function (i) {
+            $(this)[i <= idx ? 'addClass' : 'removeClass']('dfp-star-active');
+          });
+        }).bind('mouseout', function () {
+          stars.each(function () {
+            if (!$(this).data('selected')) {
+              $(this).removeClass('dfp-star-active');
+            }
+          });
+        }).bind('click', function () {
+          var idx = stars.index(this);
+          stars.each(function (i) {
+            $(this).data('selected', i <= idx);
+            $(this)[i <= idx ? 'addClass' : 'removeClass']('dfp-star-active');
+          });
+        });
+      });
+
+      // Linear scale — toggle active button.
+      $('.dfp-scale-buttons', context).once('dfp-scale-init', function () {
+        var btns = $(this).find('.dfp-scale-btn');
+        btns.bind('click', function () {
+          btns.removeClass('dfp-scale-active');
+          $(this).addClass('dfp-scale-active');
+        });
+      });
+
+      // File upload — show selected filename(s) below the dropzone prompt.
+      $('.dfp-file-hidden', context).once('dfp-file-name-init', function () {
+        var fileInput   = $(this);
+        var fileNameDiv = fileInput.closest('.dfp-file-dropzone').find('.dfp-file-name');
+        fileInput.bind('change', function () {
+          var files = this.files;
+          if (!files || files.length === 0) {
+            fileNameDiv.text('').hide();
+            return;
+          }
+          var names = [];
+          for (var i = 0; i < files.length; i++) {
+            names.push(files[i].name);
+          }
+          fileNameDiv.text(names.join(', ')).show();
+        });
+      });
+    }
+  };
+})(jQuery);
+JS;
+
+  drupal_add_js($interactive_js, array('type' => 'inline', 'scope' => 'footer', 'weight' => 15));
+
   module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.dashboard');
   $sidebar_html = _dynamic_form_dashboard_sidebar('forms');
 
@@ -121,7 +182,7 @@ function dynamic_form_preview_page($form_id) {
   // Banner.
   $output .= '<div class="dfp-preview-banner">';
   $output .= '<span class="dfp-preview-badge">' . t('Preview Mode') . '</span>';
-  $output .= '<span class="dfp-preview-note">' . t('This is how respondents will see your form. Inputs are disabled in preview.') . '</span>';
+  $output .= '<span class="dfp-preview-note">' . t('This is how respondents will see your form.') . '</span>';
   $output .= l(t('← Back to Builder'), 'dashboard/forms/' . (int) $form_id . '/builder', array(
     'attributes' => array('class' => array('dfp-back-link')),
   ));
@@ -225,7 +286,6 @@ function _dynamic_form_preview_maybe_load_tinymce($form_id) {
         if (typeof tinymce === 'undefined') { return; }
         tinymce.init({
           selector  : '#' + this.id,
-          readonly  : true,
           height    : 200,
           menubar   : false,
           statusbar : false,
@@ -275,37 +335,42 @@ function _dynamic_form_preview_maybe_load_select2($form_id) {
 
   $init_js = <<<JS
 (function ($) {
-  // Regular dropdown (select type) — disabled preview.
+  // Regular dropdown (select type).
   Drupal.behaviors.dfpSelect2Preview = {
     attach: function (context, settings) {
       $('.dfp-select2', context).once('dfp-s2-init', function () {
         try {
+          var isMulti = $(this).hasClass('dfp-select-multi');
           $(this).select2({
-            placeholder: $(this).hasClass('dfp-select-multi') ? '' : '-- Select an option --',
-            allowClear:  !$(this).hasClass('dfp-select-multi'),
-            width:       '100%',
-            disabled:    true
+            placeholder:      isMulti ? 'Select one or more options…' : '— Select an option —',
+            allowClear:       !isMulti,
+            width:            '100%',
+            dropdownCssClass: 'dfp-s2-preview-drop'
           });
         } catch (e) {}
       });
     }
   };
 
-  // Tags input (tags type) — disabled preview with AJAX autocomplete wired up.
+  // Tags input — Select2 v3 on a hidden input with `tags: []`.
+  // Select2 v3 free-form tagging requires an <input type="hidden"> element and
+  // `tags` set to an array (empty = no pre-loaded choices). Combined with AJAX
+  // autocomplete + createSearchChoice this gives a proper tag-pill input field.
   Drupal.behaviors.dfpTagsPreview = {
     attach: function (context, settings) {
       $('.dfp-tags-select2', context).once('dfp-tags-s2-init', function () {
         try {
           $(this).select2({
-            tags:        true,
-            width:       '100%',
-            disabled:    true,
-            placeholder: 'Type to search or add tags…',
+            tags:               [],
+            tokenSeparators:    [','],
+            width:              '100%',
+            placeholder:        'Type to search or add tags…',
+            minimumInputLength: 1,
             ajax: {
-              url:      '{$autocomplete_url}',
-              dataType: 'json',
+              url:         '{$autocomplete_url}',
+              dataType:    'json',
               quietMillis: 250,
-              data: function (term) {
+              data: function (term, page) {
                 return { term: term };
               },
               results: function (data) {
@@ -313,8 +378,15 @@ function _dynamic_form_preview_maybe_load_select2($form_id) {
               }
             },
             createSearchChoice: function (term, data) {
-              if (!data.length) {
-                return { id: term, text: term + ' (new tag)' };
+              var exists = false;
+              for (var i = 0; i < data.length; i++) {
+                if (data[i].text.toLowerCase() === term.toLowerCase()) {
+                  exists = true;
+                  break;
+                }
+              }
+              if (!exists) {
+                return { id: term, text: term };
               }
             }
           });
@@ -352,12 +424,12 @@ function _dynamic_form_render_preview_question($q, array $opts, array $scale) {
   switch ($type) {
 
     case 'text':
-      $input_html = '<input type="text" class="dfp-input" disabled'
+      $input_html = '<input type="text" class="dfp-input"'
         . ' placeholder="' . t('Short answer text') . '">';
       break;
 
     case 'textarea':
-      $input_html = '<textarea class="dfp-textarea" disabled rows="4"'
+      $input_html = '<textarea class="dfp-textarea" rows="4"'
         . ' placeholder="' . t('Long answer text') . '"></textarea>';
       break;
 
@@ -374,7 +446,7 @@ function _dynamic_form_render_preview_question($q, array $opts, array $scale) {
         $input_html = '<div class="dfp-options-list">';
         foreach ($opts as $opt) {
           $input_html .= '<label class="dfp-option-label">'
-            . '<input type="radio" disabled> '
+            . '<input type="radio" name="q' . (int) $q->id . '"> '
             . check_plain($opt->option_label)
             . '</label>';
         }
@@ -390,7 +462,7 @@ function _dynamic_form_render_preview_question($q, array $opts, array $scale) {
         $input_html = '<div class="dfp-options-list">';
         foreach ($opts as $opt) {
           $input_html .= '<label class="dfp-option-label">'
-            . '<input type="checkbox" disabled> '
+            . '<input type="checkbox"> '
             . check_plain($opt->option_label)
             . '</label>';
         }
@@ -406,7 +478,7 @@ function _dynamic_form_render_preview_question($q, array $opts, array $scale) {
         $allow_multi  = !empty($scale['allow_multiple']);
         $multi_attr   = $allow_multi ? ' multiple' : '';
         $select_class = $allow_multi ? 'dfp-select dfp-select-multi dfp-select2' : 'dfp-select dfp-select2';
-        $input_html   = '<select class="' . $select_class . '" disabled' . $multi_attr . '>';
+        $input_html   = '<select class="' . $select_class . '"' . $multi_attr . '>';
         if (!$allow_multi) {
           $input_html .= '<option value="">' . t('— Select an option —') . '</option>';
         }
@@ -414,6 +486,15 @@ function _dynamic_form_render_preview_question($q, array $opts, array $scale) {
           $input_html .= '<option>' . check_plain($opt->option_label) . '</option>';
         }
         $input_html .= '</select>';
+        if ($allow_multi) {
+          $input_html .= '<p class="dfp-multi-select-hint">'
+            . '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"'
+            . ' stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">'
+            . '<polyline points="9 11 12 14 22 4"/>'
+            . '<path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>'
+            . '</svg>'
+            . ' ' . t('Multiple options can be selected') . '</p>';
+        }
       }
       break;
 
@@ -454,7 +535,7 @@ function _dynamic_form_render_preview_question($q, array $opts, array $scale) {
       }
 
       $input_html = '<div class="dfp-file-dropzone">'
-        . '<input type="file" class="dfp-file-hidden" disabled>'
+        . '<input type="file" class="dfp-file-hidden">'
         . '<div class="dfp-file-dropzone-inner">'
         . '<div class="dfp-file-upload-icon">'
         . '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"'
@@ -468,17 +549,18 @@ function _dynamic_form_render_preview_question($q, array $opts, array $scale) {
         . '<span class="dfp-file-upload-btn">' . t('Click to upload') . '</span>'
         . '<span class="dfp-file-upload-or"> ' . t('or drag and drop') . '</span>'
         . '</div>'
+        . '<div class="dfp-file-name"></div>'
         . $meta_html
         . '</div>'
         . '</div>';
       break;
 
     case 'date':
-      $input_html = '<input type="date" class="dfp-input" disabled>';
+      $input_html = '<input type="date" class="dfp-input">';
       break;
 
     case 'time':
-      $input_html = '<input type="time" class="dfp-input" disabled>';
+      $input_html = '<input type="time" class="dfp-input">';
       break;
 
     case 'rating':
@@ -511,7 +593,7 @@ function _dynamic_form_render_preview_question($q, array $opts, array $scale) {
       $input_html = '<div class="dfp-scale-wrap">';
       $input_html .= '<div class="dfp-scale-buttons">';
       for ($i = $min; $i <= $max; $i++) {
-        $input_html .= '<button type="button" class="dfp-scale-btn" disabled>' . $i . '</button>';
+        $input_html .= '<button type="button" class="dfp-scale-btn">' . $i . '</button>';
       }
       $input_html .= '</div>';
       if ($min_label || $max_label) {
@@ -524,15 +606,14 @@ function _dynamic_form_render_preview_question($q, array $opts, array $scale) {
       break;
 
     case 'tags':
-      $input_html  = '<select class="dfp-tags-select2" multiple disabled>';
-      $input_html .= '</select>';
+      $input_html  = '<input type="hidden" class="dfp-tags-select2" style="width:100%">';
       $input_html .= '<p class="dfp-help-text">'
-        . t('Respondents can search existing tags or type new ones.')
+        . t('Type a tag and press Enter, or search existing tags.')
         . '</p>';
       break;
 
     default:
-      $input_html = '<input type="text" class="dfp-input" disabled'
+      $input_html = '<input type="text" class="dfp-input"'
         . ' placeholder="' . t('Answer') . '">';
       break;
   }

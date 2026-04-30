@@ -37,8 +37,9 @@ function dynamic_form_builder_page($form_id) {
   drupal_add_js($module_path . '/js/builder.js');
   drupal_add_js(array(
     'dynamicFormBuilder' => array(
-      'formId'   => (int) $form_record->id,
-      'basePath' => url('dynamic-form/ajax/builder'),
+      'formId'      => (int) $form_record->id,
+      'basePath'    => url('dynamic-form/ajax/builder'),
+      'deletePath'  => url('dynamic-form/ajax/delete'),
     ),
   ), 'setting');
 
@@ -77,6 +78,19 @@ function dynamic_form_builder_page($form_id) {
   $output .= '<button type="button" class="dfb-modal-close" data-action="close-modal">&times;</button>';
   $output .= '</div>';
   $output .= drupal_render(drupal_get_form('dynamic_form_builder_question_form', (int) $form_record->id));
+  $output .= '</div>';
+  $output .= '</div>';
+
+  // Delete confirmation modal.
+  $output .= '<div id="dfb-delete-confirm-modal" class="dfb-modal-overlay" style="display:none;">';
+  $output .= '<div class="dfb-delete-confirm-box">';
+  $output .= '<div class="dfb-delete-confirm-icon">&#128465;</div>';
+  $output .= '<p class="dfb-delete-confirm-msg">' . t('Delete') . ' "<strong id="dfb-delete-confirm-name"></strong>"?</p>';
+  $output .= '<p class="dfb-delete-confirm-sub">' . t('This will move it to Trash. You can restore it later.') . '</p>';
+  $output .= '<div class="dfb-delete-confirm-actions">';
+  $output .= '<button type="button" class="dfb-btn-cancel" data-action="close-delete-modal">' . t('Cancel') . '</button>';
+  $output .= '<button type="button" class="dfb-btn-delete-confirm" id="dfb-delete-confirm-btn">' . t('Delete') . '</button>';
+  $output .= '</div>';
   $output .= '</div>';
   $output .= '</div>';
 
@@ -297,7 +311,12 @@ function dynamic_form_builder_sections_form_submit($form, &$form_state) {
  * #dfb-sections-wrapper.
  */
 function dynamic_form_builder_sections_ajax_callback($form, &$form_state) {
-  return $form['sections_wrapper'];
+  $commands   = array();
+  $commands[] = ajax_command_replace('#dfb-sections-wrapper', render($form['sections_wrapper']));
+  // Clear the add-section fields in the browser after a successful submit.
+  $commands[] = ajax_command_invoke('input[name="section_name"]', 'val', array(''));
+  $commands[] = ajax_command_invoke('textarea[name="section_description"]', 'val', array(''));
+  return array('#type' => 'ajax', '#commands' => $commands);
 }
 
 /* =====================================================================
@@ -323,6 +342,16 @@ function _dynamic_form_render_builder_section($section, array $questions) {
   $output .= '<h2 class="dfb-section-title">' . check_plain($section->name) . '</h2>';
   $output .= '<button class="dfb-section-edit-icon" data-action="inline-rename-section"'
     . ' title="' . t('Rename section') . '">&#9998;</button>';
+  $output .= '<button class="dfb-section-delete-icon" data-action="open-delete-modal"'
+    . ' data-entity-type="section"'
+    . ' data-entity-id="' . (int) $section->id . '"'
+    . ' data-entity-name="' . check_plain($section->name) . '"'
+    . ' title="' . t('Delete section') . '">'
+    . '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"'
+    . ' fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    . '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>'
+    . '<path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>'
+    . '</svg></button>';
   if (!empty($section->description)) {
     $output .= '<p class="dfb-section-desc">' . check_plain($section->description) . '</p>';
   }
@@ -374,6 +403,16 @@ function _dynamic_form_render_builder_question($question) {
   $output .= '<div class="dfb-question-header-right">';
   $output .= '<span class="dfb-question-type-badge">' . check_plain($question->type) . '</span>';
   $output .= '<span class="dfb-edit-hint">&#9998;</span>';
+  $output .= '<button class="dfb-question-delete-icon" data-action="open-delete-modal"'
+    . ' data-entity-type="question"'
+    . ' data-entity-id="' . (int) $question->id . '"'
+    . ' data-entity-name="' . check_plain($question->label) . '"'
+    . ' title="' . t('Delete question') . '">'
+    . '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"'
+    . ' fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    . '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>'
+    . '<path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>'
+    . '</svg></button>';
   $output .= '</div>';
   $output .= '</div>';
 

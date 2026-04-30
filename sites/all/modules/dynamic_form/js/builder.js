@@ -10,9 +10,10 @@
       var s = settings.dynamicFormBuilder;
       // settings might be undefined on the edit page depending on how the
       // array was merged, so we default it if missing.
-      if (!s) { s = { basePath: '' }; }
+      if (!s) { s = { basePath: '', deletePath: '' }; }
 
-      var basePath = s.basePath;
+      var basePath   = s.basePath;
+      var deletePath = s.deletePath;
 
       // -----------------------------------------------------------------
       // SortableJS: sections wrapper.
@@ -75,20 +76,28 @@
         });
       });
 
-      // Re-inject section_id after every AJAX rebuild of the question form wrapper.
+      // Re-inject section_id and re-apply type visibility after every AJAX rebuild.
       // (Options/validations AJAX replaces sub-sections; the save AJAX replaces the whole
       // wrapper — in both cases section_id resets to 0 in the fresh markup.)
+      // Re-applying visibility is necessary because the fresh HTML from the server carries
+      // the data-dfb-show-for attribute, which CSS hides by default, but Drupal only calls
+      // attachBehaviors on the newly replaced child element — not the parent form wrapper —
+      // so _dfbApplyTypeVisibility never fires automatically after a partial AJAX replace.
       $('body').once('dfb-section-id-reinjector', function () {
         $(document).ajaxComplete(function () {
-          var $modal = $('#dfb-question-modal');
-          if (!$modal.is(':visible')) { return; }
-          var sid = $modal.data('active-section-id');
-          if (sid) {
-            $('input[name="section_id"]').val(sid);
+          var $addModal  = $('#dfb-question-modal');
+          var $editModal = $('#dfb-edit-question-modal');
+
+          if ($addModal.is(':visible')) {
+            var sid = $addModal.data('active-section-id');
+            if (sid) { $('input[name="section_id"]').val(sid); }
+            var sname = $addModal.data('active-section-name');
+            if (sname !== undefined) { $('#dfb-section-name-display').text(sname); }
+            _dfbApplyTypeVisibility($('#dfb-question-form-wrapper'));
           }
-          var sname = $modal.data('active-section-name');
-          if (sname !== undefined) {
-            $('#dfb-section-name-display').text(sname);
+
+          if ($editModal.is(':visible')) {
+            _dfbApplyTypeVisibility($('#dfb-edit-question-form-wrapper'));
           }
         });
       });
@@ -122,6 +131,8 @@
       $('#dfb-builder-container', context).once('dfb-question-edit', function () {
         $(this).delegate('.dfb-question-editable', 'click', function (e) {
           e.stopPropagation();
+          // Let the delete-icon handler take over when the trash button is clicked.
+          if ($(e.target).closest('[data-action="open-delete-modal"]').length) { return; }
           var questionId = $(this).closest('.dfb-question-card').data('question-id');
           if (!questionId) { return; }
 
@@ -301,6 +312,75 @@
             if (e.which === 27) { $input.unbind('blur'); _cancel(); }
           });
           $input.bind('blur', function () { _save(); });
+        });
+      });
+
+      // -------------------------------------------------------------------
+      // Delete confirmation modal.
+      //
+      // Any element with data-action="open-delete-modal" opens the shared
+      // #dfb-delete-confirm-modal.  The entity type, id, and display name
+      // are read from data attributes and stored on the modal element.
+      // -------------------------------------------------------------------
+
+      // Open: show modal and remember what we are about to delete.
+      $('#dfb-builder-container', context).once('dfb-delete-modal-open', function () {
+        $(this).delegate('[data-action="open-delete-modal"]', 'click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var $btn  = $(this);
+          var modal = $('#dfb-delete-confirm-modal');
+          modal.data('entity-type', $btn.attr('data-entity-type'));
+          modal.data('entity-id',   $btn.attr('data-entity-id'));
+          modal.data('entity-card', $btn.closest('.dfb-section-card, .dfb-question-card'));
+          $('#dfb-delete-confirm-name').text($btn.attr('data-entity-name'));
+          modal.css({ opacity: 0, display: 'flex' }).animate({ opacity: 1 }, 150);
+        });
+      });
+
+      // Close: cancel button or backdrop click.
+      $('body').once('dfb-delete-modal-close', function () {
+        $(document).delegate('[data-action="close-delete-modal"]', 'click', function (e) {
+          e.preventDefault();
+          $('#dfb-delete-confirm-modal').hide();
+        });
+        $('#dfb-delete-confirm-modal').bind('click', function (e) {
+          if ($(e.target).is('#dfb-delete-confirm-modal')) { $(this).hide(); }
+        });
+      });
+
+      // Confirm: POST to delete endpoint, remove card from DOM on success.
+      $('body').once('dfb-delete-modal-confirm', function () {
+        $(document).delegate('#dfb-delete-confirm-btn', 'click', function () {
+          var modal      = $('#dfb-delete-confirm-modal');
+          var entityType = modal.data('entity-type');
+          var entityId   = modal.data('entity-id');
+          var $card      = modal.data('entity-card');
+          var $btn       = $(this);
+
+          $btn.attr('disabled', 'disabled').text(Drupal.t('Deleting…'));
+
+          $.ajax({
+            url:         deletePath + '/' + entityType + '/' + entityId,
+            type:        'POST',
+            dataType:    'json',
+            success: function (resp) {
+              modal.hide();
+              $btn.removeAttr('disabled').text(Drupal.t('Delete'));
+              if (resp.status === 'ok') {
+                if ($card && $card.length) { $card.remove(); }
+                if (window.DFBToast) { DFBToast.success(resp.message || Drupal.t('Deleted.')); }
+              }
+              else {
+                if (window.DFBToast) { DFBToast.error(resp.message || Drupal.t('Could not delete item.')); }
+              }
+            },
+            error: function () {
+              modal.hide();
+              $btn.removeAttr('disabled').text(Drupal.t('Delete'));
+              if (window.DFBToast) { DFBToast.error(Drupal.t('A network error occurred.')); }
+            }
+          });
         });
       });
     }
