@@ -89,7 +89,13 @@ function dynamic_form_login_form_submit($form, &$form_state)
   $user = $account;
   user_login_finalize();
 
-  $form_state['redirect'] = '<front>';
+  // Redirect to pending invite accept page if one is waiting.
+  if (!empty($_SESSION['dfb_invite_token'])) {
+    $form_state['redirect'] = 'dynamic-form/invite/accept/' . $_SESSION['dfb_invite_token'];
+  }
+  else {
+    $form_state['redirect'] = '<front>';
+  }
 }
 
 /* =====================================================================
@@ -215,7 +221,14 @@ function dynamic_form_register_form_submit($form, &$form_state)
     user_login_finalize();
 
     drupal_set_message(t('Welcome, @name! Your account has been created.', array('@name' => $account->name)));
-    $form_state['redirect'] = '<front>';
+
+    // Redirect to pending invite accept page if one is waiting.
+    if (!empty($_SESSION['dfb_invite_token'])) {
+      $form_state['redirect'] = 'dynamic-form/invite/accept/' . $_SESSION['dfb_invite_token'];
+    }
+    else {
+      $form_state['redirect'] = '<front>';
+    }
   } else {
     drupal_set_message(t('There was a problem creating your account. Please try again.'), 'error');
   }

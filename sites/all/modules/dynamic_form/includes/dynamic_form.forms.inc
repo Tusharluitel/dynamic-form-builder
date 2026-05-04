@@ -26,6 +26,7 @@ function dynamic_form_create_form($form, &$form_state)
     'data' => array(
       'dynamicFormMembers' => array(
         'searchUrl' => url('dynamic-form/ajax/members/search'),
+        'canInvite'  => FALSE,
       ),
     ),
     'type' => 'setting',
@@ -133,23 +134,13 @@ function dynamic_form_create_form($form, &$form_state)
 
   // -- Members section --
   $form['members'] = array(
-    '#type'        => 'fieldset',
-    '#title'       => t('Form Members'),
-    '#attributes'  => array('class' => array('dfb-form-section')),
-    '#description' => t('Add editors and form applicants. They will be notified by email when added.'),
+    '#type'       => 'fieldset',
+    '#title'      => t('Form Members'),
+    '#attributes' => array('class' => array('dfb-form-section', 'dfb-form-section--members')),
   );
 
-  $form['members']['members_search'] = array(
-    '#type'       => 'textfield',
-    '#title'      => t('Search Users'),
-    '#prefix'     => '<div class="dfb-member-picker-wrap">',
-    '#suffix'     => '<div id="dfb-members-results" class="dfb-members-results" style="display:none;"></div></div>',
-    '#attributes' => array(
-      'id'           => 'dfb-members-search',
-      'placeholder'  => t('Type a name or email to search…'),
-      'autocomplete' => 'off',
-    ),
-    '#description' => t('Search by name or email. Click a result to add the user.'),
+  $form['members']['members_picker'] = array(
+    '#markup' => _dynamic_form_members_picker_html(FALSE),
   );
 
   $form['members']['members_selected'] = array(
@@ -158,8 +149,8 @@ function dynamic_form_create_form($form, &$form_state)
     '#attributes'    => array('id' => 'dfb-members-selected'),
   );
 
-  $form['members']['members_chips_wrap'] = array(
-    '#markup' => '<div id="dfb-members-chips" class="dfb-members-chips"></div>',
+  $form['members']['members_table_wrap'] = array(
+    '#markup' => '<div id="dfb-members-table-wrap" class="dfb-members-table-wrap"></div>',
   );
 
   // -- Actions --
@@ -344,11 +335,21 @@ function dynamic_form_edit_form($form, &$form_state, $form_id)
 
   $module_path = drupal_get_path('module', 'dynamic_form');
   $form['#attached']['css'][] = $module_path . '/css/members.css';
+  $form['#attached']['css'][] = $module_path . '/css/invitations.css';
   $form['#attached']['js'][]  = $module_path . '/js/members.js';
+  $form['#attached']['js'][]  = $module_path . '/js/invitations.js';
   $form['#attached']['js'][]  = array(
     'data' => array(
       'dynamicFormMembers' => array(
         'searchUrl' => url('dynamic-form/ajax/members/search'),
+        'canInvite'  => TRUE,
+      ),
+      'dynamicFormInvitations' => array(
+        'formId'     => (int) $form_id,
+        'sendUrl'    => url('dynamic-form/ajax/invitations/send'),
+        'listUrl'    => url('dynamic-form/ajax/invitations/' . (int) $form_id . '/list'),
+        'resendBase' => url('dynamic-form/ajax/invitations'),
+        'revokeBase' => url('dynamic-form/ajax/invitations'),
       ),
     ),
     'type' => 'setting',
@@ -472,23 +473,13 @@ function dynamic_form_edit_form($form, &$form_state, $form_id)
   $existing_members_json = json_encode($existing_members);
 
   $form['members'] = array(
-    '#type'        => 'fieldset',
-    '#title'       => t('Form Members'),
-    '#attributes'  => array('class' => array('dfb-form-section')),
-    '#description' => t('Add editors and form applicants. They will be notified by email when added.'),
+    '#type'       => 'fieldset',
+    '#title'      => t('Form Members'),
+    '#attributes' => array('class' => array('dfb-form-section', 'dfb-form-section--members')),
   );
 
-  $form['members']['members_search'] = array(
-    '#type'       => 'textfield',
-    '#title'      => t('Search Users'),
-    '#prefix'     => '<div class="dfb-member-picker-wrap">',
-    '#suffix'     => '<div id="dfb-members-results" class="dfb-members-results" style="display:none;"></div></div>',
-    '#attributes' => array(
-      'id'           => 'dfb-members-search',
-      'placeholder'  => t('Type a name or email to search…'),
-      'autocomplete' => 'off',
-    ),
-    '#description' => t('Search by name or email. Click a result to add the user.'),
+  $form['members']['members_picker'] = array(
+    '#markup' => _dynamic_form_members_picker_html(TRUE),
   );
 
   $form['members']['members_selected'] = array(
@@ -497,8 +488,8 @@ function dynamic_form_edit_form($form, &$form_state, $form_id)
     '#attributes'    => array('id' => 'dfb-members-selected'),
   );
 
-  $form['members']['members_chips_wrap'] = array(
-    '#markup' => '<div id="dfb-members-chips" class="dfb-members-chips"></div>',
+  $form['members']['members_table_wrap'] = array(
+    '#markup' => '<div id="dfb-members-table-wrap" class="dfb-members-table-wrap"></div>',
   );
 
   // -- Actions --
@@ -605,6 +596,40 @@ function dynamic_form_edit_form_submit($form, &$form_state)
 /* =====================================================================
    FORM CRUD — DELETE (SOFT)
    ===================================================================== */
+
+/**
+ * Returns the unified member picker HTML (search input + role select + results dropdown).
+ *
+ * @param bool $can_invite  TRUE on edit forms where invitations are supported.
+ */
+function _dynamic_form_members_picker_html($can_invite = FALSE) {
+  $role_opts =
+    '<option value="editor">'         . t('Editor')         . '</option>' .
+    '<option value="form_applicant">' . t('Form Applicant') . '</option>' .
+    '<option value="viewer">'         . t('Viewer')         . '</option>' .
+    '<option value="reviewer">'       . t('Reviewer')       . '</option>';
+
+  $placeholder = $can_invite
+    ? t('Search by name, or enter an email to add or invite…')
+    : t('Search by name or email to add…');
+
+  $add_label = $can_invite ? t('Add / Invite') : t('Add Member');
+
+  return
+    '<div class="dfb-member-picker-wrap">' .
+      '<div class="dfb-member-input-row">' .
+        '<div class="dfb-member-search-wrap">' .
+          '<input type="text" id="dfb-members-search" class="dfb-member-search-input"' .
+                 ' placeholder="' . check_plain($placeholder) . '" autocomplete="off" />' .
+          '<div id="dfb-members-results" class="dfb-members-results" style="display:none;"></div>' .
+        '</div>' .
+        '<select id="dfb-member-role-select" class="dfb-member-role-select">' . $role_opts . '</select>' .
+        '<button type="button" id="dfb-member-add-btn" class="dfb-member-add-btn">' .
+          '<span class="dfb-add-btn-icon">+</span> ' . check_plain($add_label) .
+        '</button>' .
+      '</div>' .
+    '</div>';
+}
 
 /**
  * Form builder: Confirm soft deletion of a form.

@@ -1,0 +1,16 @@
+/* =====================================================================
+   DYNAMIC FORM — Invitation row overrides
+   Base table, avatar, status, and button styles live in members.css.
+   Only invite-specific visual adjustments belong here.
+   ===================================================================== */
+
+/* Amber left accent on invite rows */
+.dfb-invite-row td:first-child {
+  border-left: 3px solid #f59e0b;
+  padding-left: 13px;
+}
+
+/* Separator between member tbody and invite tbody */
+#dfb-invites-tbody tr:first-child td {
+  border-top: 2px dashed #f1f5f9;
+}

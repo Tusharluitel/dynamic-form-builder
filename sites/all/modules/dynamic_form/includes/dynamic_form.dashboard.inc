@@ -329,6 +329,7 @@ function _dynamic_form_dashboard_forms()
   global $user;
   $is_admin = user_access('edit any form');
 
+  // Owned / all-admin forms.
   $query = db_select('dynamic_form_forms', 'f')
     ->fields('f', array('id', 'title', 'slug', 'status', 'visibility', 'created_at', 'created_by'))
     ->condition('f.deleted_at', NULL, 'IS NULL')
@@ -338,7 +339,35 @@ function _dynamic_form_dashboard_forms()
     $query->condition('f.created_by', $user->uid);
   }
 
-  $results = $query->execute()->fetchAll();
+  $owned = $query->execute()->fetchAll();
+
+  // Build a keyed map so we can avoid duplicates when merging member forms.
+  $forms_by_id = array();
+  foreach ($owned as $r) {
+    $r->member_role = 'owner';
+    $forms_by_id[$r->id] = $r;
+  }
+
+  // Member forms (invited by someone else) — any role.
+  if (!$is_admin) {
+    $mq = db_select('dynamic_form_members', 'm')
+      ->fields('m', array('role'))
+      ->condition('m.user_id', $user->uid);
+    $mq->join('dynamic_form_forms', 'f', 'm.form_id = f.id');
+    $mq->fields('f', array('id', 'title', 'slug', 'status', 'visibility', 'created_at', 'created_by'));
+    $mq->condition('f.deleted_at', NULL, 'IS NULL');
+    $mq->condition('f.created_by', $user->uid, '<>');
+
+    foreach ($mq->execute()->fetchAll() as $r) {
+      if (!isset($forms_by_id[$r->id])) {
+        $r->member_role = $r->role;
+        $forms_by_id[$r->id] = $r;
+      }
+    }
+  }
+
+  // Sort merged list by created_at DESC.
+  uasort($forms_by_id, '_dfb_sort_by_created_desc');
 
   $output = '<div class="dfb-dashboard-header">';
   $output .= '<div class="dfb-dashboard-header-row">';
@@ -350,7 +379,7 @@ function _dynamic_form_dashboard_forms()
   $output .= '</div>';
   $output .= '</div>';
 
-  if (empty($results)) {
+  if (empty($forms_by_id)) {
     $output .= '<div class="dfb-empty-state">';
     $output .= '<div class="dfb-empty-icon">&#128196;</div>';
     $output .= '<p>' . t('You haven\'t created any forms yet.') . '</p>';
@@ -360,9 +389,9 @@ function _dynamic_form_dashboard_forms()
   }
 
   $status_labels = array(
-    0 => '<span class="dfb-badge dfb-badge-draft">' . t('Draft') . '</span>',
-    1 => '<span class="dfb-badge dfb-badge-published">' . t('Published') . '</span>',
-    2 => '<span class="dfb-badge dfb-badge-closed">' . t('Closed') . '</span>',
+    0 => '<span class="dfb-badge dfb-badge-draft">'      . t('Draft')     . '</span>',
+    1 => '<span class="dfb-badge dfb-badge-published">'  . t('Published') . '</span>',
+    2 => '<span class="dfb-badge dfb-badge-closed">'     . t('Closed')    . '</span>',
   );
 
   $visibility_labels = array(
@@ -374,21 +403,42 @@ function _dynamic_form_dashboard_forms()
   $header = array(t('Title'), t('Status'), t('Visibility'), t('Created'), t('Actions'));
   $rows = array();
 
-  foreach ($results as $record) {
+  foreach ($forms_by_id as $record) {
+    $is_owner = ($record->member_role === 'owner');
+    $role     = $is_owner ? 'owner' : $record->member_role;
+
+    // Title with a "Shared" badge for member forms.
+    $title_cell = check_plain($record->title);
+    if (!$is_owner) {
+      $role_label = ucfirst($role);
+      $title_cell .= ' <span class="dfb-badge dfb-badge-shared">' . t('Shared · @role', array('@role' => $role_label)) . '</span>';
+    }
+
     $actions = array();
-    $actions[] = l(t('Builder'), 'dashboard/forms/' . $record->id . '/builder', array('attributes' => array('class' => array('dfb-action-builder'))));
-    $actions[] = l(t('Edit'), 'dashboard/forms/' . $record->id . '/edit');
-    $actions[] = l(t('Delete'), 'form/' . $record->id . '/delete', array(
-      'attributes' => array(
-        'class'            => array('dfb-action-delete', 'dfb-delete-trigger'),
-        'data-entity-type' => 'form',
-        'data-entity-id'   => (string) $record->id,
-        'data-entity-name' => $record->title,
-      ),
-    ));
+
+    if (in_array($role, array('owner', 'editor', 'reviewer'))) {
+      $actions[] = l(t('Builder'), 'dashboard/forms/' . $record->id . '/builder',
+        array('attributes' => array('class' => array('dfb-action-builder'))));
+    }
+
+    if (in_array($role, array('owner', 'editor'))) {
+      $actions[] = l(t('Edit'), 'dashboard/forms/' . $record->id . '/edit');
+    }
+
+    // Delete only for owners.
+    if ($is_owner) {
+      $actions[] = l(t('Delete'), 'form/' . $record->id . '/delete', array(
+        'attributes' => array(
+          'class'            => array('dfb-action-delete', 'dfb-delete-trigger'),
+          'data-entity-type' => 'form',
+          'data-entity-id'   => (string) $record->id,
+          'data-entity-name' => $record->title,
+        ),
+      ));
+    }
 
     $rows[] = array(
-      check_plain($record->title),
+      array('data' => $title_cell),
       array('data' => isset($status_labels[$record->status]) ? $status_labels[$record->status] : t('Unknown'), 'class' => array('status-cell')),
       isset($visibility_labels[$record->visibility]) ? $visibility_labels[$record->visibility] : $record->visibility,
       format_date($record->created_at, 'short'),
@@ -398,12 +448,17 @@ function _dynamic_form_dashboard_forms()
 
   $output .= theme('table', array(
     'header' => $header,
-    'rows' => $rows,
+    'rows'   => $rows,
     'attributes' => array('class' => array('dfb-dashboard-table')),
-    'empty' => t('No forms found.'),
+    'empty'  => t('No forms found.'),
   ));
 
   return $output;
+}
+
+function _dfb_sort_by_created_desc($a, $b)
+{
+  return $b->created_at - $a->created_at;
 }
 
 /* =====================================================================
