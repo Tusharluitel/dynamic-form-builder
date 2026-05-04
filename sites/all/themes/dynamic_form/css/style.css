@@ -730,6 +730,12 @@ body.admin-menu .dfb-dashboard-sidebar {
   background: rgba(239,68,68,.1);
   color: #dc2626;
 }
+.dfb-badge-shared {
+  background: rgba(99,102,241,.1);
+  color: var(--color-primary, #6366f1);
+  font-size: .7rem;
+  vertical-align: middle;
+}
 
 /* Type badge */
 .dfb-type-badge {

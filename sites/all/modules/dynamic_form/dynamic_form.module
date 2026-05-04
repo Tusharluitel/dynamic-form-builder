@@ -304,6 +304,46 @@ function dynamic_form_menu()
     'type'            => MENU_CALLBACK,
   );
 
+  // Invitation routes.
+  $items['dynamic-form/invite/accept/%'] = array(
+    'page callback'   => 'dynamic_form_invite_accept_page',
+    'page arguments'  => array(3),
+    'access callback' => TRUE,
+    'file'            => 'includes/dynamic_form.invitations.inc',
+    'type'            => MENU_CALLBACK,
+  );
+
+  $items['dynamic-form/ajax/invitations/send'] = array(
+    'page callback'   => 'dynamic_form_ajax_invitation_send',
+    'access callback' => 'user_is_logged_in',
+    'file'            => 'includes/dynamic_form.invitations.inc',
+    'type'            => MENU_CALLBACK,
+  );
+
+  $items['dynamic-form/ajax/invitations/%/resend'] = array(
+    'page callback'   => 'dynamic_form_ajax_invitation_resend',
+    'page arguments'  => array(3),
+    'access callback' => 'user_is_logged_in',
+    'file'            => 'includes/dynamic_form.invitations.inc',
+    'type'            => MENU_CALLBACK,
+  );
+
+  $items['dynamic-form/ajax/invitations/%/revoke'] = array(
+    'page callback'   => 'dynamic_form_ajax_invitation_revoke',
+    'page arguments'  => array(3),
+    'access callback' => 'user_is_logged_in',
+    'file'            => 'includes/dynamic_form.invitations.inc',
+    'type'            => MENU_CALLBACK,
+  );
+
+  $items['dynamic-form/ajax/invitations/%/list'] = array(
+    'page callback'   => 'dynamic_form_ajax_invitation_list',
+    'page arguments'  => array(3),
+    'access callback' => 'user_is_logged_in',
+    'file'            => 'includes/dynamic_form.invitations.inc',
+    'type'            => MENU_CALLBACK,
+  );
+
   $items['dynamic-form/ajax/tags/autocomplete'] = array(
     'page callback'   => 'dynamic_form_ajax_tags_autocomplete',
     'access callback' => 'user_is_logged_in',
@@ -434,7 +474,22 @@ function _dynamic_form_edit_access($form_id)
       ->condition('deleted_at', NULL, 'IS NULL')
       ->execute()
       ->fetchField();
-    return $created_by && (int) $created_by === (int) $user->uid;
+    if ($created_by && (int) $created_by === (int) $user->uid) {
+      return TRUE;
+    }
+  }
+
+  // Members with editor or reviewer role can access the builder.
+  if ($user->uid) {
+    $role = db_select('dynamic_form_members', 'm')
+      ->fields('m', array('role'))
+      ->condition('form_id', $form_id)
+      ->condition('user_id', $user->uid)
+      ->execute()
+      ->fetchField();
+    if (in_array($role, array('editor', 'reviewer'))) {
+      return TRUE;
+    }
   }
 
   return FALSE;
@@ -544,6 +599,10 @@ function dynamic_form_cron_queue_info() {
       'worker callback' => 'dynamic_form_member_notify_worker',
       'time'            => 30,
     ),
+    'dynamic_form_invite_notify' => array(
+      'worker callback' => 'dynamic_form_invite_notify_worker',
+      'time'            => 30,
+    ),
   );
 }
 
@@ -555,6 +614,29 @@ function dynamic_form_cron_queue_info() {
 function dynamic_form_member_notify_worker(array $item) {
   module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.members');
   _dynamic_form_send_member_notification($item);
+}
+
+/**
+ * Queue worker: sends an invitation email to an unregistered email address.
+ *
+ * @param array $item  Keyed array with invite_id, form_title.
+ */
+function dynamic_form_invite_notify_worker(array $item) {
+  module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.invitations');
+  _dynamic_form_send_invite_notification($item);
+}
+
+/**
+ * Implements hook_cron().
+ *
+ * Marks pending invitations whose expiry has passed as 'expired'.
+ */
+function dynamic_form_cron() {
+  db_update('dynamic_form_invitations')
+    ->fields(array('status' => 'expired'))
+    ->condition('status', 'pending')
+    ->condition('expires_at', REQUEST_TIME, '<')
+    ->execute();
 }
 
 /**
@@ -586,6 +668,33 @@ function dynamic_form_mail($key, &$message, $params) {
           $options
         );
       }
+      $message['body'][] = '';
+      $message['body'][] = t('This is an automated notification. Please do not reply to this email.', array(), $options);
+      break;
+
+    case 'invitation_sent':
+      $message['subject'] = t(
+        'You have been invited to: @title',
+        array('@title' => $params['form_title']),
+        $options
+      );
+      $message['body'][] = t('Hi,', array(), $options);
+      $message['body'][] = '';
+      $message['body'][] = t(
+        '@inviter has invited you to collaborate on "@title" as @role.',
+        array(
+          '@inviter' => $params['inviter_name'],
+          '@title'   => $params['form_title'],
+          '@role'    => $params['role_label'],
+        ),
+        $options
+      );
+      $message['body'][] = '';
+      $message['body'][] = t('Click the link below to accept your invitation (expires in 7 days):', array(), $options);
+      $message['body'][] = '';
+      $message['body'][] = $params['accept_url'];
+      $message['body'][] = '';
+      $message['body'][] = t('If you do not have an account, you will be asked to create one first.', array(), $options);
       $message['body'][] = '';
       $message['body'][] = t('This is an automated notification. Please do not reply to this email.', array(), $options);
       break;

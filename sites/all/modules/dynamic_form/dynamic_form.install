@@ -676,6 +676,116 @@ function dynamic_form_schema()
   );
 
   // -----------------------------------------------------------------------
+
+  $schema['dynamic_form_invitations'] = array(
+    'description' => 'Pending and accepted invitations for form access.',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'form_id' => array(
+        'description' => 'FK to {dynamic_form_forms}.id.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'email' => array(
+        'description' => 'Invitee email address (lowercased).',
+        'type' => 'varchar',
+        'length' => 254,
+        'not null' => TRUE,
+      ),
+      'role' => array(
+        'description' => 'Role to grant on acceptance: editor, form_applicant, viewer, reviewer.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => 'viewer',
+      ),
+      'token' => array(
+        'description' => 'Secure 48-char hex token used in the accept link.',
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+      ),
+      'status' => array(
+        'description' => 'pending | accepted | expired | revoked',
+        'type' => 'varchar',
+        'length' => 16,
+        'not null' => TRUE,
+        'default' => 'pending',
+      ),
+      'invited_by' => array(
+        'description' => 'FK to {users}.uid — who sent the invite.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'user_id' => array(
+        'description' => 'FK to {users}.uid — populated when accepted. NULL until then.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'resend_count' => array(
+        'description' => 'Number of times this invitation has been resent.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'expires_at' => array(
+        'description' => 'Unix timestamp when the token expires (default: 7 days after creation).',
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+      'last_resent_at' => array(
+        'description' => 'Unix timestamp of the most recent resend. NULL if never resent.',
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'accepted_at' => array(
+        'description' => 'Unix timestamp when the invitation was accepted. NULL if not yet accepted.',
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'revoked_at' => array(
+        'description' => 'Unix timestamp when the invitation was revoked. NULL if not revoked.',
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'revoked_by' => array(
+        'description' => 'FK to {users}.uid — who revoked the invitation.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'created_at' => array(
+        'description' => 'Unix timestamp when the invitation was created.',
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'token' => array('token'),
+    ),
+    'indexes' => array(
+      'form_email_status' => array('form_id', 'email', 'status'),
+      'status'            => array('status'),
+      'expires_at'        => array('expires_at'),
+      'invited_by'        => array('invited_by'),
+    ),
+  );
+
+  // -----------------------------------------------------------------------
   $schema['dynamic_form_question_validations'] = array(
     'description' => 'Normalised validation rules for individual questions. Replaces the JSON blob in dynamic_form_questions.validation_rules.',
     'fields' => array(
@@ -910,6 +1020,7 @@ function dynamic_form_disable()
 function dynamic_form_uninstall()
 {
   $tables = array(
+    'dynamic_form_invitations',
     'dynamic_form_answer_files',
     'dynamic_form_answers',
     'dynamic_form_responses',
@@ -1103,4 +1214,123 @@ function dynamic_form_update_7002(&$sandbox) {
     'default'     => 'full',
   ));
   return t('Added width column to dynamic_form_questions for multi-column layout.');
+}
+
+/**
+ * Implements hook_update_N().
+ *
+ * Update 7003 — Email invitation system.
+ *
+ * Creates dynamic_form_invitations to support inviting users by email,
+ * including those without an existing account. Tokens expire after 7 days
+ * and are accepted via a public /dynamic-form/invite/accept/{token} URL.
+ */
+function dynamic_form_update_7003() {
+  if (db_table_exists('dynamic_form_invitations')) {
+    return t('dynamic_form_invitations table already exists; skipped.');
+  }
+
+  $schema = array(
+    'description' => 'Pending and accepted invitations for form access.',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'form_id' => array(
+        'description' => 'FK to {dynamic_form_forms}.id.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'email' => array(
+        'description' => 'Invitee email address (lowercased).',
+        'type' => 'varchar',
+        'length' => 254,
+        'not null' => TRUE,
+      ),
+      'role' => array(
+        'description' => 'Role to grant on acceptance.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => 'viewer',
+      ),
+      'token' => array(
+        'description' => 'Secure 48-char hex token used in the accept link.',
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+      ),
+      'status' => array(
+        'description' => 'pending | accepted | expired | revoked',
+        'type' => 'varchar',
+        'length' => 16,
+        'not null' => TRUE,
+        'default' => 'pending',
+      ),
+      'invited_by' => array(
+        'description' => 'FK to {users}.uid — who sent the invite.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'user_id' => array(
+        'description' => 'FK to {users}.uid — populated when accepted.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'resend_count' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'expires_at' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+      'last_resent_at' => array(
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'accepted_at' => array(
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'revoked_at' => array(
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'revoked_by' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'created_at' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'token' => array('token'),
+    ),
+    'indexes' => array(
+      'form_email_status' => array('form_id', 'email', 'status'),
+      'status'            => array('status'),
+      'expires_at'        => array('expires_at'),
+      'invited_by'        => array('invited_by'),
+    ),
+  );
+
+  db_create_table('dynamic_form_invitations', $schema);
+  return t('Created dynamic_form_invitations table for the email invitation system.');
 }
