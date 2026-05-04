@@ -119,7 +119,6 @@
             var color    = _avatarColor(u.name || u.mail);
             var $item = $(
               '<div class="dfb-member-result-item">' +
-                '<div class="dfb-result-avatar" style="background:' + color + '">' + initials + '</div>' +
                 '<div class="dfb-result-identity">' +
                   '<span class="dfb-result-name">' + _esc(u.name) + '</span>' +
                   '<span class="dfb-result-mail">' + _esc(u.mail) + '</span>' +
@@ -149,7 +148,6 @@
             if (!exactMatch) {
               var $invite = $(
                 '<div class="dfb-member-result-item dfb-result-item-invite">' +
-                  '<div class="dfb-result-avatar dfb-result-avatar-invite">&#9993;</div>' +
                   '<div class="dfb-result-identity">' +
                     '<span class="dfb-result-mail">' + _esc(query) + '</span>' +
                     '<span class="dfb-result-hint">' + Drupal.t('No account — send invite link') + '</span>' +
@@ -224,7 +222,6 @@
               '<tr class="dfb-member-row" data-uid="' + m.uid + '">' +
                 '<td class="dfb-col-member">' +
                   '<div class="dfb-member-identity">' +
-                    '<div class="dfb-avatar" style="background:' + color + '">' + initials + '</div>' +
                     '<div class="dfb-member-info">' +
                       '<span class="dfb-member-name">' + _esc(m.name || '') + '</span>' +
                       (m.mail ? '<span class="dfb-member-mail">' + _esc(m.mail) + '</span>' : '') +
