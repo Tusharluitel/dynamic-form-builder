@@ -165,6 +165,19 @@ function dynamic_form_edit_question_form($form, &$form_state, $question_id) {
     '#attributes'    => array('placeholder' => t('Optional — shown to respondents.')),
   );
 
+  // Width picker.
+  $current_width = (isset($form_state['input']['width']) && in_array($form_state['input']['width'], array('full', 'half', 'third', 'quarter')))
+    ? $form_state['input']['width']
+    : ((!empty($record->width) && in_array($record->width, array('full', 'half', 'third', 'quarter'))) ? $record->width : 'full');
+  $form['scrollable']['width_picker'] = array(
+    '#markup' => _dfb_width_picker_markup($current_width),
+  );
+  $form['scrollable']['width'] = array(
+    '#type'          => 'hidden',
+    '#default_value' => $current_width,
+    '#attributes'    => array('class' => array('dfb-width-value')),
+  );
+
   // Text editor info — shown only when text_editor type is selected.
   $form['scrollable']['text_editor_info'] = array(
     '#markup' =>
@@ -454,6 +467,11 @@ function dynamic_form_edit_question_form_submit($form, &$form_state) {
     $max_files        = isset($values['max_files'])         ? (int) $values['max_files']         : NULL;
   }
 
+  $width_allowed = array('full', 'half', 'third', 'quarter');
+  $width = (isset($values['width']) && in_array($values['width'], $width_allowed))
+    ? $values['width']
+    : 'full';
+
   // Update the question record.
   $new_q_fields = array(
     'label'            => trim($values['label']),
@@ -465,6 +483,7 @@ function dynamic_form_edit_question_form_submit($form, &$form_state) {
     'allow_file_types' => $allow_file_types,
     'max_file_size'    => $max_file_size,
     'max_files'        => $max_files,
+    'width'            => $width,
     'updated_at'       => $now,
   );
 

@@ -261,6 +261,7 @@ body.admin-menu .dfb-auth-wrapper { padding-top: 129px; }
 
 /* ===== Content / Messages ===== */
 .dfb-content-region {
+  margin-top: 65px;
   max-width: 1100px; 
   padding: 40px 24px;
 }

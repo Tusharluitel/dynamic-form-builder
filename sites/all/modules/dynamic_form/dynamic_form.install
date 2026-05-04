@@ -286,6 +286,13 @@ function dynamic_form_schema()
         'not null' => TRUE,
         'default' => 0,
       ),
+      'width' => array(
+        'description' => 'Column width for multi-column row layout: full, half, third, quarter.',
+        'type' => 'varchar',
+        'length' => 16,
+        'not null' => TRUE,
+        'default' => 'full',
+      ),
       'created_by' => array(
         'description' => 'FK to {users}.uid — question author.',
         'type' => 'int',
@@ -974,15 +981,6 @@ function dynamic_form_uninstall()
  */
 function dynamic_form_update_7001()
 {
-  // Drop legacy 3-table schema if it was previously installed.
-  foreach (array('dynamic_form_question_tag_answers', 'dynamic_form_tag_variations') as $old_table) {
-    if (db_table_exists($old_table)) {
-      db_drop_table($old_table);
-    }
-  }
-  if (db_table_exists('dynamic_form_tags')) {
-    db_drop_table('dynamic_form_tags');
-  }
 
   // ------------------------------------------------------------------
   // Table 1: dynamic_form_tags
@@ -1088,38 +1086,21 @@ function dynamic_form_update_7001()
 }
 
 /**
- * Normalizes a raw tag string for storage in dynamic_form_tags.
+ * Implements hook_update_N().
  *
- * Pipeline:
- *   1. Decode HTML entities.
- *   2. Unicode-aware lowercase.
- *   3. Trim leading/trailing whitespace.
- *   4. Collapse internal whitespace to a single space.
- *   5. Strip everything that is not a Unicode letter, digit, or space
- *      (hyphens and underscores are removed so "machine-learning" and
- *      "machine_learning" both normalize to "machinelearning").
- *   6. Final trim.
+ * Update 7002 — Column width for multi-column layout.
  *
- * Examples:
- *   "  JavaScript!  "  =>  "javascript"
- *   "machine-learning" =>  "machinelearning"
- *   "my_module"        =>  "mymodule"
- *   "Node.JS"          =>  "nodejs"
- *   "C++"              =>  "c"
- *   "  Hello   World " =>  "hello world"
- *
- * @param string $raw
- * @return string|false  Normalized tag, or FALSE when result is empty.
+ * Adds a `width` column to dynamic_form_questions. Existing questions default
+ * to "full" (full-width, single-column), preserving current behaviour.
+ * Accepted values: full | half | third | quarter.
  */
-function _dynamic_form_normalize_tag($raw)
-{
-  $tag = html_entity_decode($raw, ENT_QUOTES, 'UTF-8');
-  $tag = mb_strtolower($tag, 'UTF-8');
-  $tag = trim($tag);
-  $tag = preg_replace('/\s+/', ' ', $tag);
-  // Keep only letters, digits, and spaces — strip hyphens, underscores, symbols.
-  $tag = preg_replace('/[^\p{L}\p{N} ]/u', '', $tag);
-  $tag = trim($tag);
-
-  return $tag !== '' ? $tag : FALSE;
+function dynamic_form_update_7002(&$sandbox) {
+  db_add_field('dynamic_form_questions', 'width', array(
+    'description' => 'Column width for multi-column row layout: full, half, third, quarter.',
+    'type'        => 'varchar',
+    'length'      => 16,
+    'not null'    => TRUE,
+    'default'     => 'full',
+  ));
+  return t('Added width column to dynamic_form_questions for multi-column layout.');
 }

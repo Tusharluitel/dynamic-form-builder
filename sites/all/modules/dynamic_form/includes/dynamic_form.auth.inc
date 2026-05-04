@@ -89,7 +89,6 @@ function dynamic_form_login_form_submit($form, &$form_state)
   $user = $account;
   user_login_finalize();
 
-  // Let Login Destination module handle redirect; fallback to front page.
   $form_state['redirect'] = '<front>';
 }
 
