@@ -203,15 +203,31 @@ JS;
   else {
     $output .= '<div class="dfp-paginated-form">';
 
+    // Column widths mapped to a 12-column grid.
+    // Questions accumulate into a row until adding the next would exceed 12
+    // columns, at which point a new row opens automatically.
+    $col_map  = array('full' => 12, 'half' => 6, 'third' => 4, 'quarter' => 3);
     $prev_sid = -1;
+    $row_cols = 0;
+    $row_open = FALSE;
+
     foreach ($page_items as $item) {
       $q   = $item['q'];
       $sec = $item['section'];
       $sid = (int) $sec->id;
 
+      $width  = (!empty($q->width) && isset($col_map[$q->width])) ? $q->width : 'full';
+      $q_cols = $col_map[$width];
+
+      // Section change: close any open row then close the old section.
       if ($sid !== $prev_sid) {
+        if ($row_open) {
+          $output .= '</div>'; // close .dfp-question-row
+          $row_open = FALSE;
+          $row_cols = 0;
+        }
         if ($prev_sid !== -1) {
-          $output .= '</div>'; // close previous .dfp-section
+          $output .= '</div>'; // close .dfp-section
         }
         $output .= '<div class="dfp-section">';
         $output .= '<div class="dfp-section-header">';
@@ -223,12 +239,33 @@ JS;
         $prev_sid = $sid;
       }
 
+      // Row management: start a new row when the current one is full or
+      // adding this question would exceed 12 columns.
+      if (!$row_open) {
+        $output .= '<div class="dfp-question-row">';
+        $row_open = TRUE;
+        $row_cols = 0;
+      }
+      elseif ($row_cols + $q_cols > 12) {
+        $output .= '</div><div class="dfp-question-row">';
+        $row_cols = 0;
+      }
+
+      $row_cols += $q_cols;
+
       $qid   = (int) $q->id;
       $opts  = isset($options_by_question[$qid]) ? $options_by_question[$qid] : array();
       $scale = isset($scale_by_question[$qid])   ? $scale_by_question[$qid]   : array();
+
+      $output .= '<div class="dfp-question-col dfp-col-' . check_plain($width) . '">';
       $output .= _dynamic_form_render_preview_question($q, $opts, $scale);
+      $output .= '</div>';
     }
 
+    // Close the final open row and section.
+    if ($row_open) {
+      $output .= '</div>'; // close .dfp-question-row
+    }
     if ($prev_sid !== -1) {
       $output .= '</div>'; // close last .dfp-section
     }

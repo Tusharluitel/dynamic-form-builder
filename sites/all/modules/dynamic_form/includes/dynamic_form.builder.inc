@@ -6,6 +6,52 @@
  */
 
 /* =====================================================================
+   WIDTH PICKER HELPER
+   ===================================================================== */
+
+/**
+ * Returns HTML for the visual width-picker button strip.
+ *
+ * Each button shows a mini column-layout icon (N evenly-spaced bars with the
+ * leftmost bar filled to represent this question's span) plus a text label.
+ * The button whose $value matches $current_width gets the dfb-width-active
+ * class; JS keeps this state in sync while the modal is open.
+ *
+ * @param string $current_width  One of: full | half | third | quarter.
+ * @return string HTML.
+ */
+function _dfb_width_picker_markup($current_width = 'full') {
+  $allowed = array('full', 'half', 'third', 'quarter');
+  if (!in_array($current_width, $allowed)) {
+    $current_width = 'full';
+  }
+  $options = array(
+    'full'    => array('label' => t('Full'),    'cols' => 1),
+    'half'    => array('label' => t('Half'),    'cols' => 2),
+    'third'   => array('label' => t('Third'),   'cols' => 3),
+    'quarter' => array('label' => t('Quarter'), 'cols' => 4),
+  );
+  $html  = '<div class="dfb-width-picker">';
+  $html .= '<p class="dfb-subsection-label">' . t('Column Width') . '</p>';
+  $html .= '<div class="dfb-width-options">';
+  foreach ($options as $value => $opt) {
+    $active = ($value === $current_width) ? ' dfb-width-active' : '';
+    $html .= '<button type="button" class="dfb-width-btn' . $active . '" data-width="' . $value . '">';
+    $html .= '<span class="dfb-width-icon">';
+    for ($i = 0; $i < $opt['cols']; $i++) {
+      $cls = ($i === 0) ? 'dfb-width-col dfb-width-col-filled' : 'dfb-width-col';
+      $html .= '<span class="' . $cls . '"></span>';
+    }
+    $html .= '</span>';
+    $html .= '<span class="dfb-width-label">' . check_plain($opt['label']) . '</span>';
+    $html .= '</button>';
+  }
+  $html .= '</div>';
+  $html .= '</div>';
+  return $html;
+}
+
+/* =====================================================================
    BUILDER PAGE CALLBACK
    ===================================================================== */
 
@@ -400,7 +446,13 @@ function _dynamic_form_render_builder_question($question) {
     . ' title="' . t('Click to edit') . '">';
   $output .= '<div class="dfb-question-header">';
   $output .= '<h3 class="dfb-question-label">' . check_plain($question->label) . $req_star . '</h3>';
+  $width_labels = array('half' => '&#189;', 'third' => '&#8531;', 'quarter' => '&#188;');
+  $q_width = (!empty($question->width) && isset($width_labels[$question->width])) ? $question->width : '';
+
   $output .= '<div class="dfb-question-header-right">';
+  if ($q_width) {
+    $output .= '<span class="dfb-question-width-badge">' . $width_labels[$q_width] . '</span>';
+  }
   $output .= '<span class="dfb-question-type-badge">' . check_plain($question->type) . '</span>';
   $output .= '<span class="dfb-edit-hint">&#9998;</span>';
   $output .= '<button class="dfb-question-delete-icon" data-action="open-delete-modal"'
@@ -540,6 +592,21 @@ function dynamic_form_builder_question_form($form, &$form_state, $form_id) {
     '#rows'       => 2,
     '#required'   => FALSE,
     '#attributes' => array('placeholder' => t('Optional — shown to respondents.')),
+  );
+
+  // Width picker — visual segmented buttons + hidden field.
+  // On rebuild (add/remove option AJAX), $form_state['input']['width'] carries
+  // the user's in-progress choice so the active button survives the re-render.
+  $current_width = (isset($form_state['input']['width']) && in_array($form_state['input']['width'], array('full', 'half', 'third', 'quarter')))
+    ? $form_state['input']['width']
+    : 'full';
+  $form['scrollable']['width_picker'] = array(
+    '#markup' => _dfb_width_picker_markup($current_width),
+  );
+  $form['scrollable']['width'] = array(
+    '#type'          => 'hidden',
+    '#default_value' => $current_width,
+    '#attributes'    => array('class' => array('dfb-width-value')),
   );
 
   // Text editor info — shown only when text_editor type is selected.
@@ -934,6 +1001,11 @@ function dynamic_form_builder_question_form_submit($form, &$form_state) {
     $max_files        = isset($values['max_files'])         ? (int) $values['max_files']         : NULL;
   }
 
+  $width_allowed = array('full', 'half', 'third', 'quarter');
+  $width = (isset($values['width']) && in_array($values['width'], $width_allowed))
+    ? $values['width']
+    : 'full';
+
   $q_fields = array(
     'form_id'          => $form_id,
     'section_id'       => $section_id,
@@ -945,6 +1017,7 @@ function dynamic_form_builder_question_form_submit($form, &$form_state) {
     'allow_file_types' => $allow_file_types ?: NULL,
     'max_file_size'    => $max_file_size,
     'max_files'        => $max_files,
+    'width'            => $width,
     'position'         => $position,
     'created_by'       => (int) $user->uid,
     'created_at'       => $now,
@@ -1030,9 +1103,10 @@ function dynamic_form_builder_question_form_submit($form, &$form_state) {
   $form_state['dfb_saved_question']   = $q_obj;
   $form_state['dfb_saved_section_id'] = $section_id;
 
-  $form_state['options']     = array(array('label' => ''), array('label' => ''));
-  $form_state['validations'] = array();
-  $form_state['rebuild']     = TRUE;
+  $form_state['options']          = array(array('label' => ''), array('label' => ''));
+  $form_state['validations']      = array();
+  $form_state['input']['width']   = 'full';
+  $form_state['rebuild']          = TRUE;
 }
 
 /**
@@ -1327,6 +1401,21 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
     '#rows'          => 2,
     '#default_value' => $q->description,
     '#attributes'    => array('placeholder' => t('Optional — shown to respondents.')),
+  );
+
+  // Width picker — pre-selected to the question's saved width.
+  // On AJAX rebuilds (add/remove option), $form_state['input']['width'] keeps
+  // the user's in-progress choice alive across re-renders.
+  $current_width = (isset($form_state['input']['width']) && in_array($form_state['input']['width'], array('full', 'half', 'third', 'quarter')))
+    ? $form_state['input']['width']
+    : ((!empty($q->width) && in_array($q->width, array('full', 'half', 'third', 'quarter'))) ? $q->width : 'full');
+  $form['scrollable']['width_picker'] = array(
+    '#markup' => _dfb_width_picker_markup($current_width),
+  );
+  $form['scrollable']['width'] = array(
+    '#type'          => 'hidden',
+    '#default_value' => $current_width,
+    '#attributes'    => array('class' => array('dfb-width-value')),
   );
 
   // Text editor info — shown only when text_editor type is selected.
@@ -1644,6 +1733,11 @@ function dynamic_form_builder_question_edit_form_submit($form, &$form_state) {
     $max_files        = isset($values['max_files'])         ? (int) $values['max_files']         : NULL;
   }
 
+  $width_allowed = array('full', 'half', 'third', 'quarter');
+  $width = (isset($values['width']) && in_array($values['width'], $width_allowed))
+    ? $values['width']
+    : 'full';
+
   $new_q_fields = array(
     'label'            => trim($values['label']),
     'description'      => trim(isset($values['description']) ? $values['description'] : ''),
@@ -1653,6 +1747,7 @@ function dynamic_form_builder_question_edit_form_submit($form, &$form_state) {
     'allow_file_types' => $allow_file_types ?: NULL,
     'max_file_size'    => $max_file_size,
     'max_files'        => $max_files,
+    'width'            => $width,
     'updated_at'       => $now,
   );
 

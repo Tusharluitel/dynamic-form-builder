@@ -286,6 +286,13 @@ function dynamic_form_schema()
         'not null' => TRUE,
         'default' => 0,
       ),
+      'width' => array(
+        'description' => 'Column width for multi-column row layout: full, half, third, quarter.',
+        'type' => 'varchar',
+        'length' => 16,
+        'not null' => TRUE,
+        'default' => 'full',
+      ),
       'created_by' => array(
         'description' => 'FK to {users}.uid — question author.',
         'type' => 'int',
@@ -1076,4 +1083,24 @@ function dynamic_form_update_7001()
   db_create_table('dynamic_form_tag_answers', $schema_answers);
 
   return t('Created dynamic_form_tags and dynamic_form_tag_answers tables for the "tags" question type.');
+}
+
+/**
+ * Implements hook_update_N().
+ *
+ * Update 7002 — Column width for multi-column layout.
+ *
+ * Adds a `width` column to dynamic_form_questions. Existing questions default
+ * to "full" (full-width, single-column), preserving current behaviour.
+ * Accepted values: full | half | third | quarter.
+ */
+function dynamic_form_update_7002(&$sandbox) {
+  db_add_field('dynamic_form_questions', 'width', array(
+    'description' => 'Column width for multi-column row layout: full, half, third, quarter.',
+    'type'        => 'varchar',
+    'length'      => 16,
+    'not null'    => TRUE,
+    'default'     => 'full',
+  ));
+  return t('Added width column to dynamic_form_questions for multi-column layout.');
 }

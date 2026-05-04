@@ -41,6 +41,22 @@
         _dfbApplyTypeVisibility($(this));
       });
 
+      // Width picker — clicking a button updates the hidden width input and
+      // toggles the active highlight. Delegated on body so it works in both
+      // the add modal and the edit modal after AJAX injection.
+      $('body').once('dfb-width-picker', function () {
+        $(document).delegate('.dfb-width-btn', 'click', function () {
+          var $btn    = $(this);
+          var width   = $btn.attr('data-width');
+          var $picker = $btn.closest('.dfb-width-picker');
+          $picker.find('.dfb-width-btn').removeClass('dfb-width-active');
+          $btn.addClass('dfb-width-active');
+          // Traverse up to the <form> so we update only the hidden input that
+          // belongs to the same form as the clicked button.
+          $btn.closest('form').find('input.dfb-width-value').val(width);
+        });
+      });
+
       // Open modal: inject section context into the Drupal form, show modal.
       // Delegated so dynamically-added "Add Question" buttons work after sections AJAX.
       $('#dfb-builder-container', context).once('dfb-question-modal-open', function () {
@@ -66,6 +82,12 @@
           // Sync the selected-card highlight.
           $('.dfb-type-section .form-type-radio', '#dfb-question-modal').removeClass('dfb-type-selected');
           $('.dfb-type-section input[value="text"]', '#dfb-question-modal').closest('.form-type-radio').addClass('dfb-type-selected');
+
+          // Reset width picker to Full on every open.
+          var $addWrapper = $('#dfb-question-form-wrapper');
+          $addWrapper.find('.dfb-width-btn').removeClass('dfb-width-active');
+          $addWrapper.find('.dfb-width-btn[data-width="full"]').addClass('dfb-width-active');
+          $addWrapper.find('input.dfb-width-value').val('full');
 
           // Apply type-based visibility (type is 'text', so options/scale/file hidden,
           // validation shown).

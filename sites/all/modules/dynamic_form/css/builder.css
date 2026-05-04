@@ -1248,3 +1248,95 @@
 .dfb-btn-delete-confirm:hover {
   background: #dc2626;
 }
+
+/* ==========================================================================
+   WIDTH PICKER
+   ========================================================================== */
+
+.dfb-width-picker {
+  margin-bottom: 16px;
+}
+
+.dfb-width-options {
+  display: flex;
+  gap: 8px;
+}
+
+.dfb-width-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 6px 8px;
+  border: 2px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface, #fff);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  font-family: inherit;
+}
+
+.dfb-width-btn:hover {
+  border-color: var(--color-primary-light, #818cf8);
+  background: #f5f3ff;
+}
+
+.dfb-width-btn.dfb-width-active {
+  border-color: var(--color-primary, #6366f1);
+  background: #eef2ff;
+}
+
+/* Column-layout icon inside each button */
+.dfb-width-icon {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  width: 36px;
+  height: 22px;
+}
+
+.dfb-width-col {
+  flex: 1;
+  border-radius: 2px;
+  background: #e2e8f0;
+  transition: background 0.15s;
+}
+
+.dfb-width-col-filled {
+  background: var(--color-primary-light, #818cf8);
+}
+
+.dfb-width-btn.dfb-width-active .dfb-width-col-filled {
+  background: var(--color-primary, #6366f1);
+}
+
+.dfb-width-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted, #64748b);
+  letter-spacing: 0.02em;
+}
+
+.dfb-width-btn.dfb-width-active .dfb-width-label {
+  color: var(--color-primary, #6366f1);
+}
+
+/* ==========================================================================
+   WIDTH BADGE ON QUESTION CARD
+   ========================================================================== */
+
+.dfb-question-width-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #eef2ff;
+  color: var(--color-primary, #6366f1);
+  border: 1px solid #c7d2fe;
+  line-height: 1;
+  min-width: 22px;
+}

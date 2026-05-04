@@ -729,3 +729,50 @@
     display: block;
   }
 }
+
+/* ==========================================================================
+   MULTI-COLUMN ROW LAYOUT
+   ========================================================================== */
+
+/* Row wraps all questions sharing the same horizontal band.
+   The row carries the bottom separator that .dfp-question had previously. */
+.dfp-question-row {
+  display: flex;
+  flex-wrap: nowrap;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.dfp-question-row:last-child {
+  border-bottom: none;
+}
+
+/* Column: one flex item per question.
+   min-width: 0 prevents overflow when content is wider than the column. */
+.dfp-question-col {
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+/* Thin vertical separator between adjacent columns */
+.dfp-question-col + .dfp-question-col {
+  border-left: 1px solid #f1f5f9;
+}
+
+/* Column widths (maps to 12-column grid: full=12, half=6, third=4, quarter=3) */
+.dfp-col-full    { width: 100%; }
+.dfp-col-half    { width: 50%; }
+.dfp-col-third   { width: 33.3333%; }
+.dfp-col-quarter { width: 25%; }
+
+/* Suppress each question's own border-bottom — the row wrapper handles it. */
+.dfp-question-col .dfp-question,
+.dfp-question-col .dfp-question:last-child {
+  border-bottom: none;
+}
+
+/* Tighten horizontal padding for narrow (third / quarter) columns */
+.dfp-col-third .dfp-question,
+.dfp-col-quarter .dfp-question {
+  padding-left: 16px;
+  padding-right: 16px;
+}
