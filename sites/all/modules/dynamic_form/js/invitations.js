@@ -104,7 +104,7 @@
               '<tr class="dfb-member-row dfb-invite-row" data-invite-id="' + inv.id + '">' +
                 '<td class="dfb-col-member">' +
                   '<div class="dfb-member-identity">' +
-                    '<div class="dfb-avatar dfb-avatar-invite">&#9993;</div>' +
+          
                     '<div class="dfb-member-info">' +
                       '<span class="dfb-member-mail dfb-invite-email">' + _esc(inv.email) + '</span>' +
                       '<span class="dfb-invite-meta">' +
