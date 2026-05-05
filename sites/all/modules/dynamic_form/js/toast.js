@@ -148,25 +148,53 @@
   /* ------------------------------------------------------------------ */
 
   Drupal.behaviors.dfbToast = {
-    attach: function (context) {
-      $('div.messages', context).once('dfb-toast-convert', function () {
-        var $el   = $(this);
-        var items = [];
-        $el.find('ul li').each(function () {
-          var t = $.trim($(this).text());
-          if (t) { items.push(t); }
-        });
-        var text = items.length ? items.join(' ') : $.trim($el.text());
-        if (!text) { return; }
+  attach: function (context) {
+    $('div.messages', context).once('dfb-toast-convert', function () {
+      var $el = $(this);
+      var items = [];
 
-        if ($el.hasClass('status'))       { DFBToast.success(text); }
-        else if ($el.hasClass('warning')) { DFBToast.warning(text); }
-        else if ($el.hasClass('error'))   { DFBToast.error(text);   }
-        else                              { DFBToast.info(text);    }
-
-        $el.remove();
+      // Extract messages from list items (preferred structure)
+      $el.find('ul li').each(function () {
+        var t = $.trim($(this).text());
+        if (t) {
+          items.push(t);
+        }
       });
-    }
-  };
+
+      var text = '';
+
+      if (items.length) {
+        // Join multiple messages into one string
+        text = items.join(' ');
+      } else {
+        // Fallback: clone and remove heading (e.g., "Status message")
+        var $clone = $el.clone();
+        $clone.find('h2').remove(); // removes accessibility heading
+        text = $.trim($clone.text());
+      }
+
+      if (!text) {
+        return;
+      }
+
+      // Trigger appropriate toast
+      if ($el.hasClass('status')) {
+        DFBToast.success(text);
+      }
+      else if ($el.hasClass('warning')) {
+        DFBToast.warning(text);
+      }
+      else if ($el.hasClass('error')) {
+        DFBToast.error(text);
+      }
+      else {
+        DFBToast.info(text);
+      }
+
+      // Remove original Drupal message
+      $el.remove();
+    });
+  }
+};
 
 })(jQuery, Drupal, window);

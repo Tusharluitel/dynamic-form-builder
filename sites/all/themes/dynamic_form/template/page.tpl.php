@@ -86,6 +86,31 @@
       </div>
     </div>
   </section>
+
+  <!-- Public / Accessible Forms Section -->
+  <?php if (!empty($front_forms)): ?>
+  <section class="dfb-front-forms" id="public-forms">
+    <div class="dfb-front-forms-inner">
+      <div class="dfb-front-forms-header">
+        <span class="dfb-section-label"><?php print $logged_in ? t('Forms') : t('Explore'); ?></span>
+        <h2><?php print check_plain($front_forms_title); ?></h2>
+        <p><?php print check_plain($front_forms_subtitle); ?></p>
+      </div>
+      <div class="dfb-public-forms-grid">
+        <?php foreach ($front_forms as $front_form): ?>
+          <?php print _dynamic_form_render_public_form_card($front_form); ?>
+        <?php endforeach; ?>
+      </div>
+      <?php if ($front_forms_total > 0): ?>
+      <div class="dfb-front-forms-footer">
+        <a href="<?php print $front_forms_see_more; ?>" class="dfb-see-more-btn">
+          <?php print $front_forms_see_label; ?> &rarr;
+        </a>
+      </div>
+      <?php endif; ?>
+    </div>
+  </section>
+  <?php endif; ?>
   <?php endif; ?>
 
   <!-- Messages -->
@@ -95,10 +120,12 @@
     </div>
   <?php endif; ?>
 
-  <!-- Main Content -->
+  <!-- Main Content (skip on front page — content is in custom sections above) -->
+  <?php if (!$is_front): ?>
   <div class="dfb-content-region">
     <?php print render($page['content']); ?>
   </div>
+  <?php endif; ?>
 
   <!-- Footer -->
   <footer class="dfb-footer">
