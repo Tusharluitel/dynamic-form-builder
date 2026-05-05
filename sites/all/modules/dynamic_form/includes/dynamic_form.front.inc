@@ -160,8 +160,13 @@ function dynamic_form_public_form_view_page($slug) {
   $output .= '</div>';
   $output .= '</div>';
   $output .= '<div class="dfb-form-view-body">';
-  $output .= '<p class="dfb-coming-soon-msg">' . t('Form responses are coming soon.') . '</p>';
-  $output .= '<a href="' . url('forms') . '" class="dfb-btn-back">&larr; ' . t('Back to public forms') . '</a>';
+  if (module_exists('dynamic_form_response')) {
+    module_load_include('inc', 'dynamic_form_response', 'includes/dynamic_form_response.submit');
+    $output .= dynamic_form_response_render_form($record);
+  }
+  else {
+    $output .= '<p class="dfb-coming-soon-msg">' . t('Form responses are coming soon.') . '</p>';
+  }
   $output .= '</div>';
   $output .= '</div>';
 

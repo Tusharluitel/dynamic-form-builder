@@ -1,0 +1,303 @@
+/* ===================================================================
+   Dynamic Form Response — public fill-out form styles
+   =================================================================== */
+
+/* ----------------------------------------------------------------
+   Already-submitted notice
+   ---------------------------------------------------------------- */
+.dfr-already-submitted {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  padding: 18px 20px;
+  color: #166534;
+  font-size: 0.95rem;
+}
+
+.dfr-already-submitted .dfr-check-icon {
+  width: 32px;
+  height: 32px;
+  background: #22c55e;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+/* ----------------------------------------------------------------
+   Progress bar (shown only when totalSteps > 1)
+   ---------------------------------------------------------------- */
+.dfr-progress-wrap {
+  background: #e9ecef;
+  border-radius: 4px;
+  height: 6px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.dfr-progress-fill {
+  background: #5b6af7;
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.35s ease;
+  width: 0%;
+}
+
+.dfr-progress-text {
+  font-size: 0.78rem;
+  color: #8888aa;
+  text-align: right;
+  margin-bottom: 16px;
+}
+
+/* ----------------------------------------------------------------
+   Steps
+   ---------------------------------------------------------------- */
+.dfr-step            { display: none; }
+.dfr-step-active     { display: block; }
+
+/* ----------------------------------------------------------------
+   Section cards
+   ---------------------------------------------------------------- */
+.dfr-response-section {
+  background: #fff;
+  border: 1px solid #e0e0ee;
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin-bottom: 14px;
+}
+
+.dfr-response-section-header {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f8;
+}
+
+.dfr-response-section-header h2 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin: 0 0 4px;
+}
+
+.dfr-response-section-header p {
+  font-size: 0.85rem;
+  color: #8888aa;
+  margin: 0;
+}
+
+/* ----------------------------------------------------------------
+   Column layout (mirrors preview)
+   ---------------------------------------------------------------- */
+.dfr-question-row  { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 4px; }
+.dfr-question-col  { flex: 1 1 auto; }
+.dfr-col-full      { flex: 0 0 100%; }
+.dfr-col-half      { flex: 0 0 calc(50% - 7px); }
+.dfr-col-third     { flex: 0 0 calc(33.333% - 10px); }
+.dfr-col-quarter   { flex: 0 0 calc(25% - 11px); }
+
+/* ----------------------------------------------------------------
+   Question wrapper
+   ---------------------------------------------------------------- */
+.dfr-question         { margin-bottom: 18px; }
+.dfr-question-label   { font-weight: 500; color: #2c2c3e; margin-bottom: 6px; line-height: 1.4; }
+.dfr-req              { color: #e53e3e; margin-left: 2px; }
+.dfr-help-text        { font-size: 0.83rem; color: #8888aa; margin: 0 0 8px; }
+.dfr-no-options       { font-size: 0.85rem; color: #aaa; font-style: italic; }
+
+/* ----------------------------------------------------------------
+   Text / email / number / date / time
+   ---------------------------------------------------------------- */
+.dfr-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #d0d0e0;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: #2c2c3e;
+  background: #fff;
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  appearance: none;
+}
+.dfr-input:focus {
+  outline: none;
+  border-color: #5b6af7;
+  box-shadow: 0 0 0 3px rgba(91,106,247,0.12);
+}
+
+/* ----------------------------------------------------------------
+   Textarea
+   ---------------------------------------------------------------- */
+.dfr-textarea {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #d0d0e0;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: #2c2c3e;
+  background: #fff;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 100px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.dfr-textarea:focus {
+  outline: none;
+  border-color: #5b6af7;
+  box-shadow: 0 0 0 3px rgba(91,106,247,0.12);
+}
+
+/* ----------------------------------------------------------------
+   Radio / Checkbox
+   ---------------------------------------------------------------- */
+.dfr-options-list { display: flex; flex-direction: column; gap: 7px; }
+
+.dfr-option-label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border: 1px solid #e0e0ee;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #2c2c3e;
+  transition: background 0.15s, border-color 0.15s;
+  user-select: none;
+}
+.dfr-option-label:hover              { background: #f5f5fc; border-color: #c0c0ee; }
+.dfr-option-label input[type="radio"],
+.dfr-option-label input[type="checkbox"] { cursor: pointer; accent-color: #5b6af7; }
+
+/* ----------------------------------------------------------------
+   Select
+   ---------------------------------------------------------------- */
+.dfr-select-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #d0d0e0;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: #2c2c3e;
+  background: #fff;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+.dfr-multi-hint { font-size: 0.78rem; color: #8888aa; margin: 4px 0 0; }
+
+/* ----------------------------------------------------------------
+   Rating stars
+   ---------------------------------------------------------------- */
+.dfr-rating-wrap { display: flex; align-items: center; gap: 8px; }
+.dfr-stars       { display: flex; gap: 3px; }
+.dfr-star {
+  font-size: 2rem;
+  color: #d0d0e0;
+  cursor: pointer;
+  transition: color 0.12s;
+  user-select: none;
+  line-height: 1;
+}
+.dfr-star.dfr-star-hover,
+.dfr-star.dfr-star-active { color: #f6b800; }
+
+/* ----------------------------------------------------------------
+   Linear scale
+   ---------------------------------------------------------------- */
+.dfr-scale-wrap    { display: flex; flex-direction: column; gap: 6px; }
+.dfr-scale-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.dfr-scale-btn {
+  width: 42px;
+  height: 42px;
+  border: 1px solid #d0d0e0;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #2c2c3e;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.dfr-scale-btn:hover          { border-color: #5b6af7; color: #5b6af7; }
+.dfr-scale-btn.dfr-scale-active { background: #5b6af7; border-color: #5b6af7; color: #fff; }
+
+.dfr-scale-labels  { display: flex; justify-content: space-between; }
+.dfr-scale-label   { font-size: 0.78rem; color: #8888aa; }
+
+/* ----------------------------------------------------------------
+   Validation errors
+   ---------------------------------------------------------------- */
+.dfr-field-error { color: #e53e3e; font-size: 0.82rem; margin-top: 5px; display: none; }
+
+.dfr-question-error .dfr-input,
+.dfr-question-error .dfr-textarea,
+.dfr-question-error .dfr-select-input { border-color: #e53e3e; }
+.dfr-question-error .dfr-option-label { border-color: #e53e3e; }
+
+/* ----------------------------------------------------------------
+   Step navigation bar
+   ---------------------------------------------------------------- */
+.dfr-step-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 20px;
+  margin-top: 8px;
+}
+
+.dfr-nav-spacer { display: inline-block; }
+
+.dfr-btn-prev,
+.dfr-btn-next,
+.dfr-btn-submit {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s;
+}
+
+.dfr-btn-prev           { background: #f0f0f8; color: #5555aa; }
+.dfr-btn-prev:hover     { background: #e0e0f0; }
+.dfr-btn-next,
+.dfr-btn-submit         { background: #5b6af7; color: #fff; }
+.dfr-btn-next:hover,
+.dfr-btn-submit:hover   { background: #4a59e6; }
+.dfr-btn-next:disabled,
+.dfr-btn-submit:disabled { opacity: 0.65; cursor: not-allowed; }
+
+.dfr-empty { color: #aaa; font-style: italic; padding: 16px 0; }
+
+/* ----------------------------------------------------------------
+   Thank-you page
+   ---------------------------------------------------------------- */
+.dfr-thankyou {
+  max-width: 460px;
+  margin: 80px auto;
+  text-align: center;
+}
+.dfr-thankyou .dfr-check-icon {
+  width: 64px;
+  height: 64px;
+  background: #5b6af7;
+  color: #fff;
+  border-radius: 50%;
+  font-size: 1.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 24px;
+}
+.dfr-thankyou h2  { font-size: 1.5rem; color: #1a1a2e; margin-bottom: 10px; }
+.dfr-thankyou p   { color: #5a5a7a; margin-bottom: 24px; }
+.dfr-btn-back     { display: inline-block; color: #5b6af7; text-decoration: none; font-weight: 500; font-size: 0.9rem; }
+.dfr-btn-back:hover { text-decoration: underline; }

@@ -1127,7 +1127,7 @@
    ===================================================================== */
 
 .dfb-activity-log-page {
-  max-width: 960px;
+  max-width: 1300px;
   margin: 0 auto;
   padding: 24px 16px 60px;
 }
@@ -1189,6 +1189,30 @@
 .dfb-log-action--created { background: #dcfce7; color: #15803d; }
 .dfb-log-action--updated { background: #dbeafe; color: #1d4ed8; }
 .dfb-log-action--deleted { background: #fee2e2; color: #b91c1c; }
+
+.dfb-log-table-wrap { overflow-x: auto; }
+
+.dfb-log-oldval,
+.dfb-log-newval { min-width: 160px; max-width: 240px; vertical-align: top; }
+
+.dfb-log-oldval { background: #fff8f8; }
+.dfb-log-newval { background: #f0fdf4; }
+
+.dfb-log-changes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.dfb-log-item { padding: 3px 4px; border-bottom: 1px solid rgba(0,0,0,.05); border-radius: 3px; }
+.dfb-log-item:last-child { border-bottom: none; }
+.dfb-log-item--changed { background: #fef9c3; }
+.dfb-log-oldval .dfb-log-item--changed { background: #fee2e2; }
+.dfb-log-newval .dfb-log-item--changed { background: #dcfce7; }
+.dfb-log-field { font-weight: 600; color: #475569; }
+.dfb-log-empty { color: #94a3b8; font-style: italic; }
+.dfb-log-na { color: #cbd5e1; }
 
 /* -----------------------------------------------------------------
    Delete confirmation modal

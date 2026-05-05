@@ -1,0 +1,151 @@
+<?php
+
+/**
+ * @file
+ * Dynamic Form Response — menu, permissions, and request routing.
+ */
+
+/**
+ * Implements hook_permission().
+ */
+function dynamic_form_response_permission() {
+  return array(
+    'submit forms' => array(
+      'title'       => t('Submit forms'),
+      'description' => t('Fill out and submit dynamic forms.'),
+    ),
+    'view any form responses' => array(
+      'title'       => t('View any form responses'),
+      'description' => t('View submissions for any form regardless of ownership.'),
+    ),
+    'view own form responses' => array(
+      'title'       => t('View own form responses'),
+      'description' => t('View submissions for forms the user created or edits.'),
+    ),
+    'delete form responses' => array(
+      'title'       => t('Delete form responses'),
+      'description' => t('Soft-delete submitted responses.'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_menu().
+ */
+function dynamic_form_response_menu() {
+  $items = array();
+
+  // AJAX: autosave one or more answers (keeps response as draft).
+  $items['dynamic-form-response/ajax/save'] = array(
+    'page callback'   => 'dynamic_form_response_ajax_save',
+    'access callback' => TRUE,
+    'type'            => MENU_CALLBACK,
+    'file'            => 'includes/dynamic_form_response.submit.inc',
+  );
+
+  // AJAX: final submit — validates required fields, marks response submitted.
+  $items['dynamic-form-response/ajax/submit'] = array(
+    'page callback'   => 'dynamic_form_response_ajax_submit',
+    'access callback' => TRUE,
+    'type'            => MENU_CALLBACK,
+    'file'            => 'includes/dynamic_form_response.submit.inc',
+  );
+
+  // Thank-you page shown after a successful submit.
+  $items['forms/%/thank-you'] = array(
+    'title'           => 'Thank You',
+    'page callback'   => 'dynamic_form_response_thankyou_page',
+    'page arguments'  => array(1),
+    'access callback' => TRUE,
+    'type'            => MENU_CALLBACK,
+    'file'            => 'includes/dynamic_form_response.submit.inc',
+  );
+
+  // Dashboard: paginated list of responses for one form.
+  $items['dashboard/forms/%/responses'] = array(
+    'title'            => 'Responses',
+    'page callback'    => 'dynamic_form_response_list_page',
+    'page arguments'   => array(2),
+    'access callback'  => '_dynamic_form_response_view_access',
+    'access arguments' => array(2),
+    'type'             => MENU_CALLBACK,
+    'file'             => 'includes/dynamic_form_response.dashboard.inc',
+  );
+
+  // Dashboard: detail view for a single response.
+  $items['dashboard/forms/%/responses/%'] = array(
+    'title'            => 'Response Detail',
+    'page callback'    => 'dynamic_form_response_view_page',
+    'page arguments'   => array(2, 4),
+    'access callback'  => '_dynamic_form_response_view_access',
+    'access arguments' => array(2),
+    'type'             => MENU_CALLBACK,
+    'file'             => 'includes/dynamic_form_response.dashboard.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_init().
+ *
+ * Loads module CSS on public form pages and the response dashboard.
+ */
+function dynamic_form_response_init() {
+  $path = current_path();
+  if (
+    strpos($path, 'forms/') === 0 ||
+    strpos($path, 'dashboard/forms/') === 0
+  ) {
+    $mp = drupal_get_path('module', 'dynamic_form_response');
+    drupal_add_css($mp . '/css/response-form.css');
+  }
+}
+
+/* =====================================================================
+   ACCESS CALLBACKS
+   ===================================================================== */
+
+/**
+ * Access callback for dashboard/forms/%/responses routes.
+ *
+ * Grants access to: users with 'view any form responses', the form owner,
+ * and members with the owner or editor role on this form.
+ *
+ * @param int $form_id  Form primary key from the URL.
+ */
+function _dynamic_form_response_view_access($form_id) {
+  global $user;
+  if (!$user->uid) {
+    return FALSE;
+  }
+  if (user_access('view any form responses')) {
+    return TRUE;
+  }
+  if (!user_access('view own form responses')) {
+    return FALSE;
+  }
+
+  $form_id = (int) $form_id;
+
+  $created_by = db_select('dynamic_form_forms', 'f')
+    ->fields('f', array('created_by'))
+    ->condition('id', $form_id)
+    ->isNull('deleted_at')
+    ->execute()
+    ->fetchField();
+
+  if ($created_by === FALSE) {
+    return FALSE;
+  }
+  if ((int) $created_by === (int) $user->uid) {
+    return TRUE;
+  }
+
+  return (bool) db_select('dynamic_form_members', 'm')
+    ->condition('form_id', $form_id)
+    ->condition('user_id', $user->uid)
+    ->condition('role', array('owner', 'editor'), 'IN')
+    ->isNull('deleted_at')
+    ->countQuery()->execute()->fetchField();
+}
