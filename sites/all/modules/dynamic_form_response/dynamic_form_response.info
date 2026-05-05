@@ -1,0 +1,5 @@
+name        = Dynamic Form Response
+description = Handles form submissions, response storage, and response management for Dynamic Form Builder.
+core        = 7.x
+package     = Dynamic Form
+dependencies[] = dynamic_form

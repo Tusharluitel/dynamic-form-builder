@@ -1,0 +1,175 @@
+/* ===================================================================
+   Dynamic Form Response — dashboard response list & detail styles
+   =================================================================== */
+
+/* ----------------------------------------------------------------
+   Back / breadcrumb link
+   ---------------------------------------------------------------- */
+.dfr-back-link {
+  display: inline-block;
+  color: #5b6af7;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-decoration: none;
+  margin-bottom: 14px;
+}
+.dfr-back-link:hover { text-decoration: underline; }
+
+/* ----------------------------------------------------------------
+   Response list header
+   ---------------------------------------------------------------- */
+.dfr-responses-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.dfr-responses-header h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin: 0;
+}
+
+.dfr-response-count {
+  font-size: 0.82rem;
+  color: #8888aa;
+}
+
+/* ----------------------------------------------------------------
+   Response table
+   ---------------------------------------------------------------- */
+.dfr-response-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  margin-bottom: 16px;
+}
+
+.dfr-response-table th,
+.dfr-response-table td {
+  padding: 11px 16px;
+  text-align: left;
+  border-bottom: 1px solid #f0f0f5;
+  font-size: 0.87rem;
+}
+
+.dfr-response-table th {
+  background: #f8f8fc;
+  color: #7777aa;
+  font-weight: 600;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dfr-response-table tbody tr:last-child td { border-bottom: none; }
+
+.dfr-response-table tbody tr:hover { background: #fafaff; }
+
+.dfr-response-table a {
+  color: #5b6af7;
+  text-decoration: none;
+  font-weight: 500;
+}
+.dfr-response-table a:hover { text-decoration: underline; }
+
+.dfr-empty-note {
+  text-align: center;
+  color: #aaa;
+  padding: 40px 0;
+  font-size: 0.9rem;
+}
+
+/* ----------------------------------------------------------------
+   Response detail wrapper
+   ---------------------------------------------------------------- */
+.dfr-response-detail {
+  max-width: 740px;
+}
+
+/* ----------------------------------------------------------------
+   Meta info block (respondent, date, etc.)
+   ---------------------------------------------------------------- */
+.dfr-detail-meta {
+  background: #f8f8fc;
+  border: 1px solid #e0e0ee;
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 22px;
+}
+
+.dfr-detail-meta dl {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.dfr-detail-meta dt {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #7777aa;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  align-self: center;
+}
+
+.dfr-detail-meta dd {
+  font-size: 0.88rem;
+  color: #2c2c3e;
+  margin: 0;
+}
+
+/* ----------------------------------------------------------------
+   Section heading inside detail view
+   ---------------------------------------------------------------- */
+.dfr-section-heading {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #5555aa;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 22px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e8e8f5;
+}
+
+/* ----------------------------------------------------------------
+   Answer cards
+   ---------------------------------------------------------------- */
+.dfr-answer-card {
+  background: #fff;
+  border: 1px solid #e0e0ee;
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 10px;
+}
+
+.dfr-answer-question {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #7777aa;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+.dfr-answer-value {
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+.dfr-answer-empty {
+  font-size: 0.85rem;
+  color: #bbb;
+  font-style: italic;
+}

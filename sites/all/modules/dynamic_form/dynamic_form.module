@@ -1,29 +1,14 @@
 <?php
 
 /**
- * @file
- * Dynamic Form module — routes, permissions, and general helpers.
- */
-
-/**
  * Implements hook_init().
  *
- * Loads jQuery Toast Plugin (CDN) and the DFBToast utility on every page
- * served by this module (dashboard/*, form/*, dynamic-form/* paths).
+ * Loads the DFBToast CSS and JS on every page for toast notifications
  */
 function dynamic_form_init() {
-  $path = current_path();
-  if (
-    drupal_is_front_page()          ||
-    strpos($path, 'forms')         === 0 ||
-    strpos($path, 'dashboard')     === 0 ||
-    strpos($path, 'form/')         === 0 ||
-    strpos($path, 'dynamic-form/') === 0
-  ) {
-    $module_path = drupal_get_path('module', 'dynamic_form');
-    drupal_add_css($module_path . '/css/toast.css');
-    drupal_add_js($module_path . '/js/toast.js');
-  }
+  $module_path = drupal_get_path('module', 'dynamic_form');
+  drupal_add_css($module_path . '/css/toast.css');
+  drupal_add_js($module_path . '/js/toast.js');
 }
 
 /**
@@ -31,8 +16,6 @@ function dynamic_form_init() {
  *
  * @param string $type     One of: success, error, warning, info.
  * @param string $message  The message to display (already translated).
- *
- * @return array  AJAX command array for use in AJAX callbacks.
  */
 function ajax_command_dfb_toast($type, $message) {
   return array(
@@ -614,10 +597,8 @@ function dynamic_form_custom_login_error_override($form, &$form_state) {
  * Implements hook_cron().
  *
  * Triggered by an external cron job every minute:
- *   curl -s "http://yoursite/cron.php?cron_key=KEY" > /dev/null 2>&1
  *
- * Processes each email queue in configurable batch sizes, then expires
- * stale pending invitations.
+ * Processes each email queue in configurable batch sizes.
  */
 function dynamic_form_cron() {
   module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.invitations');
@@ -640,17 +621,17 @@ function dynamic_form_cron() {
     ->condition('status', 'pending')
     ->condition('expires_at', REQUEST_TIME, '<')
     ->execute();
+  
+  // Change form status to Closed when the close date has passed
+  db_update('dynamic_form_forms')
+    ->fields(array('status' => 'closed'))
+    ->condition('status', 'open')
+    ->condition('close_date', REQUEST_TIME, '<')
+    ->execute();
 }
 
 /**
  * Processes up to $batch_size items from a DrupalQueue in one cron run.
- *
- * Each item is claimed with a 60-second lease. On success the item is
- * deleted; on failure it is released back to the queue for the next run.
- *
- * @param string   $queue_name   Machine name of the DrupalQueue.
- * @param callable $worker       Callable that accepts one array $item.
- * @param int      $batch_size   Maximum items to process per cron run.
  */
 function _dynamic_form_process_queue_batch($queue_name, $worker, $batch_size = 20) {
   $queue     = DrupalQueue::get($queue_name);

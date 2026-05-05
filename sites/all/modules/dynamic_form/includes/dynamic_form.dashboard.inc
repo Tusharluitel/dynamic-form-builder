@@ -1011,6 +1011,42 @@ function dynamic_form_activity_log_page() {
     $output .= '<p class="dfb-empty-state">' . t('No activity has been recorded yet.') . '</p>';
   }
   else {
+    // Truly internal fields never worth showing.
+    $diff_skip = array('id', 'created', 'changed', 'actor_uid', 'ip_address',
+      'form_id', 'section_id', 'question_id', 'serial',
+      'created_by', 'published_by', 'deleted_by', 'deleted_at', 'published_at');
+
+    // Fields whose values are Unix timestamps — format them as dates.
+    $timestamp_fields = array('created_at', 'updated_at', 'closes_at', 'opens_at',
+      'token_expires', 'accepted_at');
+
+    // Human-readable labels for common field names.
+    $field_labels = array(
+      'title'          => t('Title'),
+      'name'           => t('Name'),
+      'label'          => t('Label'),
+      'description'    => t('Description'),
+      'status'         => t('Status'),
+      'type'           => t('Type'),
+      'required'       => t('Required'),
+      'weight'         => t('Weight'),
+      'allow_multiple' => t('Allow Multiple'),
+      'options'        => t('Options'),
+      'settings'       => t('Settings'),
+      'role'           => t('Role'),
+      'email'          => t('Email'),
+      'token_expires'  => t('Token Expiry'),
+      'accepted_at'    => t('Accepted At'),
+      'updated_at'     => t('Updated At'),
+      'created_at'     => t('Created At'),
+      'closes_at'      => t('Closes At'),
+      'opens_at'       => t('Opens At'),
+      'visibility'     => t('Visibility'),
+      'slug'           => t('Slug'),
+      'question_per_page' => t('Questions / Page'),
+    );
+
+    $output .= '<div class="dfb-log-table-wrap">';
     $output .= '<table class="dfb-log-table">';
     $output .= '<thead><tr>';
     $output .= '<th>' . t('When') . '</th>';
@@ -1018,6 +1054,8 @@ function dynamic_form_activity_log_page() {
     $output .= '<th>' . t('Action') . '</th>';
     $output .= '<th>' . t('Entity') . '</th>';
     $output .= '<th>' . t('Detail') . '</th>';
+    $output .= '<th>' . t('Old Value') . '</th>';
+    $output .= '<th>' . t('New Value') . '</th>';
     $output .= '</tr></thead>';
     $output .= '<tbody>';
 
@@ -1052,16 +1090,72 @@ function dynamic_form_activity_log_page() {
         }
       }
 
+      // Build old/new value columns — only meaningful for 'updated' rows.
+      $old_col = '<span class="dfb-log-na">—</span>';
+      $new_col = '<span class="dfb-log-na">—</span>';
+
+      if ($log->action === 'updated' && $log->old_value && $log->new_value) {
+        $old_data = json_decode($log->old_value, TRUE);
+        $new_data = json_decode($log->new_value, TRUE);
+        if (is_array($old_data) && is_array($new_data)) {
+          $old_items = array();
+          $new_items = array();
+          foreach ($new_data as $field => $new_val) {
+            if (in_array($field, $diff_skip)) {
+              continue;
+            }
+            $old_val = array_key_exists($field, $old_data) ? $old_data[$field] : NULL;
+            // Normalise for comparison — cast both to string so "0" == 0.
+            $old_str = is_array($old_val) ? json_encode($old_val) : (string) $old_val;
+            $new_str = is_array($new_val) ? json_encode($new_val) : (string) $new_val;
+            $changed  = ($old_str !== $new_str);
+
+            $label = isset($field_labels[$field])
+              ? $field_labels[$field]
+              : ucwords(str_replace('_', ' ', $field));
+
+            // Format Unix timestamps as human-readable dates.
+            if (in_array($field, $timestamp_fields)) {
+              $old_display = ($old_val !== NULL && is_numeric($old_val) && $old_val > 0)
+                ? format_date((int) $old_val, 'short')
+                : '<em class="dfb-log-empty">' . t('(none)') . '</em>';
+              $new_display = (is_numeric($new_val) && $new_val > 0)
+                ? format_date((int) $new_val, 'short')
+                : '<em class="dfb-log-empty">' . t('(none)') . '</em>';
+            }
+            else {
+              $old_display = $old_val !== NULL && $old_str !== ''
+                ? check_plain(truncate_utf8($old_str, 120, TRUE, TRUE))
+                : '<em class="dfb-log-empty">' . t('(empty)') . '</em>';
+              $new_display = $new_str !== ''
+                ? check_plain(truncate_utf8($new_str, 120, TRUE, TRUE))
+                : '<em class="dfb-log-empty">' . t('(empty)') . '</em>';
+            }
+
+            $li_class = $changed ? ' dfb-log-item--changed' : '';
+            $old_items[] = '<li class="dfb-log-item' . $li_class . '"><span class="dfb-log-field">' . check_plain($label) . ':</span> ' . $old_display . '</li>';
+            $new_items[] = '<li class="dfb-log-item' . $li_class . '"><span class="dfb-log-field">' . check_plain($label) . ':</span> ' . $new_display . '</li>';
+          }
+          if (!empty($old_items)) {
+            $old_col = '<ul class="dfb-log-changes">' . implode('', $old_items) . '</ul>';
+            $new_col = '<ul class="dfb-log-changes">' . implode('', $new_items) . '</ul>';
+          }
+        }
+      }
+
       $output .= '<tr>';
       $output .= '<td class="dfb-log-time">' . format_date($log->created_at, 'short') . '</td>';
       $output .= '<td class="dfb-log-actor">' . $actor_name . '</td>';
       $output .= '<td><span class="dfb-log-action ' . $action_class . '">' . $action_label . '</span></td>';
       $output .= '<td class="dfb-log-entity">' . check_plain($log->entity_type) . ' #' . (int) $log->entity_id . '</td>';
       $output .= '<td class="dfb-log-detail">' . $detail . '</td>';
+      $output .= '<td class="dfb-log-oldval">' . $old_col . '</td>';
+      $output .= '<td class="dfb-log-newval">' . $new_col . '</td>';
       $output .= '</tr>';
     }
 
     $output .= '</tbody></table>';
+    $output .= '</div>';
     $output .= theme('pager');
   }
 
