@@ -1,0 +1,320 @@
+/* ==========================================================================
+   Dynamic Form i18n — Builder styles
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Language switcher bar
+   -------------------------------------------------------------------------- */
+.dfbi18n-switcher {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  gap: 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin-bottom: 12px;
+  -webkit-box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.dfbi18n-switcher-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  margin-right: 4px;
+}
+
+.dfbi18n-lang-tabs {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  gap: 4px;
+}
+
+.dfbi18n-lang-tab {
+  display: inline-block;
+  padding: 5px 14px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  letter-spacing: 0.04em;
+  -webkit-transition: background 0.15s, border-color 0.15s, color 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.dfbi18n-lang-tab:hover {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+  color: #1e293b;
+  text-decoration: none;
+}
+
+.dfbi18n-lang-tab.dfbi18n-tab-active {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: #ffffff;
+  cursor: default;
+}
+
+.dfbi18n-lang-tab.dfbi18n-tab-active:hover {
+  background: #4338ca;
+  border-color: #4338ca;
+}
+
+/* "Translation mode — structure is locked" pill */
+.dfbi18n-mode-pill {
+  margin-left: auto;
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
+   Translation-status badges on question cards
+   -------------------------------------------------------------------------- */
+.dfbi18n-status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 6px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.dfbi18n-status-done {
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  color: #166534;
+}
+
+.dfbi18n-status-needed {
+  background: #fef9c3;
+  border: 1px solid #fde047;
+  color: #713f12;
+}
+
+/* Muted/italic label for untranslated questions */
+.dfbi18n-label-untranslated {
+  color: #94a3b8 !important;
+  font-style: italic;
+}
+
+/* --------------------------------------------------------------------------
+   Disabled drag handle (translation mode — reordering locked)
+   -------------------------------------------------------------------------- */
+.dfbi18n-handle-disabled {
+  opacity: 0.3;
+  cursor: not-allowed !important;
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------------------
+   Modal — translation mode banner
+   -------------------------------------------------------------------------- */
+.dfbi18n-modal-banner {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  gap: 8px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: #1e40af;
+  line-height: 1.5;
+}
+
+/* Language name badge inside the modal <h2> */
+.dfbi18n-modal-lang-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 4px;
+  background: #e0e7ff;
+  border: 1px solid #c7d2fe;
+  color: #3730a3;
+  font-size: 13px;
+  font-weight: 600;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+
+/* --------------------------------------------------------------------------
+   Original-English reference hints below modal fields
+   -------------------------------------------------------------------------- */
+.dfbi18n-original-hint {
+  margin-top: 5px;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.5;
+  padding: 5px 8px;
+  background: #f8fafc;
+  border-left: 3px solid #cbd5e1;
+  border-radius: 0 4px 4px 0;
+}
+
+.dfbi18n-original-hint strong {
+  font-weight: 600;
+  color: #475569;
+}
+
+/* --------------------------------------------------------------------------
+   Form-level translation panel (below builder header card)
+   -------------------------------------------------------------------------- */
+.dfbi18n-form-panel {
+  background: #ffffff;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 16px;
+  -webkit-box-shadow: 0 1px 4px rgba(79, 70, 229, 0.08);
+  box-shadow: 0 1px 4px rgba(79, 70, 229, 0.08);
+}
+
+.dfbi18n-form-panel-header {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e0e7ff;
+}
+
+.dfbi18n-form-panel-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.dfbi18n-form-panel-header strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: #3730a3;
+}
+
+.dfbi18n-form-field {
+  margin-bottom: 14px;
+}
+
+.dfbi18n-form-field:last-of-type {
+  margin-bottom: 0;
+}
+
+.dfbi18n-form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 5px;
+}
+
+.dfbi18n-title-input,
+.dfbi18n-desc-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #1e293b;
+  background: #f8fafc;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+  -webkit-transition: border-color 0.15s;
+  transition: border-color 0.15s;
+}
+
+.dfbi18n-title-input:focus,
+.dfbi18n-desc-input:focus {
+  outline: none;
+  border-color: #6366f1;
+  background: #ffffff;
+  -webkit-box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.dfbi18n-desc-input {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.dfbi18n-form-panel-footer {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #e0e7ff;
+}
+
+/* Save button */
+.dfbi18n-save-form-btn {
+  padding: 8px 18px;
+  border-radius: 6px;
+  border: none;
+  background: #4f46e5;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-transition: background 0.15s;
+  transition: background 0.15s;
+}
+
+.dfbi18n-save-form-btn:hover {
+  background: #4338ca;
+}
+
+.dfbi18n-save-form-btn:disabled {
+  background: #a5b4fc;
+  cursor: not-allowed;
+}
+
+/* Save status message */
+.dfbi18n-save-status {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.dfbi18n-save-ok {
+  color: #16a34a;
+}
+
+.dfbi18n-save-error {
+  color: #dc2626;
+}

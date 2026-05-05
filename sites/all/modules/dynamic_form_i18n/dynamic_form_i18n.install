@@ -1,0 +1,146 @@
+<?php
+
+/**
+ * @file
+ * Schema and install/uninstall hooks for Dynamic Form i18n.
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function dynamic_form_i18n_schema() {
+  $schema = array();
+
+  $schema['dynamic_form_form_translations'] = array(
+    'description' => 'Per-language translations of form title and description.',
+    'fields' => array(
+      'id' => array(
+        'type'     => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'form_id' => array(
+        'description' => 'FK to {dynamic_form_forms}.id.',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'language' => array(
+        'description' => 'Language code, e.g. "de".',
+        'type'        => 'varchar',
+        'length'      => 12,
+        'not null'    => TRUE,
+      ),
+      'title' => array(
+        'description' => 'Translated form title.',
+        'type'        => 'varchar',
+        'length'      => 255,
+        'not null'    => TRUE,
+        'default'     => '',
+      ),
+      'description' => array(
+        'description' => 'Translated form description.',
+        'type'        => 'text',
+        'size'        => 'medium',
+        'not null'    => FALSE,
+      ),
+      'created_by' => array(
+        'description' => 'FK to {users}.uid.',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => FALSE,
+        'default'     => NULL,
+      ),
+      'created_at' => array(
+        'type'     => 'int',
+        'not null' => TRUE,
+      ),
+      'updated_at' => array(
+        'type'     => 'int',
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'form_language' => array('form_id', 'language'),
+    ),
+    'indexes' => array(
+      'form_id' => array('form_id'),
+    ),
+  );
+
+  $schema['dynamic_form_question_translations'] = array(
+    'description' => 'Per-language translations of question label, description, and placeholder.',
+    'fields' => array(
+      'id' => array(
+        'type'     => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'question_id' => array(
+        'description' => 'FK to {dynamic_form_questions}.id.',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'language' => array(
+        'description' => 'Language code, e.g. "de".',
+        'type'        => 'varchar',
+        'length'      => 12,
+        'not null'    => TRUE,
+      ),
+      'label' => array(
+        'description' => 'Translated question label.',
+        'type'        => 'varchar',
+        'length'      => 512,
+        'not null'    => TRUE,
+        'default'     => '',
+      ),
+      'description' => array(
+        'description' => 'Translated help text.',
+        'type'        => 'text',
+        'size'        => 'medium',
+        'not null'    => FALSE,
+      ),
+      'placeholder' => array(
+        'description' => 'Translated placeholder text.',
+        'type'        => 'varchar',
+        'length'      => 255,
+        'not null'    => FALSE,
+        'default'     => NULL,
+      ),
+      'created_by' => array(
+        'description' => 'FK to {users}.uid.',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => FALSE,
+        'default'     => NULL,
+      ),
+      'created_at' => array(
+        'type'     => 'int',
+        'not null' => TRUE,
+      ),
+      'updated_at' => array(
+        'type'     => 'int',
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'question_language' => array('question_id', 'language'),
+    ),
+    'indexes' => array(
+      'question_id' => array('question_id'),
+    ),
+  );
+
+  return $schema;
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function dynamic_form_i18n_uninstall() {
+  db_drop_table('dynamic_form_question_translations');
+  db_drop_table('dynamic_form_form_translations');
+}

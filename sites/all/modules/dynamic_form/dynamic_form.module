@@ -14,8 +14,10 @@
 function dynamic_form_init() {
   $path = current_path();
   if (
-    strpos($path, 'dashboard')    === 0 ||
-    strpos($path, 'form/')        === 0 ||
+    drupal_is_front_page()          ||
+    strpos($path, 'forms')         === 0 ||
+    strpos($path, 'dashboard')     === 0 ||
+    strpos($path, 'form/')         === 0 ||
     strpos($path, 'dynamic-form/') === 0
   ) {
     $module_path = drupal_get_path('module', 'dynamic_form');
@@ -403,6 +405,24 @@ function dynamic_form_menu()
     'type'             => MENU_CALLBACK,
   );
 
+  // Public-facing routes.
+  $items['forms'] = array(
+    'title'           => 'Public Forms',
+    'page callback'   => 'dynamic_form_public_forms_page',
+    'access callback' => TRUE,
+    'file'            => 'includes/dynamic_form.front.inc',
+    'type'            => MENU_CALLBACK,
+  );
+
+  $items['forms/%'] = array(
+    'title'          => 'View Form',
+    'page callback'  => 'dynamic_form_public_form_view_page',
+    'page arguments' => array(1),
+    'access callback' => TRUE,
+    'file'            => 'includes/dynamic_form.front.inc',
+    'type'            => MENU_CALLBACK,
+  );
+
   return $items;
 }
 
@@ -587,56 +607,75 @@ function dynamic_form_custom_login_error_override($form, &$form_state) {
 }
 
 /* =====================================================================
-   FORM MEMBERS — QUEUE, MAIL, WORKER
+   BACKGROUND EMAIL PROCESSING — CRON + BATCH
    ===================================================================== */
-
-/**
- * Implements hook_cron_queue_info().
- */
-function dynamic_form_cron_queue_info() {
-  return array(
-    'dynamic_form_member_notify' => array(
-      'worker callback' => 'dynamic_form_member_notify_worker',
-      'time'            => 30,
-    ),
-    'dynamic_form_invite_notify' => array(
-      'worker callback' => 'dynamic_form_invite_notify_worker',
-      'time'            => 30,
-    ),
-  );
-}
-
-/**
- * Queue worker: sends a member-added notification email.
- *
- * @param array $item  Keyed array with form_id, form_title, user_id, role, form_url.
- */
-function dynamic_form_member_notify_worker(array $item) {
-  module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.members');
-  _dynamic_form_send_member_notification($item);
-}
-
-/**
- * Queue worker: sends an invitation email to an unregistered email address.
- *
- * @param array $item  Keyed array with invite_id, form_title.
- */
-function dynamic_form_invite_notify_worker(array $item) {
-  module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.invitations');
-  _dynamic_form_send_invite_notification($item);
-}
 
 /**
  * Implements hook_cron().
  *
- * Marks pending invitations whose expiry has passed as 'expired'.
+ * Triggered by an external cron job every minute:
+ *   curl -s "http://yoursite/cron.php?cron_key=KEY" > /dev/null 2>&1
+ *
+ * Processes each email queue in configurable batch sizes, then expires
+ * stale pending invitations.
  */
 function dynamic_form_cron() {
+  module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.invitations');
+  module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.members');
+
+  _dynamic_form_process_queue_batch(
+    'dynamic_form_invite_notify',
+    '_dynamic_form_send_invite_notification',
+    variable_get('dynamic_form_invite_batch_size', 20)
+  );
+
+  _dynamic_form_process_queue_batch(
+    'dynamic_form_member_notify',
+    '_dynamic_form_send_member_notification',
+    variable_get('dynamic_form_member_batch_size', 20)
+  );
+
   db_update('dynamic_form_invitations')
     ->fields(array('status' => 'expired'))
     ->condition('status', 'pending')
     ->condition('expires_at', REQUEST_TIME, '<')
     ->execute();
+}
+
+/**
+ * Processes up to $batch_size items from a DrupalQueue in one cron run.
+ *
+ * Each item is claimed with a 60-second lease. On success the item is
+ * deleted; on failure it is released back to the queue for the next run.
+ *
+ * @param string   $queue_name   Machine name of the DrupalQueue.
+ * @param callable $worker       Callable that accepts one array $item.
+ * @param int      $batch_size   Maximum items to process per cron run.
+ */
+function _dynamic_form_process_queue_batch($queue_name, $worker, $batch_size = 20) {
+  $queue     = DrupalQueue::get($queue_name);
+  $processed = 0;
+
+  while ($processed < $batch_size) {
+    $item = $queue->claimItem(60);
+    if (!$item) {
+      break;
+    }
+
+    try {
+      call_user_func($worker, $item->data);
+      $queue->deleteItem($item);
+    }
+    catch (Exception $e) {
+      watchdog('dynamic_form', 'Email batch worker @worker failed: @msg',
+        array('@worker' => $worker, '@msg' => $e->getMessage()),
+        WATCHDOG_ERROR
+      );
+      $queue->releaseItem($item);
+    }
+
+    $processed++;
+  }
 }
 
 /**

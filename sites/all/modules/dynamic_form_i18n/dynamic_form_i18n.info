@@ -1,0 +1,6 @@
+name        = Dynamic Form i18n
+description = Multi-language translation support for the Dynamic Form Builder. Adds an inline language switcher to the builder and stores per-language translations for form titles, descriptions, and question labels.
+core        = 7.x
+package     = Dynamic Form
+dependencies[] = dynamic_form
+files[] = includes/dynamic_form_i18n.builder.inc
