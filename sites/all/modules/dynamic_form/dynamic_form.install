@@ -286,6 +286,13 @@ function dynamic_form_schema()
         'not null' => TRUE,
         'default' => 0,
       ),
+      'width' => array(
+        'description' => 'Column width for multi-column row layout: full, half, third, quarter.',
+        'type' => 'varchar',
+        'length' => 16,
+        'not null' => TRUE,
+        'default' => 'full',
+      ),
       'created_by' => array(
         'description' => 'FK to {users}.uid — question author.',
         'type' => 'int',
@@ -669,6 +676,116 @@ function dynamic_form_schema()
   );
 
   // -----------------------------------------------------------------------
+
+  $schema['dynamic_form_invitations'] = array(
+    'description' => 'Pending and accepted invitations for form access.',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'form_id' => array(
+        'description' => 'FK to {dynamic_form_forms}.id.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'email' => array(
+        'description' => 'Invitee email address (lowercased).',
+        'type' => 'varchar',
+        'length' => 254,
+        'not null' => TRUE,
+      ),
+      'role' => array(
+        'description' => 'Role to grant on acceptance: editor, form_applicant, viewer, reviewer.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => 'viewer',
+      ),
+      'token' => array(
+        'description' => 'Secure 48-char hex token used in the accept link.',
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+      ),
+      'status' => array(
+        'description' => 'pending | accepted | expired | revoked',
+        'type' => 'varchar',
+        'length' => 16,
+        'not null' => TRUE,
+        'default' => 'pending',
+      ),
+      'invited_by' => array(
+        'description' => 'FK to {users}.uid — who sent the invite.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'user_id' => array(
+        'description' => 'FK to {users}.uid — populated when accepted. NULL until then.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'resend_count' => array(
+        'description' => 'Number of times this invitation has been resent.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'expires_at' => array(
+        'description' => 'Unix timestamp when the token expires (default: 7 days after creation).',
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+      'last_resent_at' => array(
+        'description' => 'Unix timestamp of the most recent resend. NULL if never resent.',
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'accepted_at' => array(
+        'description' => 'Unix timestamp when the invitation was accepted. NULL if not yet accepted.',
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'revoked_at' => array(
+        'description' => 'Unix timestamp when the invitation was revoked. NULL if not revoked.',
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'revoked_by' => array(
+        'description' => 'FK to {users}.uid — who revoked the invitation.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'created_at' => array(
+        'description' => 'Unix timestamp when the invitation was created.',
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'token' => array('token'),
+    ),
+    'indexes' => array(
+      'form_email_status' => array('form_id', 'email', 'status'),
+      'status'            => array('status'),
+      'expires_at'        => array('expires_at'),
+      'invited_by'        => array('invited_by'),
+    ),
+  );
+
+  // -----------------------------------------------------------------------
   $schema['dynamic_form_question_validations'] = array(
     'description' => 'Normalised validation rules for individual questions. Replaces the JSON blob in dynamic_form_questions.validation_rules.',
     'fields' => array(
@@ -903,6 +1020,7 @@ function dynamic_form_disable()
 function dynamic_form_uninstall()
 {
   $tables = array(
+    'dynamic_form_invitations',
     'dynamic_form_answer_files',
     'dynamic_form_answers',
     'dynamic_form_responses',
@@ -919,9 +1037,300 @@ function dynamic_form_uninstall()
     db_drop_table($table);
   }
 
+  // Also drop tag tables introduced in update 7001.
+  $tag_tables = array(
+    'dynamic_form_tag_answers',
+    'dynamic_form_tags',
+    // Legacy 3-table names (dropped if an old schema was installed).
+    'dynamic_form_question_tag_answers',
+    'dynamic_form_tag_variations',
+  );
+  foreach ($tag_tables as $table) {
+    if (db_table_exists($table)) {
+      db_drop_table($table);
+    }
+  }
+
 
 
   if (variable_get('theme_default', '') === 'dynamic_form') {
     variable_set('theme_default', 'bartik');
   }
+}
+
+/* =====================================================================
+   UPDATE HOOKS
+   ===================================================================== */
+
+/**
+ * Implements hook_update_N().
+ *
+ * Update 7001 — Tags question type.
+ *
+ * Introduces the "tags" question type and creates three supporting tables:
+ *
+ *   dynamic_form_tags
+ *     Stores one row per unique normalized tag (lowercase, trimmed, no
+ *     special characters). Normalization ensures that "JavaScript",
+ *     "javascript", and "  Javascript  " all resolve to the same canonical
+ *     record, keeping analytics and reporting clean.
+ *
+ *   dynamic_form_tag_variations
+ *     Stores every distinct raw string a respondent has typed for a given
+ *     tag. Useful for auditing input patterns, improving autocomplete
+ *     suggestions, and back-filling normalizations without touching the
+ *     canonical tags table.
+ *
+ *   dynamic_form_question_tag_answers
+ *     Junction table that links a form response (submission) to one or more
+ *     normalized tags for a specific question. A single submission can
+ *     produce multiple rows here — one per selected/typed tag.
+ *
+ * No changes to existing tables are needed: the `type` column in
+ * dynamic_form_questions is already a varchar(64) that accepts any type key,
+ * so "tags" is valid immediately after this update runs.
+ */
+function dynamic_form_update_7001()
+{
+
+  // ------------------------------------------------------------------
+  // Table 1: dynamic_form_tags
+  //
+  // Canonical dictionary — one row per unique normalized tag value.
+  // Normalization (see _dynamic_form_normalize_tag()):
+  //   lowercase → trim → collapse whitespace → strip non-letter/digit/space
+  // The UNIQUE constraint on standardized_value makes duplicate tags
+  // physically impossible regardless of how the app layer normalizes input.
+  // ------------------------------------------------------------------
+  $schema_tags = array(
+    'description' => 'Canonical normalized tag dictionary. One row per unique standardized tag.',
+    'fields' => array(
+      'id' => array(
+        'description' => 'Primary key.',
+        'type'        => 'serial',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'standardized_value' => array(
+        'description' => 'Normalized tag: lowercase, no symbols, no hyphens/underscores.',
+        'type'        => 'varchar',
+        'length'      => 255,
+        'not null'    => TRUE,
+      ),
+      'created_at' => array(
+        'description' => 'Unix timestamp when this tag was first seen.',
+        'type'        => 'int',
+        'not null'    => TRUE,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'standardized_value' => array('standardized_value'),
+    ),
+    'indexes' => array(
+      'standardized_value_idx' => array('standardized_value'),
+    ),
+  );
+  db_create_table('dynamic_form_tags', $schema_tags);
+
+  // ------------------------------------------------------------------
+  // Table 2: dynamic_form_tag_answers
+  //
+  // One row per tag per question per response. Stores raw_value (what
+  // the respondent actually typed) alongside tag_id so we keep the
+  // analytics key (standardized) and the audit trail in one place,
+  // without a separate variations table.
+  // ------------------------------------------------------------------
+  $schema_answers = array(
+    'description' => 'Per-response tag answers. One row per tag per question per submission.',
+    'fields' => array(
+      'id' => array(
+        'description' => 'Primary key.',
+        'type'        => 'serial',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'question_id' => array(
+        'description' => 'FK to {dynamic_form_questions}.id.',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'response_id' => array(
+        'description' => 'FK to {dynamic_form_responses}.id.',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'tag_id' => array(
+        'description' => 'FK to {dynamic_form_tags}.id — the normalized canonical tag.',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'raw_value' => array(
+        'description' => 'Exact string the respondent typed before normalization.',
+        'type'        => 'varchar',
+        'length'      => 255,
+        'not null'    => TRUE,
+      ),
+      'created_at' => array(
+        'description' => 'Unix timestamp when this row was inserted.',
+        'type'        => 'int',
+        'not null'    => TRUE,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'unique_answer' => array('question_id', 'response_id', 'tag_id'),
+    ),
+    'indexes' => array(
+      'question_id'  => array('question_id'),
+      'response_id'  => array('response_id'),
+      'tag_id'       => array('tag_id'),
+      'question_tag' => array('question_id', 'tag_id'),
+    ),
+  );
+  db_create_table('dynamic_form_tag_answers', $schema_answers);
+
+  return t('Created dynamic_form_tags and dynamic_form_tag_answers tables for the "tags" question type.');
+}
+
+/**
+ * Implements hook_update_N().
+ *
+ * Update 7002 — Column width for multi-column layout.
+ *
+ * Adds a `width` column to dynamic_form_questions. Existing questions default
+ * to "full" (full-width, single-column), preserving current behaviour.
+ * Accepted values: full | half | third | quarter.
+ */
+function dynamic_form_update_7002(&$sandbox) {
+  db_add_field('dynamic_form_questions', 'width', array(
+    'description' => 'Column width for multi-column row layout: full, half, third, quarter.',
+    'type'        => 'varchar',
+    'length'      => 16,
+    'not null'    => TRUE,
+    'default'     => 'full',
+  ));
+  return t('Added width column to dynamic_form_questions for multi-column layout.');
+}
+
+/**
+ * Implements hook_update_N().
+ *
+ * Update 7003 — Email invitation system.
+ *
+ * Creates dynamic_form_invitations to support inviting users by email,
+ * including those without an existing account. Tokens expire after 7 days
+ * and are accepted via a public /dynamic-form/invite/accept/{token} URL.
+ */
+function dynamic_form_update_7003() {
+  if (db_table_exists('dynamic_form_invitations')) {
+    return t('dynamic_form_invitations table already exists; skipped.');
+  }
+
+  $schema = array(
+    'description' => 'Pending and accepted invitations for form access.',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'form_id' => array(
+        'description' => 'FK to {dynamic_form_forms}.id.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'email' => array(
+        'description' => 'Invitee email address (lowercased).',
+        'type' => 'varchar',
+        'length' => 254,
+        'not null' => TRUE,
+      ),
+      'role' => array(
+        'description' => 'Role to grant on acceptance.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => 'viewer',
+      ),
+      'token' => array(
+        'description' => 'Secure 48-char hex token used in the accept link.',
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+      ),
+      'status' => array(
+        'description' => 'pending | accepted | expired | revoked',
+        'type' => 'varchar',
+        'length' => 16,
+        'not null' => TRUE,
+        'default' => 'pending',
+      ),
+      'invited_by' => array(
+        'description' => 'FK to {users}.uid — who sent the invite.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'user_id' => array(
+        'description' => 'FK to {users}.uid — populated when accepted.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'resend_count' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'expires_at' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+      'last_resent_at' => array(
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'accepted_at' => array(
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'revoked_at' => array(
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'revoked_by' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+        'default' => NULL,
+      ),
+      'created_at' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'token' => array('token'),
+    ),
+    'indexes' => array(
+      'form_email_status' => array('form_id', 'email', 'status'),
+      'status'            => array('status'),
+      'expires_at'        => array('expires_at'),
+      'invited_by'        => array('invited_by'),
+    ),
+  );
+
+  db_create_table('dynamic_form_invitations', $schema);
+  return t('Created dynamic_form_invitations table for the email invitation system.');
 }

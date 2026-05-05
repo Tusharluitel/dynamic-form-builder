@@ -1,0 +1,448 @@
+/* =====================================================================
+   DYNAMIC FORM — Member Picker Styles
+   ===================================================================== */
+
+/* ---- Picker container ------------------------------------------------- */
+
+/*
+ * Override the theme's 2-column grid on .fieldset-wrapper so the member
+ * picker elements span the full fieldset width.
+ */
+.dfb-form-section--members .fieldset-wrapper {
+  display: block !important;
+  grid-template-columns: none !important;
+}
+
+.dfb-member-picker-wrap {
+  position: relative;
+  width: 100%;
+}
+
+/* ---- Input row -------------------------------------------------------- */
+
+.dfb-member-input-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+}
+
+/* Search wrapper — positions the dropdown relative to the input */
+.dfb-member-search-wrap {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 120px;
+}
+
+/*
+ * Override the theme rule `.dfb-form-wrapper input[type="text"] { width: 100% }`
+ * which forces the input to 100% of its *parent* and breaks flex sizing.
+ * Inside the flex row the input must fill its wrapper, not the fieldset.
+ */
+.dfb-member-search-input,
+.dfb-form-wrapper .dfb-member-search-input {
+  width: 100% !important;
+  box-sizing: border-box;
+  height: 42px;
+  padding: 0 14px;
+  border: 1.5px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.9rem;
+  color: var(--color-text, #1e293b);
+  background: var(--color-surface-alt, #f8fafc);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.dfb-member-search-input:focus,
+.dfb-form-wrapper .dfb-member-search-input:focus {
+  border-color: var(--color-primary, #6366f1);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+  background: var(--color-surface, #fff);
+}
+
+/*
+ * Override the theme rule `.dfb-form-wrapper select { width: 100% }`.
+ * The role select must shrink-to-fit inside the flex row.
+ */
+.dfb-member-role-select,
+.dfb-form-wrapper .dfb-member-role-select {
+  width: auto !important;
+  height: 42px;
+  padding: 8px 34px 8px 14px;
+  border: 1.5px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-primary, #6366f1);
+  background: var(--color-surface-alt, #f8fafc);
+  cursor: pointer;
+  outline: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.dfb-member-role-select:focus,
+.dfb-form-wrapper .dfb-member-role-select:focus {
+  border-color: var(--color-primary, #6366f1);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+  background: var(--color-surface, #fff);
+}
+
+/* ---- Add button ------------------------------------------------------- */
+
+.dfb-member-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 42px;
+  padding: 0 18px;
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  background: linear-gradient(135deg, var(--color-primary, #6366f1), var(--color-primary-dark, #4f46e5));
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: box-shadow 0.15s, transform 0.1s;
+}
+
+.dfb-member-add-btn:hover {
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+  transform: translateY(-1px);
+}
+
+.dfb-member-add-btn:active {
+  transform: scale(0.97) translateY(0);
+}
+
+.dfb-member-add-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.dfb-add-btn-icon {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ---- Search results dropdown ----------------------------------------- */
+
+#dfb-members-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .12);
+  max-height: 260px;
+  overflow-y: auto;
+  margin-top: 4px;
+  z-index: 200;
+}
+
+.dfb-member-result-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  transition: background 0.1s;
+}
+
+.dfb-member-result-item:last-child {
+  border-bottom: none;
+}
+
+.dfb-member-result-item:hover {
+  background: #f1f5ff;
+}
+
+.dfb-result-item-invite:hover {
+  background: #f0fdf4;
+}
+
+.dfb-result-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dfb-result-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text, #1e293b);
+}
+
+.dfb-result-mail {
+  font-size: 12px;
+  color: var(--color-text-muted, #64748b);
+}
+
+.dfb-result-hint {
+  font-size: 11px;
+  color: #16a34a;
+  font-style: italic;
+}
+
+.dfb-result-badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+
+.dfb-badge-add {
+  background: #eef2ff;
+  color: var(--color-primary, #6366f1);
+}
+
+.dfb-badge-invite {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.dfb-member-no-results {
+  padding: 11px 14px;
+  color: var(--color-text-muted, #64748b);
+  font-size: 13px;
+}
+
+/* ---- Shared members table -------------------------------------------- */
+
+.dfb-members-table-wrap {
+  margin-top: 18px;
+}
+
+.dfb-members-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: var(--color-text, #1e293b);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-md, 8px);
+  overflow: hidden;
+}
+
+.dfb-members-table thead th {
+  background: var(--color-surface-alt, #f8fafc);
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted, #64748b);
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  white-space: nowrap;
+}
+
+.dfb-members-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  vertical-align: middle;
+}
+
+.dfb-member-row:last-child td {
+  border-bottom: none;
+}
+
+.dfb-member-row:hover td {
+  background: #fafbff;
+}
+
+.dfb-invite-row:hover td {
+  background: #fafffe;
+}
+
+/* Name / Email column */
+.dfb-col-name {
+  min-width: 160px;
+}
+
+.dfb-member-name {
+  display: block;
+  font-weight: 500;
+  color: var(--color-text, #1e293b);
+}
+
+.dfb-member-mail {
+  display: block;
+  font-size: 12px;
+  color: var(--color-text-muted, #64748b);
+}
+
+/* Invite metadata below email */
+.dfb-invite-meta {
+  display: block;
+  font-size: 11px;
+  color: var(--color-text-muted, #64748b);
+  margin-top: 2px;
+}
+
+/* Role column */
+.dfb-col-role {
+  width: 140px;
+}
+
+/*
+ * Override theme's `.dfb-form-wrapper select` for the in-row role selector
+ * so it doesn't become full-width inside the table cell.
+ */
+.dfb-row-role-select,
+.dfb-form-wrapper .dfb-row-role-select {
+  width: auto !important;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 4px;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary, #6366f1);
+  padding: 4px 8px;
+  cursor: pointer;
+  outline: none;
+}
+
+.dfb-row-role-select:focus {
+  border-color: var(--color-primary, #6366f1);
+}
+
+.dfb-role-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary, #6366f1);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Status column */
+.dfb-col-status {
+  width: 120px;
+}
+
+.dfb-status-pill {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dfb-status-member {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.dfb-status-pending {
+  background: #fef9c3;
+  color: #a16207;
+}
+
+.dfb-expires-note {
+  display: block;
+  font-size: 11px;
+  color: var(--color-text-muted, #64748b);
+  margin-top: 3px;
+}
+
+.dfb-expires-soon {
+  color: #d97706;
+  font-weight: 600;
+}
+
+/* Actions column */
+.dfb-col-actions {
+  width: 130px;
+  white-space: nowrap;
+}
+
+.dfb-row-remove-btn,
+.dfb-invite-resend-btn,
+.dfb-invite-revoke-btn {
+  border: 1px solid;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  cursor: pointer;
+  background: transparent;
+  transition: background 0.12s, color 0.12s;
+}
+
+.dfb-row-remove-btn {
+  border-color: var(--color-text-muted, #64748b);
+  color: var(--color-text-muted, #64748b);
+}
+
+.dfb-row-remove-btn:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+}
+
+.dfb-invite-resend-btn {
+  border-color: var(--color-primary, #6366f1);
+  color: var(--color-primary, #6366f1);
+  margin-right: 4px;
+}
+
+.dfb-invite-resend-btn:hover {
+  background: var(--color-primary, #6366f1);
+  color: #fff;
+}
+
+.dfb-invite-revoke-btn {
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
+.dfb-invite-revoke-btn:hover {
+  background: #dc2626;
+  color: #fff;
+}
+
+/* Empty state row */
+.dfb-empty-cell {
+  text-align: center;
+  color: var(--color-text-muted, #64748b);
+  font-style: italic;
+  font-size: 13px;
+  padding: 18px 14px;
+}
+
+/* ---- Responsive ------------------------------------------------------- */
+
+@media (max-width: 600px) {
+  .dfb-member-input-row {
+    flex-wrap: wrap;
+  }
+
+  .dfb-member-search-wrap {
+    flex: 1 1 100%;
+  }
+
+  .dfb-member-role-select,
+  .dfb-form-wrapper .dfb-member-role-select {
+    flex: 1 1 auto;
+  }
+
+  .dfb-member-add-btn {
+    flex: 0 0 auto;
+  }
+}

@@ -1,8 +1,9 @@
 name = Dynamic Form
 description = Enterprise dynamic form builder.
 core = 7.x
-package = Dynamic Forms
+package = Dynamic Form
 
 dependencies[] = file
 dependencies[] = field
 dependencies[] = field_ui
+depencencies[] = ckeditor

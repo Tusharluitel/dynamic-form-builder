@@ -1,0 +1,277 @@
+<?php
+
+/**
+ * @file
+ * Dynamic Form i18n — inline language switcher and translation storage.
+ *
+ * Language detection strategy:
+ *   - Page requests:  $_GET['lang']
+ *   - AJAX requests:  X-DFB-I18N-Lang request header (set by $.ajaxSetup in
+ *                     i18n-builder.js so the header travels with every request
+ *                     including Drupal's system/ajax form submissions).
+ *
+ * Supported languages are declared in DFBI18N_SUPPORTED_LANGS. Adding a new
+ * language in future only requires adding it to that constant and providing
+ * translations; no schema changes are needed.
+ */
+
+define('DFBI18N_SUPPORTED_LANGS', serialize(array(
+  'de' => 'German',
+)));
+
+/* =====================================================================
+   HOOKS
+   ===================================================================== */
+
+/**
+ * Implements hook_menu().
+ */
+function dynamic_form_i18n_menu() {
+  $items = array();
+
+  // Load all translations (form + questions) for a given form in one call.
+  $items['dynamic-form/i18n/form/%/translations'] = array(
+    'page callback'   => 'dynamic_form_i18n_ajax_load_translations',
+    'page arguments'  => array(3),
+    'access callback' => 'user_is_logged_in',
+    'type'            => MENU_CALLBACK,
+  );
+
+  // Save form-level (title + description) translation.
+  $items['dynamic-form/i18n/form/%/save'] = array(
+    'page callback'   => 'dynamic_form_i18n_ajax_form_save',
+    'page arguments'  => array(3),
+    'access callback' => 'user_is_logged_in',
+    'type'            => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_init().
+ *
+ * Injects the language switcher assets and JS settings on builder pages only.
+ */
+function dynamic_form_i18n_init() {
+  if (!_dfbi18n_is_builder_page()) {
+    return;
+  }
+
+  $module_path = drupal_get_path('module', 'dynamic_form_i18n');
+  drupal_add_css($module_path . '/css/i18n-builder.css');
+  drupal_add_js($module_path . '/js/i18n-builder.js');
+
+  $lang      = _dfbi18n_get_language();
+  $supported = unserialize(DFBI18N_SUPPORTED_LANGS);
+
+  drupal_add_js(array(
+    'dfbi18n' => array(
+      'lang'           => $lang,
+      'langLabel'      => $lang ? $supported[$lang] : NULL,
+      'supportedLangs' => $supported,
+      'basePath'       => url('dynamic-form/i18n'),
+      'currentPath'    => request_uri(),
+    ),
+  ), 'setting');
+}
+
+/**
+ * Implements hook_form_alter().
+ *
+ * When in translation mode, rewires the question edit modal to save
+ * German translations instead of overwriting the base record.
+ */
+function dynamic_form_i18n_form_alter(&$form, &$form_state, $form_id) {
+  if ($form_id !== 'dynamic_form_builder_question_edit_form') {
+    return;
+  }
+  $lang = _dfbi18n_get_language();
+  if (!$lang) {
+    return;
+  }
+
+  module_load_include('inc', 'dynamic_form_i18n', 'includes/dynamic_form_i18n.builder');
+  _dfbi18n_alter_question_edit_form($form, $form_state, $lang);
+}
+
+/* =====================================================================
+   AJAX ENDPOINTS
+   ===================================================================== */
+
+/**
+ * Returns all translations for a form (form-level + all question-level) as JSON.
+ *
+ * Response shape:
+ * {
+ *   "form": { "title": "...", "description": "...", "translated": true },
+ *   "questions": {
+ *     "42": { "translated": true, "label": "...", "description": "..." },
+ *     "43": { "translated": false }
+ *   }
+ * }
+ */
+function dynamic_form_i18n_ajax_load_translations($form_id) {
+  $form_id = (int) $form_id;
+  $lang    = _dfbi18n_get_language();
+
+  if (!$lang) {
+    drupal_json_output(array('form' => array('translated' => FALSE), 'questions' => array()));
+    drupal_exit();
+  }
+
+  // --- Form-level translation ---
+  $form_trans = db_select('dynamic_form_form_translations', 't')
+    ->fields('t', array('title', 'description'))
+    ->condition('form_id', $form_id)
+    ->condition('language', $lang)
+    ->execute()
+    ->fetchObject();
+
+  $form_result = array('translated' => FALSE);
+  if ($form_trans && $form_trans->title !== '') {
+    $form_result = array(
+      'translated'  => TRUE,
+      'title'       => check_plain($form_trans->title),
+      'description' => check_plain($form_trans->description),
+    );
+  }
+
+  // --- Question-level translations ---
+  $qids = db_select('dynamic_form_questions', 'q')
+    ->fields('q', array('id'))
+    ->condition('form_id', $form_id)
+    ->condition('deleted_at', NULL, 'IS NULL')
+    ->execute()
+    ->fetchCol();
+
+  $q_results = array();
+  if (!empty($qids)) {
+    $trans_rows = db_select('dynamic_form_question_translations', 't')
+      ->fields('t', array('question_id', 'label', 'description', 'placeholder'))
+      ->condition('question_id', $qids, 'IN')
+      ->condition('language', $lang)
+      ->execute()
+      ->fetchAllAssoc('question_id');
+
+    foreach ($qids as $qid) {
+      $qid = (int) $qid;
+      if (isset($trans_rows[$qid]) && $trans_rows[$qid]->label !== '') {
+        $q_results[$qid] = array(
+          'translated'  => TRUE,
+          'label'       => check_plain($trans_rows[$qid]->label),
+          'description' => check_plain($trans_rows[$qid]->description),
+          'placeholder' => check_plain($trans_rows[$qid]->placeholder),
+        );
+      }
+      else {
+        $q_results[$qid] = array('translated' => FALSE);
+      }
+    }
+  }
+
+  drupal_json_output(array('form' => $form_result, 'questions' => $q_results));
+  drupal_exit();
+}
+
+/**
+ * Saves a form-level (title + description) translation.
+ * Accepts a JSON POST body: { "title": "...", "description": "..." }
+ */
+function dynamic_form_i18n_ajax_form_save($form_id) {
+  global $user;
+
+  if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    drupal_json_output(array('status' => 'error', 'message' => 'POST required.'));
+    drupal_exit();
+  }
+
+  $form_id = (int) $form_id;
+  $lang    = _dfbi18n_get_language();
+
+  if (!$lang) {
+    drupal_json_output(array('status' => 'error', 'message' => 'No language in request.'));
+    drupal_exit();
+  }
+
+  $body        = json_decode(file_get_contents('php://input'), TRUE);
+  $title       = isset($body['title'])       ? trim($body['title'])       : '';
+  $description = isset($body['description']) ? trim($body['description']) : '';
+
+  if ($title === '') {
+    drupal_json_output(array('status' => 'error', 'message' => t('Title cannot be empty.')));
+    drupal_exit();
+  }
+
+  $now        = REQUEST_TIME;
+  $existing   = db_select('dynamic_form_form_translations', 't')
+    ->fields('t', array('id'))
+    ->condition('form_id', $form_id)
+    ->condition('language', $lang)
+    ->execute()
+    ->fetchField();
+
+  if ($existing) {
+    db_update('dynamic_form_form_translations')
+      ->fields(array('title' => $title, 'description' => $description, 'updated_at' => $now))
+      ->condition('id', $existing)
+      ->execute();
+  }
+  else {
+    db_insert('dynamic_form_form_translations')->fields(array(
+      'form_id'     => $form_id,
+      'language'    => $lang,
+      'title'       => $title,
+      'description' => $description,
+      'created_by'  => (int) $user->uid,
+      'created_at'  => $now,
+      'updated_at'  => $now,
+    ))->execute();
+  }
+
+  drupal_json_output(array('status' => 'success'));
+  drupal_exit();
+}
+
+/* =====================================================================
+   HELPERS
+   ===================================================================== */
+
+/**
+ * Returns the active translation language code, or NULL if not in translation mode.
+ *
+ * Reads from $_GET['lang'] (page requests) and the X-DFB-I18N-Lang header
+ * (AJAX requests — set globally by $.ajaxSetup in i18n-builder.js).
+ */
+function _dfbi18n_get_language() {
+  $supported = array_keys(unserialize(DFBI18N_SUPPORTED_LANGS));
+
+  // URL param takes precedence (links, page loads).
+  $lang = isset($_GET['lang']) ? $_GET['lang'] : NULL;
+
+  // Fall back to the custom header carried by all AJAX calls.
+  if (!$lang && !empty($_SERVER['HTTP_X_DFB_I18N_LANG'])) {
+    $lang = $_SERVER['HTTP_X_DFB_I18N_LANG'];
+  }
+
+  return ($lang && in_array($lang, $supported)) ? $lang : NULL;
+}
+
+/**
+ * Returns TRUE when the current page is a form builder page.
+ */
+function _dfbi18n_is_builder_page() {
+  return (bool) preg_match('#^dashboard/forms/\d+/builder(\?.*)?$#', request_uri());
+}
+
+/**
+ * Loads an existing question translation row, or NULL if none exists.
+ */
+function _dfbi18n_load_question_translation($question_id, $lang) {
+  return db_select('dynamic_form_question_translations', 't')
+    ->fields('t')
+    ->condition('question_id', (int) $question_id)
+    ->condition('language', $lang)
+    ->execute()
+    ->fetchObject();
+}

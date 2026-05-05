@@ -14,18 +14,7 @@
 
 <body class="<?php print $classes; ?>" <?php print $attributes; ?>>
 
-<?php print $page_top; 
-
-global $user;
-
-$roles = $user->roles;
-
-if (in_array('admin', $roles) || in_array('super administrator', $roles)) {
-  $dashboard_url = url('admin');
-} else {
-  $dashboard_url = url('user');
-}
-?>
+<?php print $page_top; ?>
 
 <div id="page-wrapper">
 
@@ -42,7 +31,7 @@ if (in_array('admin', $roles) || in_array('super administrator', $roles)) {
           <a href="<?php print url('register'); ?>" class="dfb-btn-primary">Sign Up</a>
         <?php else: ?>
 
-          <a href="<?php print $dashboard_url; ?>">Dashboard</a>
+          <a href="<?php print url('dashboard'); ?>">Dashboard</a>
           <a href="<?php print url('user/logout'); ?>" class="dfb-btn-ghost">Log Out</a>
         <?php endif; ?>
       </div>
@@ -63,7 +52,7 @@ if (in_array('admin', $roles) || in_array('super administrator', $roles)) {
           Get Started Free <span class="arrow">&rarr;</span>
         </a>
       <?php else: ?>
-        <a href="<?php print url('user'); ?>" class="dfb-hero-cta">
+        <a href="<?php print url('dashboard'); ?>" class="dfb-hero-cta">
           Go to Dashboard <span class="arrow">&rarr;</span>
         </a>
       <?php endif; ?>
@@ -97,6 +86,31 @@ if (in_array('admin', $roles) || in_array('super administrator', $roles)) {
       </div>
     </div>
   </section>
+
+  <!-- Public / Accessible Forms Section -->
+  <?php if (!empty($front_forms)): ?>
+  <section class="dfb-front-forms" id="public-forms">
+    <div class="dfb-front-forms-inner">
+      <div class="dfb-front-forms-header">
+        <span class="dfb-section-label"><?php print $logged_in ? t('Forms') : t('Explore'); ?></span>
+        <h2><?php print check_plain($front_forms_title); ?></h2>
+        <p><?php print check_plain($front_forms_subtitle); ?></p>
+      </div>
+      <div class="dfb-public-forms-grid">
+        <?php foreach ($front_forms as $front_form): ?>
+          <?php print _dynamic_form_render_public_form_card($front_form); ?>
+        <?php endforeach; ?>
+      </div>
+      <?php if ($front_forms_total > 0): ?>
+      <div class="dfb-front-forms-footer">
+        <a href="<?php print $front_forms_see_more; ?>" class="dfb-see-more-btn">
+          <?php print $front_forms_see_label; ?> &rarr;
+        </a>
+      </div>
+      <?php endif; ?>
+    </div>
+  </section>
+  <?php endif; ?>
   <?php endif; ?>
 
   <!-- Messages -->
@@ -106,10 +120,12 @@ if (in_array('admin', $roles) || in_array('super administrator', $roles)) {
     </div>
   <?php endif; ?>
 
-  <!-- Main Content -->
+  <!-- Main Content (skip on front page — content is in custom sections above) -->
+  <?php if (!$is_front): ?>
   <div class="dfb-content-region">
     <?php print render($page['content']); ?>
   </div>
+  <?php endif; ?>
 
   <!-- Footer -->
   <footer class="dfb-footer">
