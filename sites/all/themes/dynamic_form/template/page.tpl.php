@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <?php print $styles; ?>
   <?php print $scripts; ?>
+  <link rel="stylesheet" href="<?php print $base_path . drupal_get_path('module', 'dynamic_form'); ?>/css/toast.css">
 </head>
 
 <body class="<?php print $classes; ?>" <?php print $attributes; ?>>
@@ -135,6 +136,7 @@
 </div>
 
 <?php print $page_bottom; ?>
+<script src="<?php print $base_path . drupal_get_path('module', 'dynamic_form'); ?>/js/toast.js"></script>
 
 </body>
 </html>
