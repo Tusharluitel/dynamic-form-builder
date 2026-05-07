@@ -369,6 +369,22 @@ function _dynamic_form_dashboard_forms()
   // Sort merged list by created_at DESC.
   uasort($forms_by_id, '_dfb_sort_by_created_desc');
 
+  // Batch-load submitted response counts for all displayed forms in one query.
+  $response_counts = array();
+  $form_ids = array_keys($forms_by_id);
+  if (!empty($form_ids)) {
+    $cq = db_select('dynamic_form_responses', 'r')
+      ->fields('r', array('form_id'))
+      ->condition('r.form_id', $form_ids, 'IN')
+      ->condition('r.status', 1)
+      ->isNull('r.deleted_at')
+      ->groupBy('r.form_id');
+    $cq->addExpression('COUNT(*)', 'cnt');
+    foreach ($cq->execute()->fetchAll() as $row) {
+      $response_counts[(int) $row->form_id] = (int) $row->cnt;
+    }
+  }
+
   $output = '<div class="dfb-dashboard-header">';
   $output .= '<div class="dfb-dashboard-header-row">';
   $output .= '<div>';
@@ -400,7 +416,7 @@ function _dynamic_form_dashboard_forms()
     'm' => t('Members Only'),
   );
 
-  $header = array(t('Title'), t('Status'), t('Visibility'), t('Created'), t('Actions'));
+  $header = array(t('Title'), t('Status'), t('Visibility'), t('Created'), t('Responses'), t('Actions'));
   $rows = array();
 
   foreach ($forms_by_id as $record) {
@@ -437,11 +453,26 @@ function _dynamic_form_dashboard_forms()
       ));
     }
 
+    $count     = isset($response_counts[$record->id]) ? $response_counts[$record->id] : 0;
+    $can_view  = $is_admin || in_array($role, array('owner', 'editor'));
+    if ($count === 0) {
+      $resp_cell = '<span class="dfb-response-zero">—</span>';
+    } elseif ($can_view) {
+      $resp_cell = l(
+        format_plural($count, '1 response', '@count responses'),
+        'dashboard/forms/' . $record->id . '/responses',
+        array('attributes' => array('class' => array('dfb-response-count-link')))
+      );
+    } else {
+      $resp_cell = format_plural($count, '1 response', '@count responses');
+    }
+
     $rows[] = array(
       array('data' => $title_cell),
       array('data' => isset($status_labels[$record->status]) ? $status_labels[$record->status] : t('Unknown'), 'class' => array('status-cell')),
       isset($visibility_labels[$record->visibility]) ? $visibility_labels[$record->visibility] : $record->visibility,
       format_date($record->created_at, 'short'),
+      array('data' => $resp_cell, 'class' => array('dfb-responses-cell')),
       implode(' &middot; ', $actions),
     );
   }
@@ -877,7 +908,7 @@ function dynamic_form_ajax_entity_delete($entity_type, $entity_id) {
     drupal_exit();
   }
 
-  if (!in_array($entity_type, array('form', 'section', 'question'))) {
+  if (!in_array($entity_type, array('form', 'section', 'question', 'response'))) {
     drupal_json_output(array('status' => 'error', 'message' => t('Invalid entity type.')));
     drupal_exit();
   }
@@ -897,9 +928,34 @@ function dynamic_form_ajax_entity_delete($entity_type, $entity_id) {
     drupal_exit();
   }
 
-  // Access: 'delete any form' OR user owns the item and has 'delete own form'.
-  $is_owner   = isset($record->created_by) && (int) $record->created_by === (int) $user->uid;
-  $can_delete = user_access('delete any form') || ($is_owner && user_access('delete own form'));
+  if ($entity_type === 'response') {
+    // Response access: admin OR owner/editor of the form.
+    $can_delete = user_access('edit any form');
+    if (!$can_delete) {
+      $member_role = db_select('dynamic_form_members', 'm')
+        ->fields('m', array('role'))
+        ->condition('form_id', $record->form_id)
+        ->condition('user_id', $user->uid)
+        ->execute()
+        ->fetchField();
+      if (!$member_role) {
+        $form_owner = db_select('dynamic_form_forms', 'f')
+          ->fields('f', array('created_by'))
+          ->condition('id', $record->form_id)
+          ->execute()
+          ->fetchField();
+        if ((int) $form_owner === (int) $user->uid) {
+          $member_role = 'owner';
+        }
+      }
+      $can_delete = in_array($member_role, array('owner', 'editor'));
+    }
+  }
+  else {
+    // Access: 'delete any form' OR user owns the item and has 'delete own form'.
+    $is_owner   = isset($record->created_by) && (int) $record->created_by === (int) $user->uid;
+    $can_delete = user_access('delete any form') || ($is_owner && user_access('delete own form'));
+  }
 
   if (!$can_delete) {
     drupal_json_output(array('status' => 'error', 'message' => t('Access denied.')));
@@ -922,12 +978,13 @@ function dynamic_form_ajax_entity_delete($entity_type, $entity_id) {
     case 'form':     $label = $record->title; break;
     case 'section':  $label = $record->name;  break;
     case 'question': $label = truncate_utf8($record->label, 60, TRUE, TRUE); break;
+    case 'response': $label = t('Response #@id', array('@id' => $entity_id)); break;
     default:         $label = 'Item';
   }
 
   drupal_json_output(array(
     'status'  => 'ok',
-    'message' => t('"@label" has been moved to Trash.', array('@label' => $label)),
+    'message' => t('"@label" has been deleted.', array('@label' => $label)),
   ));
   drupal_exit();
 }
@@ -940,6 +997,7 @@ function _dynamic_form_dashboard_entity_table($entity_type) {
     'form'     => 'dynamic_form_forms',
     'section'  => 'dynamic_form_sections',
     'question' => 'dynamic_form_questions',
+    'response' => 'dynamic_form_responses',
   );
   return isset($map[$entity_type]) ? $map[$entity_type] : NULL;
 }

@@ -87,6 +87,38 @@
 }
 
 /* ----------------------------------------------------------------
+   Row action buttons (View / Delete)
+   ---------------------------------------------------------------- */
+.dfr-resp-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dfr-resp-action-view {
+  font-size: 0.83rem;
+  font-weight: 500;
+}
+
+.dfr-resp-action-delete {
+  padding: 4px 12px;
+  background: transparent;
+  color: #e53e3e;
+  border: 1px solid #e53e3e;
+  border-radius: 5px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.18s, color 0.18s;
+  line-height: 1.5;
+}
+.dfr-resp-action-delete:hover {
+  background: #e53e3e;
+  color: #fff;
+}
+
+/* ----------------------------------------------------------------
    Response detail wrapper
    ---------------------------------------------------------------- */
 .dfr-response-detail {
@@ -173,3 +205,18 @@
   color: #bbb;
   font-style: italic;
 }
+
+/* ----------------------------------------------------------------
+   File download link in answer detail view
+   ---------------------------------------------------------------- */
+.dfr-file-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #5b6af7;
+  font-weight: 500;
+  font-size: 0.92rem;
+  text-decoration: none;
+  word-break: break-all;
+}
+.dfr-file-link:hover { text-decoration: underline; }

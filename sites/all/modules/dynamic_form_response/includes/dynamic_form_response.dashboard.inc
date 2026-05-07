@@ -33,8 +33,11 @@ function dynamic_form_response_list_page($form_id) {
 
   drupal_set_title(t('Responses: @title', array('@title' => $form->title)));
 
-  $mp = drupal_get_path('module', 'dynamic_form_response');
+  $mp     = drupal_get_path('module', 'dynamic_form_response');
+  $mp_dfm = drupal_get_path('module', 'dynamic_form');
   drupal_add_css($mp . '/css/response-list.css');
+  drupal_add_css($mp_dfm . '/css/dashboard-delete.css');
+  drupal_add_js($mp_dfm . '/js/dashboard-delete.js');
 
   $base = db_select('dynamic_form_responses', 'r')
     ->fields('r')
@@ -65,8 +68,13 @@ function dynamic_form_response_list_page($form_id) {
     }
   }
 
-  $out  = l(t('&larr; Builder'), 'dashboard/forms/' . $form_id . '/builder',
+  $out  = '<div class="dfr-breadcrumb">';
+  $out .= l(t('&larr; Forms'), 'dashboard/forms',
     array('html' => TRUE, 'attributes' => array('class' => array('dfr-back-link'))));
+  $out .= '<span class="dfr-breadcrumb-sep">/</span>';
+  $out .= l(check_plain($form->title), 'dashboard/forms/' . $form_id . '/builder',
+    array('attributes' => array('class' => array('dfr-breadcrumb-link'))));
+  $out .= '</div>';
 
   $out .= '<div class="dfr-responses-header">';
   $out .= '<h2>' . t('Responses &mdash; @title', array('@title' => check_plain($form->title))) . '</h2>';
@@ -95,10 +103,21 @@ function dynamic_form_response_list_page($form_id) {
       } else {
         $name = t('Anonymous');
       }
-      $date    = $r->submitted_at
+      $date         = $r->submitted_at
         ? format_date($r->submitted_at, 'custom', 'M j, Y H:i')
         : '—';
-      $actions = l(t('View'), 'dashboard/forms/' . $form_id . '/responses/' . (int) $r->id);
+      $modal_name   = ($uid && isset($users[$uid]))
+        ? '#' . (int) $r->id . ' – ' . check_plain($users[$uid]->name)
+        : '#' . (int) $r->id . ' – ' . t('Anonymous');
+      $view_link    = l(t('View'), 'dashboard/forms/' . $form_id . '/responses/' . (int) $r->id,
+        array('attributes' => array('class' => array('dfr-resp-action-view'))));
+      $delete_btn   = '<button type="button"'
+        . ' class="dfr-resp-action-delete dfb-delete-trigger"'
+        . ' data-entity-type="response"'
+        . ' data-entity-id="' . (int) $r->id . '"'
+        . ' data-entity-name="' . check_plain($modal_name) . '">'
+        . t('Delete') . '</button>';
+      $actions      = '<div class="dfr-resp-actions">' . $view_link . $delete_btn . '</div>';
 
       $out .= '<tr>'
         . '<td>' . $i . '</td>'
@@ -115,6 +134,7 @@ function dynamic_form_response_list_page($form_id) {
 
   module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.dashboard');
   $sidebar = _dynamic_form_dashboard_sidebar('forms');
+  $out    .= _dynamic_form_delete_confirm_modal();
 
   return theme('dynamic_form_dashboard', array(
     'sidebar' => $sidebar,
@@ -213,7 +233,7 @@ function dynamic_form_response_view_page($form_id, $response_id) {
     ->fields('a', array('question_id', 'value'))
     ->condition('response_id', $response_id)
     ->execute()
-    ->fetchAllKeyed('question_id', 'value');
+    ->fetchAllKeyed(0, 1);
 
   $out  = l(t('&larr; Back to Responses'), 'dashboard/forms/' . $form_id . '/responses',
     array('html' => TRUE, 'attributes' => array('class' => array('dfr-back-link'))));
@@ -276,7 +296,14 @@ function _dynamic_form_response_render_answer_card($q, array $answers) {
     $out .= '<div class="dfr-answer-empty">' . t('(No answer provided)') . '</div>';
   } else {
     $decoded = @json_decode($val, TRUE);
-    if (is_array($decoded)) {
+    if (is_array($decoded) && isset($decoded['fid'], $decoded['filename'], $decoded['url'])) {
+      // File upload answer — render as a download link.
+      $out .= '<div class="dfr-answer-value">'
+        . '<a href="' . check_url($decoded['url']) . '" target="_blank" class="dfr-file-link">'
+        . '&#128206; ' . check_plain($decoded['filename'])
+        . '</a>'
+        . '</div>';
+    } elseif (is_array($decoded)) {
       $out .= '<div class="dfr-answer-value">'
         . implode(', ', array_map('check_plain', $decoded)) . '</div>';
     } else {

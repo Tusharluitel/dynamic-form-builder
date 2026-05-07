@@ -22,7 +22,10 @@
 function dynamic_form_response_render_form($record) {
   global $user;
 
-  // Logged-in users who already submitted see a polite notice.
+  // Issue/read a persistent guest token cookie for anonymous visitors.
+  $guest_token = $user->uid ? NULL : _dynamic_form_response_get_guest_token();
+
+  // Already-submitted check for both authenticated and anonymous users.
   if ($user->uid) {
     $already = db_select('dynamic_form_responses', 'r')
       ->condition('form_id', $record->id)
@@ -30,16 +33,26 @@ function dynamic_form_response_render_form($record) {
       ->condition('status', 1)
       ->isNull('deleted_at')
       ->countQuery()->execute()->fetchField();
-
-    if ($already) {
-      return '<div class="dfr-already-submitted">'
-        . '<div class="dfr-check-icon">&#10003;</div>'
-        . '<p>' . t('You have already submitted a response to this form.') . '</p>'
-        . '</div>';
-    }
+  }
+  else {
+    $already_q = db_select('dynamic_form_responses', 'r');
+    $already_q->join('dynamic_form_response_sessions', 's', 's.response_id = r.id');
+    $already = $already_q
+      ->condition('r.form_id', $record->id)
+      ->condition('r.status', 1)
+      ->condition('s.guest_token', $guest_token)
+      ->isNull('r.deleted_at')
+      ->countQuery()->execute()->fetchField();
   }
 
-  // Recover an existing draft for logged-in users so answers are pre-filled.
+  if ($already) {
+    return '<div class="dfp-form-card"><div class="dfr-already-submitted">'
+      . '<div class="dfr-check-icon">&#10003;</div>'
+      . '<p>' . t('You have already submitted a response to this form.') . '</p>'
+      . '</div></div>';
+  }
+
+  // Draft recovery — pre-fill answers from any existing draft.
   $response_id      = 0;
   $existing_answers = array();
   if ($user->uid) {
@@ -51,17 +64,29 @@ function dynamic_form_response_render_form($record) {
       ->isNull('deleted_at')
       ->execute()
       ->fetchField();
+  }
+  else {
+    $draft_q = db_select('dynamic_form_responses', 'r');
+    $draft_q->join('dynamic_form_response_sessions', 's', 's.response_id = r.id');
+    $draft_id = $draft_q
+      ->fields('r', array('id'))
+      ->condition('r.form_id', $record->id)
+      ->condition('r.status', 0)
+      ->condition('s.guest_token', $guest_token)
+      ->isNull('r.deleted_at')
+      ->execute()
+      ->fetchField();
+  }
 
-    if ($draft_id) {
-      $response_id = (int) $draft_id;
-      $rows = db_select('dynamic_form_answers', 'a')
-        ->fields('a', array('question_id', 'value'))
-        ->condition('response_id', $response_id)
-        ->execute()
-        ->fetchAll();
-      foreach ($rows as $row) {
-        $existing_answers[(int) $row->question_id] = $row->value;
-      }
+  if ($draft_id) {
+    $response_id = (int) $draft_id;
+    $rows = db_select('dynamic_form_answers', 'a')
+      ->fields('a', array('question_id', 'value'))
+      ->condition('response_id', $response_id)
+      ->execute()
+      ->fetchAll();
+    foreach ($rows as $row) {
+      $existing_answers[(int) $row->question_id] = $row->value;
     }
   }
 
@@ -70,6 +95,7 @@ function dynamic_form_response_render_form($record) {
   drupal_add_js($mp . '/js/response-form.js');
   _dynamic_form_response_maybe_load_select2($record->id);
   _dynamic_form_response_maybe_load_tinymce($record->id);
+  drupal_add_css(drupal_get_path('module', 'dynamic_form') . '/css/preview.css');
 
   // Load sections ordered by position.
   $sections = db_select('dynamic_form_sections', 's')
@@ -159,15 +185,18 @@ function dynamic_form_response_render_form($record) {
   $token      = drupal_get_token('dfr_submit');
   $save_url   = url('dynamic-form-response/ajax/save');
   $submit_url = url('dynamic-form-response/ajax/submit');
+  $upload_url = url('dynamic-form-response/ajax/upload');
   $thanks_url = url('forms/' . check_plain($record->slug) . '/thank-you');
 
   $col_map = array('full' => 12, 'half' => 6, 'third' => 4, 'quarter' => 3);
 
-  $out  = '<div class="dfr-form-container"';
+  $out  = '<div class="dfp-form-card">';
+  $out .= '<div class="dfr-form-container"';
   $out .= ' data-form-id="'     . (int) $record->id . '"';
   $out .= ' data-token="'       . check_plain($token) . '"';
   $out .= ' data-save-url="'    . check_url($save_url) . '"';
   $out .= ' data-submit-url="'  . check_url($submit_url) . '"';
+  $out .= ' data-upload-url="'  . check_url($upload_url) . '"';
   $out .= ' data-thankyou-url="'. check_url($thanks_url) . '"';
   $out .= ' data-total-steps="' . $total . '">';
 
@@ -208,12 +237,12 @@ function dynamic_form_response_render_form($record) {
         if ($prev_sid !== -1) {
           $out .= '</div>'; // .dfr-response-section
         }
-        $out .= '<div class="dfr-response-section">';
+        $out .= '<div class="dfp-section">';
         if ($sec) {
-          $out .= '<div class="dfr-response-section-header">';
-          $out .= '<h2>' . check_plain($sec->name) . '</h2>';
+          $out .= '<div class="dfp-section-header">';
+          $out .= '<h2 class="dfp-section-title">' . check_plain($sec->name) . '</h2>';
           if (!empty($sec->description)) {
-            $out .= '<p>' . check_plain($sec->description) . '</p>';
+            $out .= '<p class="dfp-section-desc">' . check_plain($sec->description) . '</p>';
           }
           $out .= '</div>';
         }
@@ -222,11 +251,11 @@ function dynamic_form_response_render_form($record) {
 
       // Column row management.
       if (!$row_open) {
-        $out .= '<div class="dfr-question-row">';
+        $out .= '<div class="dfp-question-row">';
         $row_open = TRUE;
         $row_cols = 0;
       } elseif ($row_cols + $q_cols > 12) {
-        $out .= '</div><div class="dfr-question-row">';
+        $out .= '</div><div class="dfp-question-row">';
         $row_cols = 0;
       }
       $row_cols += $q_cols;
@@ -236,7 +265,7 @@ function dynamic_form_response_render_form($record) {
       $scale = isset($scale_by_q[$qid])   ? $scale_by_q[$qid]   : array();
       $val   = isset($existing_answers[$qid]) ? $existing_answers[$qid] : NULL;
 
-      $out .= '<div class="dfr-question-col dfr-col-' . check_plain($width) . '">';
+      $out .= '<div class="dfp-question-col dfp-col-' . check_plain($width) . '">';
       $out .= _dynamic_form_response_render_question($q, $opts, $scale, $val);
       $out .= '</div>';
     }
@@ -268,6 +297,7 @@ function dynamic_form_response_render_form($record) {
   }
 
   $out .= '</div>'; // .dfr-form-container
+  $out .= '</div>'; // .dfp-form-card
 
   return $out;
 }
@@ -285,19 +315,19 @@ function _dynamic_form_response_render_question($q, array $opts, array $scale, $
   $req  = (int) $q->is_required;
 
   $req_html  = $req
-    ? ' <span class="dfr-req" title="' . t('Required') . '">*</span>'
+    ? ' <span class="dfp-req" title="' . t('Required') . '">*</span>'
     : '';
   $desc_html = !empty($q->description)
-    ? '<p class="dfr-help-text">' . check_plain($q->description) . '</p>'
+    ? '<p class="dfp-help-text">' . check_plain($q->description) . '</p>'
     : '';
 
-  $out  = '<div class="dfr-question"';
+  $out  = '<div class="dfp-question"';
   $out .= ' data-question-id="' . $qid . '"';
   $out .= ' data-type="'        . check_plain($type) . '"';
   $out .= ' data-required="'    . $req . '">';
-  $out .= '<div class="dfr-question-label">' . check_plain($q->label) . $req_html . '</div>';
+  $out .= '<div class="dfp-question-label">' . check_plain($q->label) . $req_html . '</div>';
   $out .= $desc_html;
-  $out .= '<div class="dfr-question-input">';
+  $out .= '<div class="dfp-question-input">';
   $out .= _dynamic_form_response_render_input($q, $opts, $scale, $existing_value);
   $out .= '</div>';
   $out .= '<div class="dfr-field-error"></div>';
@@ -327,61 +357,61 @@ function _dynamic_form_response_render_input($q, array $opts, array $scale, $exi
     case 'email':
     case 'number':
       $itype = ($type === 'email') ? 'email' : ($type === 'number' ? 'number' : 'text');
-      return '<input type="' . $itype . '" class="dfr-input"' . $ph . ' value="' . $val . '">';
+      return '<input type="' . $itype . '" class="dfp-input"' . $ph . ' value="' . $val . '">';
 
     case 'textarea':
-      return '<textarea class="dfr-textarea" rows="4"' . $ph . '>' . $val . '</textarea>';
+      return '<textarea class="dfp-textarea" rows="4"' . $ph . '>' . $val . '</textarea>';
 
     case 'text_editor':
       $eid = 'dfr-tinymce-' . $qid;
-      return '<textarea id="' . $eid . '" class="dfr-textarea dfr-tinymce-area" rows="6">' . $val . '</textarea>';
+      return '<textarea id="' . $eid . '" class="dfp-textarea dfr-tinymce-area" rows="6">' . $val . '</textarea>';
 
     case 'date':
-      return '<input type="date" class="dfr-input" value="' . $val . '">';
+      return '<input type="date" class="dfp-input" value="' . $val . '">';
 
     case 'time':
-      return '<input type="time" class="dfr-input" value="' . $val . '">';
+      return '<input type="time" class="dfp-input" value="' . $val . '">';
 
     case 'radio':
       if (empty($opts)) {
-        return '<p class="dfr-no-options">' . t('No options defined.') . '</p>';
+        return '<p class="dfp-no-options">' . t('No options defined.') . '</p>';
       }
-      $html = '<div class="dfr-options-list">';
+      $html = '<div class="dfp-options-list">';
       foreach ($opts as $opt) {
         $lbl     = check_plain($opt->option_label);
         $checked = ($existing_value === $opt->option_label) ? ' checked' : '';
-        $html   .= '<label class="dfr-option-label">'
-          . '<input type="radio" name="dfr-radio-' . $qid . '" value="' . $lbl . '"' . $checked . '> '
+        $html   .= '<label class="dfp-option-label">'
+          . '<input type="radio" name="dfr-radio-' . $qid . '" value="' . $lbl . '"' . $checked . '>'
           . $lbl . '</label>';
       }
       return $html . '</div>';
 
     case 'checkbox':
       if (empty($opts)) {
-        return '<p class="dfr-no-options">' . t('No options defined.') . '</p>';
+        return '<p class="dfp-no-options">' . t('No options defined.') . '</p>';
       }
       $checked_vals = array();
       if ($existing_value !== NULL) {
         $dec          = @json_decode($existing_value, TRUE);
         $checked_vals = is_array($dec) ? $dec : array();
       }
-      $html = '<div class="dfr-options-list">';
+      $html = '<div class="dfp-options-list">';
       foreach ($opts as $opt) {
         $lbl     = check_plain($opt->option_label);
         $checked = in_array($opt->option_label, $checked_vals) ? ' checked' : '';
-        $html   .= '<label class="dfr-option-label">'
-          . '<input type="checkbox" value="' . $lbl . '"' . $checked . '> '
+        $html   .= '<label class="dfp-option-label">'
+          . '<input type="checkbox" value="' . $lbl . '"' . $checked . '>'
           . $lbl . '</label>';
       }
       return $html . '</div>';
 
     case 'select':
       if (empty($opts)) {
-        return '<p class="dfr-no-options">' . t('No options defined.') . '</p>';
+        return '<p class="dfp-no-options">' . t('No options defined.') . '</p>';
       }
       $allow_multi = !empty($scale['allow_multiple']);
       $multi_attr  = $allow_multi ? ' multiple' : '';
-      $class       = $allow_multi ? 'dfr-select-input dfr-select-multi' : 'dfr-select-input';
+      $class       = $allow_multi ? 'dfp-select dfp-select-multi dfp-select2' : 'dfp-select dfp-select2';
 
       $sel_vals = array();
       if ($allow_multi && $existing_value !== NULL) {
@@ -402,7 +432,13 @@ function _dynamic_form_response_render_input($q, array $opts, array $scale, $exi
       }
       $html .= '</select>';
       if ($allow_multi) {
-        $html .= '<p class="dfr-multi-hint">' . t('Multiple options can be selected.') . '</p>';
+        $html .= '<p class="dfp-multi-select-hint">'
+          . '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"'
+          . ' stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">'
+          . '<polyline points="9 11 12 14 22 4"/>'
+          . '<path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>'
+          . '</svg>'
+          . ' ' . t('Multiple options can be selected') . '</p>';
       }
       return $html;
 
@@ -413,18 +449,18 @@ function _dynamic_form_response_render_input($q, array $opts, array $scale, $exi
       $max_label = isset($scale['scale_max_label']) ? check_plain($scale['scale_max_label']) : '';
       $cur       = ($existing_value !== NULL) ? (int) $existing_value : 0;
 
-      $html = '<div class="dfr-rating-wrap">';
+      $html = '<div class="dfp-rating-wrap">';
       if ($min_label) {
-        $html .= '<span class="dfr-scale-label dfr-scale-label-min">' . $min_label . '</span>';
+        $html .= '<span class="dfp-scale-label dfp-scale-label-min">' . $min_label . '</span>';
       }
-      $html .= '<div class="dfr-stars">';
+      $html .= '<div class="dfp-stars">';
       for ($i = $min; $i <= $max; $i++) {
-        $active = ($i <= $cur) ? ' dfr-star-active' : '';
-        $html  .= '<span class="dfr-star' . $active . '" data-value="' . $i . '">&#9733;</span>';
+        $active = ($i <= $cur) ? ' dfp-star-active' : '';
+        $html  .= '<span class="dfp-star' . $active . '" data-value="' . $i . '">&#9733;</span>';
       }
       $html .= '</div>';
       if ($max_label) {
-        $html .= '<span class="dfr-scale-label dfr-scale-label-max">' . $max_label . '</span>';
+        $html .= '<span class="dfp-scale-label dfp-scale-label-max">' . $max_label . '</span>';
       }
       $html .= '<input type="hidden" class="dfr-rating-value" value="' . $cur . '">';
       $html .= '</div>';
@@ -437,16 +473,16 @@ function _dynamic_form_response_render_input($q, array $opts, array $scale, $exi
       $max_label = isset($scale['scale_max_label']) ? check_plain($scale['scale_max_label']) : '';
       $cur       = ($existing_value !== NULL) ? (int) $existing_value : NULL;
 
-      $html = '<div class="dfr-scale-wrap"><div class="dfr-scale-buttons">';
+      $html = '<div class="dfp-scale-wrap"><div class="dfp-scale-buttons">';
       for ($i = $min; $i <= $max; $i++) {
-        $active = ($cur !== NULL && $cur === $i) ? ' dfr-scale-active' : '';
-        $html  .= '<button type="button" class="dfr-scale-btn' . $active . '">' . $i . '</button>';
+        $active = ($cur !== NULL && $cur === $i) ? ' dfp-scale-active' : '';
+        $html  .= '<button type="button" class="dfp-scale-btn' . $active . '">' . $i . '</button>';
       }
       $html .= '</div>';
       if ($min_label || $max_label) {
-        $html .= '<div class="dfr-scale-labels">'
-          . '<span class="dfr-scale-label dfr-scale-label-min">' . $min_label . '</span>'
-          . '<span class="dfr-scale-label dfr-scale-label-max">' . $max_label . '</span>'
+        $html .= '<div class="dfp-scale-labels">'
+          . '<span class="dfp-scale-label dfp-scale-label-min">' . $min_label . '</span>'
+          . '<span class="dfp-scale-label dfp-scale-label-max">' . $max_label . '</span>'
           . '</div>';
       }
       $html .= '<input type="hidden" class="dfr-scale-value" value="' . ($cur !== NULL ? $cur : '') . '">';
@@ -462,10 +498,10 @@ function _dynamic_form_response_render_input($q, array $opts, array $scale, $exi
           $tv = implode(',', array_map('check_plain', $dec));
         }
       }
-      return '<input type="hidden" class="dfr-tags-input"'
+      return '<input type="hidden" class="dfp-tags-select2"'
         . ' data-autocomplete-url="' . $ac_url . '"'
         . ' value="' . $tv . '" style="width:100%">'
-        . '<p class="dfr-help-text">' . t('Type a tag and press Enter, or search existing tags.') . '</p>';
+        . '<p class="dfp-help-text">' . t('Type a tag and press Enter, or search existing tags.') . '</p>';
 
     case 'file':
       $badges = '';
@@ -490,22 +526,46 @@ function _dynamic_form_response_render_input($q, array $opts, array $scale, $exi
           . ($badges ? '<div class="dfp-file-types">' . $badges . '</div>' : '')
           . $size_pill . $files_pill . '</div>';
       }
+
+      // accept / multiple attributes for the native file picker.
+      $accept_list = array();
+      if (!empty($q->allow_file_types)) {
+        foreach (array_filter(array_map('trim', explode(',', $q->allow_file_types))) as $ft) {
+          $accept_list[] = '.' . $ft;
+        }
+      }
+      $accept_attr = $accept_list ? ' accept="' . check_plain(implode(',', $accept_list)) . '"' : '';
+      $multi_attr  = (!empty($q->max_files) && (int) $q->max_files > 1) ? ' multiple' : '';
+
+      // Pre-fill from draft: parse previously stored file JSON.
+      $file_val_attr  = '';
+      $file_name_disp = '';
+      if ($existing_value !== NULL && $existing_value !== '') {
+        $fdec = @json_decode($existing_value, TRUE);
+        if (is_array($fdec) && isset($fdec['filename'])) {
+          $file_val_attr  = check_plain($existing_value);
+          $file_name_disp = check_plain($fdec['filename']);
+        }
+      }
+
       $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"'
         . ' stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'
         . '<path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>'
         . '<polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/></svg>';
-      return '<div class="dfp-file-dropzone">'
-        . '<input type="file" class="dfp-file-hidden" data-question-id="' . $qid . '">'
+      return '<div class="dfp-file-dropzone' . ($file_name_disp ? ' dfp-file-done' : '') . '">'
+        . '<input type="hidden" class="dfp-file-value" value="' . $file_val_attr . '">'
+        . '<input type="file" class="dfp-file-hidden" data-question-id="' . $qid . '"' . $accept_attr . $multi_attr . '>'
         . '<div class="dfp-file-dropzone-inner">'
         . '<div class="dfp-file-upload-icon">' . $svg . '</div>'
         . '<div class="dfp-file-upload-prompt">'
         . '<span class="dfp-file-upload-btn">' . t('Click to upload') . '</span>'
         . '<span class="dfp-file-upload-or"> ' . t('or drag and drop') . '</span></div>'
-        . '<div class="dfp-file-name"></div>' . $meta
+        . '<div class="dfp-file-name"' . ($file_name_disp ? '' : ' style="display:none"') . '>'
+        . $file_name_disp . '</div>' . $meta
         . '</div></div>';
 
     default:
-      return '<input type="text" class="dfr-input"' . $ph . ' value="' . $val . '">';
+      return '<input type="text" class="dfp-input"' . $ph . ' value="' . $val . '">';
   }
 }
 
@@ -543,17 +603,23 @@ function _dynamic_form_response_maybe_load_select2($form_id) {
 (function ($) {
   Drupal.behaviors.dfrSelect2Init = {
     attach: function (context, settings) {
-      $('.dfr-select-input', context).once('dfr-s2', function () {
+      $('.dfp-select2', context).not('.dfp-tags-select2').once('dfp-s2', function () {
         if (typeof $.fn.select2 === 'undefined') { return; }
-        var isMulti = $(this).hasClass('dfr-select-multi');
-        $(this).select2({ placeholder: isMulti ? 'Select options…' : '— Select —', allowClear: !isMulti, width: '100%' });
+        var isMulti = $(this).hasClass('dfp-select-multi');
+        $(this).select2({
+          placeholder: isMulti ? 'Select options…' : '— Select —',
+          allowClear: !isMulti,
+          width: '100%',
+          dropdownCssClass: 'dfp-s2-preview-drop'
+        });
       });
-      $('.dfr-tags-input', context).once('dfr-tags-s2', function () {
+      $('.dfp-tags-select2', context).once('dfp-tags-s2', function () {
         if (typeof $.fn.select2 === 'undefined') { return; }
         var acUrl = $(this).data('autocomplete-url') || '{$ac_url}';
         $(this).select2({
           tags: [], tokenSeparators: [','], width: '100%',
           placeholder: 'Type to search or add tags…', minimumInputLength: 1,
+          dropdownCssClass: 'dfp-s2-preview-drop',
           ajax: {
             url: acUrl, dataType: 'json', quietMillis: 250,
             data:    function (term) { return { term: term }; },
@@ -630,7 +696,7 @@ function dynamic_form_response_ajax_save() {
 
 function _dynamic_form_response_do_save() {
   $token = isset($_POST['token']) ? $_POST['token'] : '';
-  if (!drupal_valid_token($token, 'dfr_submit')) {
+  if (!drupal_valid_token($token, 'dfr_submit', TRUE)) {
     return array('status' => 'error', 'message' => t('Invalid security token.'));
   }
 
@@ -643,7 +709,7 @@ function _dynamic_form_response_do_save() {
   }
 
   $form = db_select('dynamic_form_forms', 'f')
-    ->fields('f', array('id', 'status', 'closes_at', 'opens_at'))
+    ->fields('f', array('id', 'status', 'closes_at', 'opens_at', 'visibility'))
     ->condition('id', $form_id)
     ->condition('status', 1)
     ->isNull('deleted_at')
@@ -663,6 +729,11 @@ function _dynamic_form_response_do_save() {
   }
 
   global $user;
+
+  // Anonymous users may only save drafts for public forms.
+  if (!$user->uid && $form->visibility !== 'p') {
+    return array('status' => 'error', 'message' => t('You must be logged in to submit this form.'));
+  }
 
   if ($response_id) {
     // Verify the caller owns this draft.
@@ -684,14 +755,13 @@ function _dynamic_form_response_do_save() {
         return array('status' => 'error', 'message' => t('Access denied.'));
       }
     } else {
-      // Anonymous: match against hashed session ID stored at draft creation.
-      $hash  = hash('sha256', session_id());
+      $guest_token = _dynamic_form_response_get_guest_token();
       $match = db_select('dynamic_form_response_sessions', 's')
         ->condition('response_id', $response_id)
-        ->condition('session_id', $hash)
+        ->condition('guest_token', $guest_token)
         ->countQuery()->execute()->fetchField();
       if (!$match) {
-        return array('status' => 'error', 'message' => t('Session mismatch.'));
+        return array('status' => 'error', 'message' => t('Access denied.'));
       }
     }
 
@@ -718,6 +788,7 @@ function _dynamic_form_response_do_save() {
         'user_agent'  => isset($_SERVER['HTTP_USER_AGENT'])
           ? substr($_SERVER['HTTP_USER_AGENT'], 0, 512) : '',
         'session_id'  => hash('sha256', session_id()),
+        'guest_token' => $user->uid ? NULL : _dynamic_form_response_get_guest_token(),
         'created_at'  => $now,
       ))
       ->execute();
@@ -750,7 +821,7 @@ function dynamic_form_response_ajax_submit() {
 
 function _dynamic_form_response_do_submit() {
   $token = isset($_POST['token']) ? $_POST['token'] : '';
-  if (!drupal_valid_token($token, 'dfr_submit')) {
+  if (!drupal_valid_token($token, 'dfr_submit', TRUE)) {
     return array('status' => 'error', 'message' => t('Invalid security token.'));
   }
 
@@ -762,6 +833,20 @@ function _dynamic_form_response_do_submit() {
   }
 
   global $user;
+
+  // Anonymous users may only submit public forms.
+  if (!$user->uid) {
+    $form = db_select('dynamic_form_forms', 'f')
+      ->fields('f', array('visibility'))
+      ->condition('id', $form_id)
+      ->condition('status', 1)
+      ->isNull('deleted_at')
+      ->execute()
+      ->fetchObject();
+    if (!$form || $form->visibility !== 'p') {
+      return array('status' => 'error', 'message' => t('You must be logged in to submit this form.'));
+    }
+  }
 
   $response = db_select('dynamic_form_responses', 'r')
     ->fields('r')
@@ -782,13 +867,13 @@ function _dynamic_form_response_do_submit() {
       return array('status' => 'error', 'message' => t('Access denied.'));
     }
   } else {
-    $hash  = hash('sha256', session_id());
+    $guest_token = _dynamic_form_response_get_guest_token();
     $match = db_select('dynamic_form_response_sessions', 's')
       ->condition('response_id', $response_id)
-      ->condition('session_id', $hash)
+      ->condition('guest_token', $guest_token)
       ->countQuery()->execute()->fetchField();
     if (!$match) {
-      return array('status' => 'error', 'message' => t('Session mismatch.'));
+      return array('status' => 'error', 'message' => t('Access denied.'));
     }
   }
 
@@ -805,7 +890,7 @@ function _dynamic_form_response_do_submit() {
     ->fields('a', array('question_id', 'value'))
     ->condition('response_id', $response_id)
     ->execute()
-    ->fetchAllKeyed('question_id', 'value');
+    ->fetchAllKeyed(0, 1);
 
   $errors = array();
   foreach ($required as $qid => $q) {
@@ -839,6 +924,28 @@ function _dynamic_form_response_do_submit() {
 /* =====================================================================
    HELPERS
    ===================================================================== */
+
+/**
+ * Returns a stable 64-char hex guest token for the current anonymous visitor.
+ *
+ * On first call (no cookie present), generates a cryptographically random
+ * token, sets an httponly cookie valid for one year, and returns the value.
+ * On subsequent calls the existing cookie value is returned after format
+ * validation. Always returns NULL-safe for authenticated users — call only
+ * when $user->uid === 0.
+ */
+function _dynamic_form_response_get_guest_token() {
+  if (!empty($_COOKIE['dfr_guest'])) {
+    $token = $_COOKIE['dfr_guest'];
+    if (preg_match('/^[a-f0-9]{64}$/', $token)) {
+      return $token;
+    }
+  }
+  $token = bin2hex(drupal_random_bytes(32));
+  setcookie('dfr_guest', $token, time() + 60 * 60 * 24 * 365, '/', '', FALSE, TRUE);
+  $_COOKIE['dfr_guest'] = $token;
+  return $token;
+}
 
 /**
  * Inserts or updates one answer row for a given response + question pair.
@@ -906,4 +1013,134 @@ function dynamic_form_response_thankyou_page($slug) {
   $out .= '</div>';
 
   return $out;
+}
+
+/* =====================================================================
+   FILE UPLOAD ENDPOINT
+   ===================================================================== */
+
+/**
+ * AJAX callback: POST dynamic-form-response/ajax/upload
+ *
+ * Accepts a single file, validates type/size against the question's
+ * constraints, saves it to Drupal's managed file system, and returns
+ * JSON: { status:'ok', fid:N, filename:'...', url:'...' }
+ */
+function dynamic_form_response_ajax_upload() {
+  drupal_json_output(_dynamic_form_response_do_upload());
+}
+
+function _dynamic_form_response_do_upload() {
+  $token = isset($_POST['token']) ? $_POST['token'] : '';
+  if (!drupal_valid_token($token, 'dfr_submit', TRUE)) {
+    return array('status' => 'error', 'message' => t('Invalid security token.'));
+  }
+
+  $form_id     = isset($_POST['form_id'])     ? (int) $_POST['form_id']     : 0;
+  $question_id = isset($_POST['question_id']) ? (int) $_POST['question_id'] : 0;
+
+  if (!$form_id || !$question_id) {
+    return array('status' => 'error', 'message' => t('Missing parameters.'));
+  }
+
+  if (empty($_FILES['file']['tmp_name']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+    $codes = array(
+      UPLOAD_ERR_INI_SIZE  => t('File exceeds the server upload limit.'),
+      UPLOAD_ERR_FORM_SIZE => t('File exceeds the form size limit.'),
+      UPLOAD_ERR_PARTIAL   => t('File was only partially uploaded.'),
+      UPLOAD_ERR_NO_FILE   => t('No file was received.'),
+    );
+    $err_code = isset($_FILES['file']['error']) ? (int) $_FILES['file']['error'] : UPLOAD_ERR_NO_FILE;
+    return array(
+      'status'  => 'error',
+      'message' => isset($codes[$err_code]) ? $codes[$err_code] : t('Upload error.'),
+    );
+  }
+
+  // Confirm form is active.
+  $form = db_select('dynamic_form_forms', 'f')
+    ->fields('f', array('id', 'status'))
+    ->condition('id', $form_id)
+    ->condition('status', 1)
+    ->isNull('deleted_at')
+    ->execute()
+    ->fetchObject();
+  if (!$form) {
+    return array('status' => 'error', 'message' => t('Form not found.'));
+  }
+
+  // Load question constraints.
+  $question = db_select('dynamic_form_questions', 'q')
+    ->fields('q', array('id', 'type', 'allow_file_types', 'max_file_size'))
+    ->condition('id', $question_id)
+    ->condition('form_id', $form_id)
+    ->condition('type', 'file')
+    ->isNull('deleted_at')
+    ->execute()
+    ->fetchObject();
+  if (!$question) {
+    return array('status' => 'error', 'message' => t('File question not found.'));
+  }
+
+  $file_tmp  = $_FILES['file']['tmp_name'];
+  $file_name = $_FILES['file']['name'];
+  $file_size = $_FILES['file']['size'];
+
+  // Validate file extension.
+  if (!empty($question->allow_file_types)) {
+    $allowed = array_filter(array_map('strtolower', array_map('trim', explode(',', $question->allow_file_types))));
+    $ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+    if (!in_array($ext, $allowed)) {
+      return array(
+        'status'  => 'error',
+        'message' => t('File type .@ext is not allowed. Allowed: @list.', array(
+          '@ext'  => $ext,
+          '@list' => implode(', ', $allowed),
+        )),
+      );
+    }
+  }
+
+  // Validate file size.
+  if (!empty($question->max_file_size) && $file_size > (int) $question->max_file_size) {
+    return array(
+      'status'  => 'error',
+      'message' => t('File exceeds the @mb MB limit.', array(
+        '@mb' => round((int) $question->max_file_size / 1048576, 1),
+      )),
+    );
+  }
+
+  // Prepare upload directory.
+  $dir = 'public://form-responses/' . $form_id . '/' . $question_id;
+  if (!file_prepare_directory($dir, FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS)) {
+    return array('status' => 'error', 'message' => t('Could not create upload directory.'));
+  }
+
+  // Sanitise filename and resolve name conflicts.
+  $safe_name = file_munge_filename(drupal_basename($file_name), '');
+  $dest      = file_destination($dir . '/' . $safe_name, FILE_EXISTS_RENAME);
+
+  if (!drupal_move_uploaded_file($file_tmp, $dest)) {
+    return array('status' => 'error', 'message' => t('Could not save the uploaded file.'));
+  }
+
+  // Register as a Drupal managed file.
+  global $user;
+  $file            = new stdClass();
+  $file->uid       = (int) $user->uid;
+  $file->filename  = drupal_basename($dest);
+  $file->uri       = $dest;
+  $file->filemime  = file_get_mimetype($dest);
+  $file->filesize  = $file_size;
+  $file->status    = FILE_STATUS_PERMANENT;
+  $file->timestamp = REQUEST_TIME;
+  file_save($file);
+
+  return array(
+    'status'   => 'ok',
+    'fid'      => (int) $file->fid,
+    'filename' => $file->filename,
+    'url'      => file_create_url($file->uri),
+  );
 }

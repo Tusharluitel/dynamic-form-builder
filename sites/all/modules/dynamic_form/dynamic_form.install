@@ -1334,3 +1334,27 @@ function dynamic_form_update_7003() {
   db_create_table('dynamic_form_invitations', $schema);
   return t('Created dynamic_form_invitations table for the email invitation system.');
 }
+
+/**
+ * Implements hook_update_N().
+ *
+ * Update 7004 — Persistent guest token for anonymous respondents.
+ *
+ * Adds a guest_token column to dynamic_form_response_sessions so that
+ * anonymous form submissions can be tracked across page loads without
+ * relying on the Drupal session ID (which is unstable and not always
+ * started). A 64-char hex token is issued as an httponly cookie
+ * (dfr_guest) on first form interaction and stored here alongside the
+ * existing ip_address / user_agent columns. NULL for authenticated users.
+ */
+function dynamic_form_update_7004() {
+  db_add_field('dynamic_form_response_sessions', 'guest_token', array(
+    'description' => 'Stable anonymous identifier cookie value (64-char hex). NULL for authenticated users.',
+    'type'     => 'varchar',
+    'length'   => 64,
+    'not null' => FALSE,
+    'default'  => NULL,
+  ));
+  db_add_index('dynamic_form_response_sessions', 'guest_token', array('guest_token'));
+  return t('Added guest_token column and index to dynamic_form_response_sessions.');
+}

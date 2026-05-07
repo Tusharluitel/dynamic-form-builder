@@ -331,7 +331,7 @@ function dynamic_form_menu()
 
   $items['dynamic-form/ajax/tags/autocomplete'] = array(
     'page callback'   => 'dynamic_form_ajax_tags_autocomplete',
-    'access callback' => 'user_is_logged_in',
+    'access callback' => TRUE,
     'file'            => 'includes/dynamic_form.tags.inc',
     'type'            => MENU_CALLBACK,
   );
