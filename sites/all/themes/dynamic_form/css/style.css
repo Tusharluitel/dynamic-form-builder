@@ -846,6 +846,26 @@ body.admin-menu .dfb-dashboard-sidebar {
   color: #dc2626 !important;
 }
 
+/* ===== Response count column ===== */
+.dfb-responses-cell { white-space: nowrap; }
+
+.dfb-response-count-link {
+  display: inline-block;
+  background: rgba(99, 102, 241, .08);
+  color: var(--color-primary) !important;
+  border-radius: var(--radius-full);
+  padding: 3px 12px;
+  font-size: .8rem;
+  font-weight: 600;
+  text-decoration: none !important;
+  transition: background var(--transition);
+}
+.dfb-response-count-link:hover {
+  background: rgba(99, 102, 241, .16);
+  text-decoration: none !important;
+}
+.dfb-response-zero { color: var(--color-text-muted); }
+
 /* ===== Badges ===== */
 .dfb-badge {
   display: inline-block;

@@ -1,5 +1,7 @@
 /* ===================================================================
-   Dynamic Form Response — public fill-out form styles
+   Dynamic Form Response — response-specific styles only.
+   Visual element styles (inputs, options, rating, scale, etc.) are
+   provided by preview.css which is loaded alongside this file.
    =================================================================== */
 
 /* ----------------------------------------------------------------
@@ -59,187 +61,24 @@
 /* ----------------------------------------------------------------
    Steps
    ---------------------------------------------------------------- */
-.dfr-step            { display: none; }
-.dfr-step-active     { display: block; }
+.dfr-step        { display: none; }
+.dfr-step-active { display: block; }
 
 /* ----------------------------------------------------------------
-   Section cards
+   Star rating — fill preceding stars on hover (JS adds dfp-star-hover)
    ---------------------------------------------------------------- */
-.dfr-response-section {
-  background: #fff;
-  border: 1px solid #e0e0ee;
-  border-radius: 8px;
-  padding: 20px 24px;
-  margin-bottom: 14px;
-}
-
-.dfr-response-section-header {
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #f0f0f8;
-}
-
-.dfr-response-section-header h2 {
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: #1a1a2e;
-  margin: 0 0 4px;
-}
-
-.dfr-response-section-header p {
-  font-size: 0.85rem;
-  color: #8888aa;
-  margin: 0;
-}
-
-/* ----------------------------------------------------------------
-   Column layout (mirrors preview)
-   ---------------------------------------------------------------- */
-.dfr-question-row  { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 4px; }
-.dfr-question-col  { flex: 1 1 auto; }
-.dfr-col-full      { flex: 0 0 100%; }
-.dfr-col-half      { flex: 0 0 calc(50% - 7px); }
-.dfr-col-third     { flex: 0 0 calc(33.333% - 10px); }
-.dfr-col-quarter   { flex: 0 0 calc(25% - 11px); }
-
-/* ----------------------------------------------------------------
-   Question wrapper
-   ---------------------------------------------------------------- */
-.dfr-question         { margin-bottom: 18px; }
-.dfr-question-label   { font-weight: 500; color: #2c2c3e; margin-bottom: 6px; line-height: 1.4; }
-.dfr-req              { color: #e53e3e; margin-left: 2px; }
-.dfr-help-text        { font-size: 0.83rem; color: #8888aa; margin: 0 0 8px; }
-.dfr-no-options       { font-size: 0.85rem; color: #aaa; font-style: italic; }
-
-/* ----------------------------------------------------------------
-   Text / email / number / date / time
-   ---------------------------------------------------------------- */
-.dfr-input {
-  width: 100%;
-  padding: 9px 12px;
-  border: 1px solid #d0d0e0;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  color: #2c2c3e;
-  background: #fff;
-  box-sizing: border-box;
-  transition: border-color 0.2s, box-shadow 0.2s;
-  appearance: none;
-}
-.dfr-input:focus {
-  outline: none;
-  border-color: #5b6af7;
-  box-shadow: 0 0 0 3px rgba(91,106,247,0.12);
-}
-
-/* ----------------------------------------------------------------
-   Textarea
-   ---------------------------------------------------------------- */
-.dfr-textarea {
-  width: 100%;
-  padding: 9px 12px;
-  border: 1px solid #d0d0e0;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  color: #2c2c3e;
-  background: #fff;
-  box-sizing: border-box;
-  resize: vertical;
-  min-height: 100px;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-.dfr-textarea:focus {
-  outline: none;
-  border-color: #5b6af7;
-  box-shadow: 0 0 0 3px rgba(91,106,247,0.12);
-}
-
-/* ----------------------------------------------------------------
-   Radio / Checkbox
-   ---------------------------------------------------------------- */
-.dfr-options-list { display: flex; flex-direction: column; gap: 7px; }
-
-.dfr-option-label {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 9px 12px;
-  border: 1px solid #e0e0ee;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  color: #2c2c3e;
-  transition: background 0.15s, border-color 0.15s;
-  user-select: none;
-}
-.dfr-option-label:hover              { background: #f5f5fc; border-color: #c0c0ee; }
-.dfr-option-label input[type="radio"],
-.dfr-option-label input[type="checkbox"] { cursor: pointer; accent-color: #5b6af7; }
-
-/* ----------------------------------------------------------------
-   Select
-   ---------------------------------------------------------------- */
-.dfr-select-input {
-  width: 100%;
-  padding: 9px 12px;
-  border: 1px solid #d0d0e0;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  color: #2c2c3e;
-  background: #fff;
-  box-sizing: border-box;
-  cursor: pointer;
-}
-.dfr-multi-hint { font-size: 0.78rem; color: #8888aa; margin: 4px 0 0; }
-
-/* ----------------------------------------------------------------
-   Rating stars
-   ---------------------------------------------------------------- */
-.dfr-rating-wrap { display: flex; align-items: center; gap: 8px; }
-.dfr-stars       { display: flex; gap: 3px; }
-.dfr-star {
-  font-size: 2rem;
-  color: #d0d0e0;
-  cursor: pointer;
-  transition: color 0.12s;
-  user-select: none;
-  line-height: 1;
-}
-.dfr-star.dfr-star-hover,
-.dfr-star.dfr-star-active { color: #f6b800; }
-
-/* ----------------------------------------------------------------
-   Linear scale
-   ---------------------------------------------------------------- */
-.dfr-scale-wrap    { display: flex; flex-direction: column; gap: 6px; }
-.dfr-scale-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
-
-.dfr-scale-btn {
-  width: 42px;
-  height: 42px;
-  border: 1px solid #d0d0e0;
-  border-radius: 6px;
-  background: #fff;
-  cursor: pointer;
-  font-size: 0.9rem;
-  color: #2c2c3e;
-  transition: border-color 0.15s, background 0.15s, color 0.15s;
-}
-.dfr-scale-btn:hover          { border-color: #5b6af7; color: #5b6af7; }
-.dfr-scale-btn.dfr-scale-active { background: #5b6af7; border-color: #5b6af7; color: #fff; }
-
-.dfr-scale-labels  { display: flex; justify-content: space-between; }
-.dfr-scale-label   { font-size: 0.78rem; color: #8888aa; }
+.dfp-star.dfp-star-hover { color: #f59e0b; }
 
 /* ----------------------------------------------------------------
    Validation errors
    ---------------------------------------------------------------- */
 .dfr-field-error { color: #e53e3e; font-size: 0.82rem; margin-top: 5px; display: none; }
 
-.dfr-question-error .dfr-input,
-.dfr-question-error .dfr-textarea,
-.dfr-question-error .dfr-select-input { border-color: #e53e3e; }
-.dfr-question-error .dfr-option-label { border-color: #e53e3e; }
+.dfp-question-error .dfp-input,
+.dfp-question-error .dfp-textarea,
+.dfp-question-error .dfp-select2 { border-color: #e53e3e; }
+
+.dfp-question-error .dfp-option-label { border-color: #e53e3e; }
 
 /* ----------------------------------------------------------------
    Step navigation bar
@@ -276,6 +115,28 @@
 .dfr-btn-submit:disabled { opacity: 0.65; cursor: not-allowed; }
 
 .dfr-empty { color: #aaa; font-style: italic; padding: 16px 0; }
+
+/* ----------------------------------------------------------------
+   File dropzone upload states
+   ---------------------------------------------------------------- */
+.dfp-file-dropzone.dfp-file-uploading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.dfp-file-dropzone.dfp-file-done {
+  border-color: #22c55e !important;
+  background: #f0fdf4 !important;
+}
+
+.dfp-file-dropzone.dfp-file-error {
+  border-color: #e53e3e !important;
+  background: #fff5f5 !important;
+}
+
+.dfp-file-dropzone.dfp-file-error .dfp-file-name {
+  color: #e53e3e;
+}
 
 /* ----------------------------------------------------------------
    Thank-you page

@@ -1,17 +1,6 @@
 <?php
 
 /**
- * Implements hook_init().
- *
- * Loads the DFBToast CSS and JS on every page for toast notifications
- */
-function dynamic_form_init() {
-  $module_path = drupal_get_path('module', 'dynamic_form');
-  drupal_add_css($module_path . '/css/toast.css');
-  drupal_add_js($module_path . '/js/toast.js');
-}
-
-/**
  * Returns an AJAX command array that triggers a DFBToast notification.
  *
  * @param string $type     One of: success, error, warning, info.
@@ -331,7 +320,7 @@ function dynamic_form_menu()
 
   $items['dynamic-form/ajax/tags/autocomplete'] = array(
     'page callback'   => 'dynamic_form_ajax_tags_autocomplete',
-    'access callback' => 'user_is_logged_in',
+    'access callback' => TRUE,
     'file'            => 'includes/dynamic_form.tags.inc',
     'type'            => MENU_CALLBACK,
   );
