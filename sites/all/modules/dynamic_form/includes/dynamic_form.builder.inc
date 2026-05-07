@@ -1097,7 +1097,7 @@ function dynamic_form_builder_question_form_submit($form, &$form_state) {
     ))->execute();
   }
 
-  // Store for AJAX callback, then reset form state for next open.
+  // set form state for next open.
   $q_obj     = (object) $q_fields;
   $q_obj->id = (int) $question_id;
   $form_state['dfb_saved_question']   = $q_obj;

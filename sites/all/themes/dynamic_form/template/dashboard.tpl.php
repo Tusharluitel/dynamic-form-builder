@@ -3,9 +3,6 @@
  * @file
  * Dashboard layout template for the Dynamic Form Builder.
  *
- * Variables:
- *   - $sidebar: Rendered sidebar navigation HTML.
- *   - $content: Rendered main content panel HTML.
  */
 ?>
 <div class="dfb-dashboard" id="dfb-dashboard">
