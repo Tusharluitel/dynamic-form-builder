@@ -255,6 +255,97 @@ function dynamic_form_response_view_page($form_id, $response_id) {
 }
 
 /* =====================================================================
+   MY SUBMISSIONS
+   ===================================================================== */
+
+/**
+ * Page callback: dashboard/submissions
+ *
+ * Lists all responses (drafts and submitted) that the current user has
+ * created, across any form.
+ */
+function dynamic_form_response_submissions_page() {
+  global $user;
+
+  drupal_set_title(t('My Submissions'));
+
+  $mp = drupal_get_path('module', 'dynamic_form_response');
+  drupal_add_css($mp . '/css/response-list.css');
+
+  $query = db_select('dynamic_form_responses', 'r');
+  $query->join('dynamic_form_forms', 'f', 'r.form_id = f.id');
+  $query->fields('r', array('id', 'form_id', 'status', 'submitted_at', 'updated_at'));
+  $query->addField('f', 'title', 'form_title');
+  $query->addField('f', 'slug',  'form_slug');
+  $query->condition('r.user_id', $user->uid);
+  $query->isNull('r.deleted_at');
+  $query->isNull('f.deleted_at');
+  $query->orderBy('r.updated_at', 'DESC');
+
+  $rows = $query->execute()->fetchAll();
+
+  $out  = '<div class="dfb-dashboard-header">';
+  $out .= '<h2>' . t('My Submissions') . '</h2>';
+  $out .= '<p class="dfb-dashboard-subtitle">' . t('Forms you have filled out or started') . '</p>';
+  $out .= '</div>';
+
+  if (empty($rows)) {
+    $out .= '<div class="dfb-empty-state">';
+    $out .= '<div class="dfb-empty-icon">&#128221;</div>';
+    $out .= '<p>' . t("You haven't submitted any forms yet. <a href=\"!url\">Browse available forms</a> to get started.", array('!url' => url('dashboard/browse'))) . '</p>';
+    $out .= '</div>';
+  }
+  else {
+    $status_labels = array(
+      0 => '<span class="dfb-badge dfb-badge-draft">'     . t('Draft')     . '</span>',
+      1 => '<span class="dfb-badge dfb-badge-published">' . t('Submitted') . '</span>',
+    );
+
+    $out .= '<table class="dfr-response-table">';
+    $out .= '<thead><tr>'
+      . '<th>' . t('Form')      . '</th>'
+      . '<th>' . t('Status')    . '</th>'
+      . '<th>' . t('Submitted') . '</th>'
+      . '<th>' . t('Actions')   . '</th>'
+      . '</tr></thead><tbody>';
+
+    foreach ($rows as $r) {
+      $status_badge = isset($status_labels[(int) $r->status])
+        ? $status_labels[(int) $r->status]
+        : check_plain($r->status);
+
+      $date = ($r->submitted_at && (int) $r->status === 1)
+        ? format_date($r->submitted_at, 'custom', 'M j, Y H:i')
+        : '—';
+
+      if ((int) $r->status === 1) {
+        $action = l(t('View'), 'dashboard/forms/' . (int) $r->form_id . '/responses/' . (int) $r->id);
+      }
+      else {
+        $action = l(t('Continue'), 'forms/' . check_plain($r->form_slug));
+      }
+
+      $out .= '<tr>'
+        . '<td>' . check_plain($r->form_title) . '</td>'
+        . '<td>' . $status_badge . '</td>'
+        . '<td>' . $date . '</td>'
+        . '<td>' . $action . '</td>'
+        . '</tr>';
+    }
+
+    $out .= '</tbody></table>';
+  }
+
+  module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.dashboard');
+  $sidebar = _dynamic_form_dashboard_sidebar('submissions');
+
+  return theme('dynamic_form_dashboard', array(
+    'sidebar' => $sidebar,
+    'content' => $out,
+  ));
+}
+
+/* =====================================================================
    HELPERS
    ===================================================================== */
 

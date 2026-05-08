@@ -105,6 +105,16 @@ function _dynamic_form_dashboard_sidebar($active = 'overview')
       'path' => 'dashboard/sections',
       'icon' => '&#128193;',
     ),
+    'browse' => array(
+      'label' => t('Browse Forms'),
+      'path' => 'dashboard/browse',
+      'icon' => '&#128269;',
+    ),
+    'submissions' => array(
+      'label' => t('My Submissions'),
+      'path' => 'dashboard/submissions',
+      'icon' => '&#128221;',
+    ),
   );
 
   $output = '<nav class="dfb-sidebar-nav">';
@@ -942,6 +952,111 @@ function _dynamic_form_dashboard_entity_table($entity_type) {
     'question' => 'dynamic_form_questions',
   );
   return isset($map[$entity_type]) ? $map[$entity_type] : NULL;
+}
+
+/* =====================================================================
+   BROWSE FORMS PAGE
+   ===================================================================== */
+
+/**
+ * Page callback: dashboard/browse
+ *
+ * Lists all published, currently-open forms the user is eligible to fill out:
+ * Public forms and Members-Only forms where the user has a membership record.
+ */
+function dynamic_form_dashboard_browse_page() {
+  global $user;
+
+  drupal_set_title(t('Browse Forms'));
+
+  $now = REQUEST_TIME;
+
+  // Sub-query: form IDs where this user is a member.
+  $member_sub = db_select('dynamic_form_members', 'm')
+    ->fields('m', array('form_id'))
+    ->condition('m.user_id', $user->uid);
+
+  // Visibility: public OR (members-only AND user is a member).
+  $members_only = db_and()
+    ->condition('f.visibility', 'm')
+    ->condition('f.id', $member_sub, 'IN');
+
+  $vis_cond = db_or()
+    ->condition('f.visibility', 'p')
+    ->condition($members_only);
+
+  // opens_at window: NULL means no delay.
+  $opens_cond = db_or()
+    ->isNull('f.opens_at')
+    ->condition('f.opens_at', $now, '<=');
+
+  // closes_at window: NULL means never closes.
+  $closes_cond = db_or()
+    ->isNull('f.closes_at')
+    ->condition('f.closes_at', $now, '>=');
+
+  $query = db_select('dynamic_form_forms', 'f')
+    ->fields('f', array('id', 'title', 'slug', 'description', 'visibility', 'closes_at'))
+    ->condition('f.status', 1)
+    ->isNull('f.deleted_at')
+    ->condition($vis_cond)
+    ->condition($opens_cond)
+    ->condition($closes_cond)
+    ->orderBy('f.created_at', 'DESC');
+
+  $forms = $query->execute()->fetchAll();
+
+  $visibility_labels = array(
+    'p' => '<span class="dfb-badge dfb-badge-published">' . t('Public')       . '</span>',
+    'm' => '<span class="dfb-badge dfb-badge-shared">'   . t('Members Only') . '</span>',
+  );
+
+  $out  = '<div class="dfb-dashboard-header">';
+  $out .= '<h2>' . t('Browse Forms') . '</h2>';
+  $out .= '<p class="dfb-dashboard-subtitle">' . t('Published forms you can fill out') . '</p>';
+  $out .= '</div>';
+
+  if (empty($forms)) {
+    $out .= '<div class="dfb-empty-state">';
+    $out .= '<div class="dfb-empty-icon">&#128269;</div>';
+    $out .= '<p>' . t('No forms are currently available for you to fill out.') . '</p>';
+    $out .= '</div>';
+  }
+  else {
+    $header = array(t('Form'), t('Visibility'), t('Closes'), t('Actions'));
+    $rows   = array();
+
+    foreach ($forms as $f) {
+      $vis_badge = isset($visibility_labels[$f->visibility])
+        ? $visibility_labels[$f->visibility]
+        : check_plain($f->visibility);
+
+      $closes = $f->closes_at
+        ? format_date($f->closes_at, 'custom', 'M j, Y')
+        : '<em class="dfb-text-muted">' . t('No deadline') . '</em>';
+
+      $rows[] = array(
+        array('data' => check_plain($f->title)),
+        array('data' => $vis_badge, 'class' => array('status-cell')),
+        $closes,
+        l(t('Fill Out'), 'forms/' . $f->slug),
+      );
+    }
+
+    $out .= theme('table', array(
+      'header'     => $header,
+      'rows'       => $rows,
+      'attributes' => array('class' => array('dfb-dashboard-table')),
+      'empty'      => t('No forms found.'),
+    ));
+  }
+
+  $sidebar_html = _dynamic_form_dashboard_sidebar('browse');
+
+  return theme('dynamic_form_dashboard', array(
+    'sidebar' => $sidebar_html,
+    'content' => $out,
+  ));
 }
 
 /* =====================================================================
