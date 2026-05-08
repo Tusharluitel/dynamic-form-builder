@@ -85,10 +85,19 @@ function dynamic_form_response_menu() {
     'title'            => 'Response Detail',
     'page callback'    => 'dynamic_form_response_view_page',
     'page arguments'   => array(2, 4),
-    'access callback'  => '_dynamic_form_response_view_access',
-    'access arguments' => array(2),
+    'access callback'  => '_dynamic_form_response_detail_access',
+    'access arguments' => array(2, 4),
     'type'             => MENU_CALLBACK,
     'file'             => 'includes/dynamic_form_response.dashboard.inc',
+  );
+
+  // Dashboard: forms the current user has submitted or drafted responses for.
+  $items['dashboard/submissions'] = array(
+    'title'           => 'My Submissions',
+    'page callback'   => 'dynamic_form_response_submissions_page',
+    'access callback' => 'user_is_logged_in',
+    'type'            => MENU_CALLBACK,
+    'file'            => 'includes/dynamic_form_response.dashboard.inc',
   );
 
   return $items;
@@ -156,4 +165,36 @@ function _dynamic_form_response_view_access($form_id) {
     ->condition('role', array('owner', 'editor'), 'IN')
     ->isNull('deleted_at')
     ->countQuery()->execute()->fetchField();
+}
+
+/**
+ * Access callback for dashboard/forms/%/responses/% (single response detail).
+ *
+ * Extends the list-level check by also granting access to the user who
+ * submitted the specific response being viewed.
+ *
+ * @param int $form_id      Form primary key.
+ * @param int $response_id  Response primary key.
+ */
+function _dynamic_form_response_detail_access($form_id, $response_id) {
+  global $user;
+  if (!$user->uid) {
+    return FALSE;
+  }
+
+  // Form owners, editors, and admins already covered by the list callback.
+  if (_dynamic_form_response_view_access($form_id)) {
+    return TRUE;
+  }
+
+  // Also grant access to the respondent who owns this specific response.
+  $owner = db_select('dynamic_form_responses', 'r')
+    ->fields('r', array('user_id'))
+    ->condition('id', (int) $response_id)
+    ->condition('form_id', (int) $form_id)
+    ->isNull('deleted_at')
+    ->execute()
+    ->fetchField();
+
+  return ($owner !== FALSE && (int) $owner === (int) $user->uid);
 }

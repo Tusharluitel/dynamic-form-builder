@@ -377,6 +377,14 @@ function dynamic_form_menu()
     'type'             => MENU_CALLBACK,
   );
 
+  $items['dashboard/browse'] = array(
+    'title'           => 'Browse Forms',
+    'page callback'   => 'dynamic_form_dashboard_browse_page',
+    'access callback' => 'user_is_logged_in',
+    'file'            => 'includes/dynamic_form.dashboard.inc',
+    'type'            => MENU_CALLBACK,
+  );
+
   // Public-facing routes.
   $items['forms'] = array(
     'title'           => 'Public Forms',
