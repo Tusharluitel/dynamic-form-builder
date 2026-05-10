@@ -1298,6 +1298,13 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
       $scale_meta[$meta->rule_type] = $meta->rule_value;
     }
 
+    // Lock type picker if the form already has submitted responses.
+    $form_state['dfb_eq_type_locked'] = (bool) db_select('dynamic_form_responses', 'r')
+      ->condition('form_id', (int) $q->form_id)
+      ->condition('status', 1)
+      ->isNull('deleted_at')
+      ->countQuery()->execute()->fetchField();
+
     $form_state['dfb_eq_loaded']       = TRUE;
     $form_state['dfb_eq_question_id']  = (int) $question_id;
     $form_state['dfb_eq_question']     = $q;
@@ -1308,6 +1315,7 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
   $q            = $form_state['dfb_eq_question'];
   $section_name = $form_state['dfb_eq_section_name'];
   $scale_meta   = $form_state['dfb_eq_scale_meta'];
+  $type_locked  = !empty($form_state['dfb_eq_type_locked']);
 
   // The #prefix includes the modal header so the injected HTML is self-contained.
   $form['#action'] = url('system/ajax');
@@ -1355,7 +1363,18 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
       'linear_scale' => t('Scale'),
     ),
     '#attributes'    => array('class' => array('dfb-type-picker')),
+    '#disabled'      => $type_locked,
   );
+
+  if ($type_locked) {
+    $form['type_section']['type_lock_notice'] = array(
+      '#markup' => '<div class="dfb-type-locked-notice">'
+        . '<span class="dfb-lock-icon">&#128274;</span> '
+        . t('This form already has responses. The question type cannot be changed to preserve data integrity.')
+        . '</div>',
+      '#weight' => 10,
+    );
+  }
 
   $form['sep'] = array('#markup' => '<hr class="dfb-modal-separator">');
 
@@ -1721,7 +1740,11 @@ function dynamic_form_builder_question_edit_form_submit($form, &$form_state) {
   $now         = REQUEST_TIME;
   $values      = $form_state['values'];
   $question_id = (int) $form_state['dfb_eq_question_id'];
-  $type        = $values['type'];
+
+  // If the form has responses, enforce the original type regardless of input.
+  $type = !empty($form_state['dfb_eq_type_locked'])
+    ? $form_state['dfb_eq_question']->type
+    : $values['type'];
 
   $allow_file_types = NULL;
   $max_file_size    = NULL;

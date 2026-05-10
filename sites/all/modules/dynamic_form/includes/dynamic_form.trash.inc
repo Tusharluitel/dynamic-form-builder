@@ -36,16 +36,17 @@ function dynamic_form_dashboard_trash_page() {
    ===================================================================== */
 
 /**
- * Renders all three trash sections: deleted forms, sections, and questions.
+ * Renders trash sections: deleted forms, sections, questions, and responses.
  */
 function _dynamic_form_dashboard_trash_content() {
   global $user;
-  $is_admin   = user_access('edit any form');
-  $can_act    = user_access('restore deleted');
+  $is_admin        = user_access('edit any form');
+  $is_resp_admin   = user_access('view any form responses');
+  $can_act         = user_access('restore deleted');
 
   $output  = '<div class="dfb-dashboard-header">';
   $output .= '<h2>' . t('Trash') . '</h2>';
-  $output .= '<p class="dfb-dashboard-subtitle">' . t('Soft-deleted forms, sections, and questions. Restore them or remove permanently.') . '</p>';
+  $output .= '<p class="dfb-dashboard-subtitle">' . t('Soft-deleted forms, sections, questions, and responses. Restore them or remove permanently.') . '</p>';
   $output .= '</div>';
 
   // ---- Deleted forms ----
@@ -100,6 +101,27 @@ function _dynamic_form_dashboard_trash_content() {
     $deleted_questions, 'question', $can_act
   );
 
+  // ---- Deleted responses ----
+  $rq = db_select('dynamic_form_responses', 'r');
+  $rq->leftJoin('dynamic_form_forms', 'f', 'r.form_id = f.id');
+  $rq->leftJoin('users', 'u', 'r.user_id = u.uid');
+  $rq->fields('r', array('id', 'form_id', 'status', 'submitted_at', 'deleted_at'));
+  $rq->addField('f', 'title', 'form_title');
+  $rq->addField('u', 'name', 'respondent_name');
+  $rq->condition('r.deleted_at', NULL, 'IS NOT NULL')
+    ->orderBy('r.deleted_at', 'DESC');
+  if (!$is_resp_admin) {
+    // Limit to responses belonging to forms the current user owns.
+    $rq->condition('f.created_by', $user->uid);
+  }
+  $deleted_responses = $rq->execute()->fetchAll();
+
+  $output .= _dynamic_form_trash_section_block(
+    t('Responses'), '&#128221;', count($deleted_responses),
+    array(t('Respondent'), t('Form'), t('Status'), t('Submitted'), t('Deleted On'), t('Actions')),
+    $deleted_responses, 'response', $can_act
+  );
+
   return $output;
 }
 
@@ -141,6 +163,7 @@ function _dynamic_form_trash_build_row($record, $entity_type, $can_act) {
     case 'form':     $entity_name = $record->title; break;
     case 'section':  $entity_name = $record->name;  break;
     case 'question': $entity_name = truncate_utf8($record->label, 60, TRUE, TRUE); break;
+    case 'response': $entity_name = t('Response #@id', array('@id' => $record->id)); break;
     default:         $entity_name = '';
   }
 
@@ -199,6 +222,28 @@ function _dynamic_form_trash_build_row($record, $entity_type, $can_act) {
         $deleted_date,
         $actions_html,
       );
+
+    case 'response':
+      $respondent = !empty($record->respondent_name)
+        ? check_plain($record->respondent_name)
+        : '<em class="dfb-text-muted">' . t('Anonymous') . '</em>';
+      $form_label = !empty($record->form_title)
+        ? check_plain($record->form_title)
+        : '<em class="dfb-text-muted">' . t('(form deleted)') . '</em>';
+      $status_badge = (int) $record->status === 1
+        ? '<span class="dfb-badge dfb-badge-published">' . t('Submitted') . '</span>'
+        : '<span class="dfb-badge dfb-badge-draft">'     . t('Draft')     . '</span>';
+      $submitted = $record->submitted_at
+        ? format_date($record->submitted_at, 'short')
+        : '<em class="dfb-text-muted">—</em>';
+      return array(
+        $respondent,
+        $form_label,
+        array('data' => $status_badge, 'class' => array('status-cell')),
+        $submitted,
+        $deleted_date,
+        $actions_html,
+      );
   }
   return array();
 }
@@ -214,7 +259,7 @@ function _dynamic_form_trash_build_row($record, $entity_type, $can_act) {
  * @param int    $entity_id    Primary key of the entity.
  */
 function dynamic_form_trash_restore_confirm($form, &$form_state, $entity_type, $entity_id) {
-  if (!in_array($entity_type, array('form', 'section', 'question'))) {
+  if (!in_array($entity_type, array('form', 'section', 'question', 'response'))) {
     drupal_not_found();
     drupal_exit();
   }
@@ -271,7 +316,7 @@ function dynamic_form_trash_restore_confirm_submit($form, &$form_state) {
  * Form builder: confirm permanent deletion of a soft-deleted item.
  */
 function dynamic_form_trash_delete_permanent_confirm($form, &$form_state, $entity_type, $entity_id) {
-  if (!in_array($entity_type, array('form', 'section', 'question'))) {
+  if (!in_array($entity_type, array('form', 'section', 'question', 'response'))) {
     drupal_not_found();
     drupal_exit();
   }
@@ -315,6 +360,9 @@ function dynamic_form_trash_delete_permanent_confirm_submit($form, &$form_state)
       break;
     case 'question':
       _dynamic_form_trash_hard_delete_question($entity_id);
+      break;
+    case 'response':
+      _dynamic_form_trash_hard_delete_response($entity_id);
       break;
   }
 
@@ -391,6 +439,24 @@ function _dynamic_form_trash_hard_delete_section($section_id) {
 }
 
 /**
+ * Permanently deletes a single response and its answers.
+ */
+function _dynamic_form_trash_hard_delete_response($response_id) {
+  $answer_ids = db_select('dynamic_form_answers', 'a')
+    ->fields('a', array('id'))
+    ->condition('response_id', $response_id)
+    ->execute()->fetchCol();
+
+  if (!empty($answer_ids)) {
+    db_delete('dynamic_form_answer_files')->condition('answer_id', $answer_ids, 'IN')->execute();
+    db_delete('dynamic_form_answers')->condition('id', $answer_ids, 'IN')->execute();
+  }
+
+  db_delete('dynamic_form_response_sessions')->condition('response_id', $response_id)->execute();
+  db_delete('dynamic_form_responses')->condition('id', $response_id)->execute();
+}
+
+/**
  * Permanently deletes a question and its options, validations, and answers.
  */
 function _dynamic_form_trash_hard_delete_question($question_id) {
@@ -421,6 +487,7 @@ function _dynamic_form_trash_table($entity_type) {
     'form'     => 'dynamic_form_forms',
     'section'  => 'dynamic_form_sections',
     'question' => 'dynamic_form_questions',
+    'response' => 'dynamic_form_responses',
   );
   return isset($map[$entity_type]) ? $map[$entity_type] : NULL;
 }
@@ -454,6 +521,8 @@ function _dynamic_form_trash_label($entity_type, $record) {
       return check_plain($record->name);
     case 'question':
       return check_plain(truncate_utf8($record->label, 60, TRUE, TRUE));
+    case 'response':
+      return t('Response #@id', array('@id' => $record->id));
   }
   return t('Item');
 }
@@ -497,7 +566,7 @@ function dynamic_form_ajax_entity_restore($entity_type, $entity_id) {
     drupal_exit();
   }
 
-  if (!in_array($entity_type, array('form', 'section', 'question'))) {
+  if (!in_array($entity_type, array('form', 'section', 'question', 'response'))) {
     drupal_json_output(array('status' => 'error', 'message' => t('Invalid entity type.')));
     drupal_exit();
   }

@@ -1364,3 +1364,33 @@
   line-height: 1;
   min-width: 22px;
 }
+
+/* ==========================================================================
+   TYPE PICKER — LOCKED STATE (form has existing responses)
+   ========================================================================== */
+
+.dfb-type-picker--locked .form-type-radio,
+.dfb-type-picker[disabled] .form-type-radio {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.dfb-type-locked-notice {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 9px 13px;
+  background: #fffbeb;
+  border: 1px solid #f6d860;
+  border-radius: 7px;
+  font-size: 0.82rem;
+  color: #7a5e00;
+  line-height: 1.4;
+}
+
+.dfb-lock-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}

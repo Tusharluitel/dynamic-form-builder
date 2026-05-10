@@ -235,35 +235,120 @@ function dynamic_form_response_view_page($form_id, $response_id) {
     ->execute()
     ->fetchAllKeyed(0, 1);
 
-  $out  = l(t('&larr; Back to Responses'), 'dashboard/forms/' . $form_id . '/responses',
+  // Completion stats.
+  $total_q    = count($questions);
+  $answered_q = 0;
+  foreach ($questions as $q) {
+    $val = isset($answers[(int) $q->id]) ? $answers[(int) $q->id] : NULL;
+    if ($val !== NULL && $val !== '') {
+      $answered_q++;
+    }
+  }
+  $pct = $total_q > 0 ? round($answered_q / $total_q * 100) : 0;
+
+  // Prev / next submitted responses for this form (ordered by submitted_at ASC).
+  $all_ids = db_select('dynamic_form_responses', 'r')
+    ->fields('r', array('id'))
+    ->condition('form_id', $form_id)
+    ->condition('status', 1)
+    ->isNull('deleted_at')
+    ->orderBy('submitted_at', 'ASC')
+    ->execute()
+    ->fetchCol();
+
+  $current_pos = array_search($response_id, $all_ids);
+  $prev_id = ($current_pos !== FALSE && $current_pos > 0)
+    ? $all_ids[$current_pos - 1] : NULL;
+  $next_id = ($current_pos !== FALSE && $current_pos < count($all_ids) - 1)
+    ? $all_ids[$current_pos + 1] : NULL;
+
+  // ---- LEFT COLUMN: back link + meta + answer cards ------------------
+  $main  = l(t('&larr; Back to Responses'), 'dashboard/forms/' . $form_id . '/responses',
     array('html' => TRUE, 'attributes' => array('class' => array('dfr-back-link'))));
 
-  $out .= '<div class="dfr-detail-meta"><dl>'
+  $main .= '<div class="dfr-detail-meta"><dl>'
     . '<dt>' . t('Form')       . '</dt><dd>' . check_plain($form->title) . '</dd>'
     . '<dt>' . t('Respondent') . '</dt><dd>' . $resp_name . '</dd>'
     . '<dt>' . t('Email')      . '</dt><dd>' . $resp_mail . '</dd>'
     . '<dt>' . t('Submitted')  . '</dt><dd>' . $submitted_at . '</dd>'
     . '</dl></div>';
 
-  // Answers by section.
   foreach ($sections as $sec) {
     $sid = (int) $sec->id;
     $qs  = isset($q_by_section[$sid]) ? $q_by_section[$sid] : array();
     if (empty($qs)) {
       continue;
     }
-    $out .= '<h3 class="dfr-section-heading">' . check_plain($sec->name) . '</h3>';
+    $main .= '<h3 class="dfr-section-heading">' . check_plain($sec->name) . '</h3>';
     foreach ($qs as $q) {
-      $out .= _dynamic_form_response_render_answer_card($q, $answers);
+      $main .= _dynamic_form_response_render_answer_card($q, $answers);
+    }
+  }
+  if (!empty($q_by_section[0])) {
+    foreach ($q_by_section[0] as $q) {
+      $main .= _dynamic_form_response_render_answer_card($q, $answers);
     }
   }
 
-  // Unsectioned questions.
-  if (!empty($q_by_section[0])) {
-    foreach ($q_by_section[0] as $q) {
-      $out .= _dynamic_form_response_render_answer_card($q, $answers);
+  // ---- RIGHT COLUMN: info panel --------------------------------------
+
+  if (user_access('view response panel')) {
+
+  $panel  = '<aside class="dfr-detail-panel">';
+
+  // Completion card.
+  $panel .= '<div class="dfr-panel-card">';
+  $panel .= '<h4 class="dfr-panel-card-title">' . t('Completion') . '</h4>';
+  $panel .= '<div class="dfr-panel-stat">';
+  $panel .= '<span class="dfr-panel-stat-num">' . $answered_q . ' / ' . $total_q . '</span>';
+  $panel .= '<span class="dfr-panel-stat-label">' . t('questions answered') . '</span>';
+  $panel .= '</div>';
+  $panel .= '<div class="dfr-completion-bar-wrap">';
+  $panel .= '<div class="dfr-completion-bar" style="width:' . $pct . '%"></div>';
+  $panel .= '</div>';
+  $panel .= '<div class="dfr-completion-pct">' . $pct . '%</div>';
+  $panel .= '</div>';
+
+  // Navigation card.
+  if ($prev_id !== NULL || $next_id !== NULL) {
+    $base = 'dashboard/forms/' . $form_id . '/responses/';
+    $panel .= '<div class="dfr-panel-card dfr-panel-nav">';
+    $panel .= '<h4 class="dfr-panel-card-title">' . t('Navigate') . '</h4>';
+    $panel .= '<div class="dfr-panel-nav-btns">';
+    if ($prev_id !== NULL) {
+      $panel .= l(t('&larr; Previous'), $base . $prev_id,
+        array('html' => TRUE, 'attributes' => array('class' => array('dfr-nav-btn'))));
     }
+    if ($next_id !== NULL) {
+      $panel .= l(t('Next &rarr;'), $base . $next_id,
+        array('html' => TRUE, 'attributes' => array('class' => array('dfr-nav-btn'))));
+    }
+    $panel .= '</div>';
+    if ($current_pos !== FALSE) {
+      $panel .= '<p class="dfr-nav-position">'
+        . t('@num of @total', array('@num' => $current_pos + 1, '@total' => count($all_ids)))
+        . '</p>';
+    }
+    $panel .= '</div>';
   }
+
+  // Actions card.
+  $panel .= '<div class="dfr-panel-card dfr-panel-actions">';
+  $panel .= '<h4 class="dfr-panel-card-title">' . t('Actions') . '</h4>';
+  $panel .= l(t('All Responses'), 'dashboard/forms/' . $form_id . '/responses',
+    array('attributes' => array('class' => array('dfr-action-btn dfr-action-btn--secondary'))));
+  $panel .= l(t('Form Builder'), 'dashboard/forms/' . $form_id . '/builder',
+    array('attributes' => array('class' => array('dfr-action-btn dfr-action-btn--secondary'))));
+  $panel .= '</div>';
+
+  $panel .= '</aside>';
+}
+
+  // ---- Compose two-column layout ------------------------------------
+  $out = '<div class="dfr-detail-layout">'
+    . '<div class="dfr-detail-main">' . $main . '</div>'
+    . $panel
+    . '</div>';
 
   module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.dashboard');
   $sidebar = _dynamic_form_dashboard_sidebar('forms');

@@ -26,6 +26,10 @@ function dynamic_form_response_permission() {
       'title'       => t('Delete form responses'),
       'description' => t('Soft-delete submitted responses.'),
     ),
+    'view response panel' => array(
+      'title'       => t('View response panel'),
+      'description' => t('View the response panel.'),
+    ),
   );
 }
 
