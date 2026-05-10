@@ -88,11 +88,18 @@ function dynamic_form_edit_question_form($form, &$form_state, $question_id) {
       'max_file_size_mb'  => $record->max_file_size ? round($record->max_file_size / 1048576) : '',
       'max_files'         => $record->max_files ?: 1,
     );
+    // Lock type picker if the form already has submitted responses.
+    $form_state['dfb_type_locked'] = (bool) db_select('dynamic_form_responses', 'r')
+      ->condition('form_id', (int) $record->form_id)
+      ->condition('status', 1)
+      ->isNull('deleted_at')
+      ->countQuery()->execute()->fetchField();
   }
 
-  $record     = $form_state['dfb_edit_question'];
-  $scale_vals = $form_state['scale_vals'];
-  $fs         = $form_state['file_settings'];
+  $record      = $form_state['dfb_edit_question'];
+  $scale_vals  = $form_state['scale_vals'];
+  $fs          = $form_state['file_settings'];
+  $type_locked = !empty($form_state['dfb_type_locked']);
 
   $form['#prefix'] = '<div id="dfb-question-form-wrapper" class="dfb-edit-question-page">';
   $form['#suffix'] = '</div>';
@@ -121,8 +128,19 @@ function dynamic_form_edit_question_form($form, &$form_state, $question_id) {
       'rating'       => t('Rating'),
       'linear_scale' => t('Scale'),
     ),
-    '#attributes' => array('class' => array('dfb-type-picker')),
+    '#attributes'    => array('class' => array('dfb-type-picker')),
+    '#disabled'      => $type_locked,
   );
+
+  if ($type_locked) {
+    $form['type_section']['type_lock_notice'] = array(
+      '#markup' => '<div class="dfb-type-locked-notice">'
+        . '<span class="dfb-lock-icon">&#128274;</span> '
+        . t('This form already has responses. The question type cannot be changed to preserve data integrity.')
+        . '</div>',
+      '#weight' => 10,
+    );
+  }
 
   $form['sep'] = array('#markup' => '<hr class="dfb-modal-separator">');
 
@@ -453,8 +471,10 @@ function dynamic_form_edit_question_form_submit($form, &$form_state) {
   $now     = REQUEST_TIME;
   $values  = $form_state['values'];
   $record  = $form_state['dfb_edit_question'];
-  $type    = $values['type'];
   $qid     = (int) $record->id;
+
+  // If the form has responses, enforce the original type regardless of input.
+  $type = !empty($form_state['dfb_type_locked']) ? $record->type : $values['type'];
 
   // File settings.
   $allow_file_types = NULL;

@@ -61,7 +61,7 @@
   </section>
 
   <!-- Features Section -->
-  <section class="dfb-features" id="features">
+  <!-- <section class="dfb-features" id="features">
     <div class="dfb-features-inner">
       <div class="dfb-features-header">
         <span class="dfb-section-label">Features</span>
@@ -86,7 +86,7 @@
         </div>
       </div>
     </div>
-  </section>
+  </section> -->
 
   <!-- Public / Accessible Forms Section -->
   <?php if (!empty($front_forms)): ?>
