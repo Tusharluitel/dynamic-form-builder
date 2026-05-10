@@ -95,6 +95,9 @@ function dynamic_form_builder_page($form_id) {
   $output  = '<div class="dfb-builder-container" id="dfb-builder-container"';
   $output .= ' data-form-id="' . (int) $form_record->id . '">';
 
+  // Presence bar — populated by dfb-websocket.js when the WS module is active.
+  $output .= '<div id="dfb-presence-bar" class="dfb-presence-bar" style="display:none;"></div>';
+
   // Form header card.
   $output .= '<div class="dfb-builder-header-card">';
   $output .= '<div class="dfb-builder-header-top">';
