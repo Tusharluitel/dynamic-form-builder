@@ -1,0 +1,141 @@
+<?php
+
+/**
+ * @file
+ * Drupal integration for the Dynamic Form WebSocket presence module.
+ *
+ * Responsibilities:
+ * - Register the token-generation AJAX endpoint (hook_menu).
+ * - On builder pages: generate a short-lived auth token, inject JS + CSS, and
+ *   pass settings to the client (hook_init).
+ */
+
+// ---------------------------------------------------------------------------
+// hook_menu
+// ---------------------------------------------------------------------------
+
+/**
+ * Implements hook_menu().
+ */
+function dynamic_form_ws_menu() {
+  $items = array();
+
+  $items['dynamic-form-ws/token/%'] = array(
+    'page callback'   => 'dynamic_form_ws_token_page',
+    'page arguments'  => array(2),
+    'access callback' => '_dynamic_form_ws_token_access',
+    'access arguments' => array(2),
+    'type'            => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+/**
+ * Access callback: user must be logged in and able to edit the form.
+ */
+function _dynamic_form_ws_token_access($form_id) {
+  if (!user_is_logged_in()) {
+    return FALSE;
+  }
+  module_load_include('module', 'dynamic_form', 'dynamic_form');
+  return _dynamic_form_edit_access($form_id);
+}
+
+/**
+ * Page callback: generate a token and return it as JSON.
+ */
+function dynamic_form_ws_token_page($form_id) {
+  drupal_json_output(array(
+    'token' => _dynamic_form_ws_generate_token((int) $form_id),
+  ));
+  drupal_exit();
+}
+
+// ---------------------------------------------------------------------------
+// hook_init — inject assets on the builder page
+// ---------------------------------------------------------------------------
+
+/**
+ * Implements hook_init().
+ */
+function dynamic_form_ws_init() {
+  // Only activate on dashboard/forms/%/builder paths.
+  $path = current_path();
+  if (!preg_match('#^dashboard/forms/(\d+)/builder$#', $path, $m)) {
+    return;
+  }
+
+  global $user;
+  $form_id    = (int) $m[1];
+  $token      = _dynamic_form_ws_generate_token($form_id);
+  $module_path = drupal_get_path('module', 'dynamic_form_ws');
+
+  drupal_add_css($module_path . '/css/dfb-presence.css');
+  drupal_add_js($module_path  . '/js/dfb-websocket.js');
+  drupal_add_js(array(
+    'dfbWebSocket' => array(
+      'wsUrl'       => 'ws://localhost:8080',
+      'token'       => $token,
+      'formId'      => $form_id,
+      'currentUser' => array(
+        'uid'   => (int) $user->uid,
+        'name'  => check_plain($user->name),
+        'color' => _dynamic_form_ws_user_color((int) $user->uid),
+      ),
+    ),
+  ), 'setting');
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Generates (or refreshes) a 5-minute auth token for the current user + form.
+ *
+ * Any previous token for this uid+form_id pair is replaced so there is never
+ * more than one live token per user per form.
+ *
+ * @param int $form_id
+ * @return string  64-character hex token.
+ */
+function _dynamic_form_ws_generate_token($form_id) {
+  global $user;
+
+  $token = bin2hex(drupal_random_bytes(32));
+  $now   = REQUEST_TIME;
+
+  // Delete any existing token for this user + form to keep the table clean.
+  db_delete('dynamic_form_ws_tokens')
+    ->condition('uid', (int) $user->uid)
+    ->condition('form_id', (int) $form_id)
+    ->execute();
+
+  db_insert('dynamic_form_ws_tokens')
+    ->fields(array(
+      'token'      => $token,
+      'uid'        => (int) $user->uid,
+      'username'   => $user->name,
+      'form_id'    => (int) $form_id,
+      'created_at' => $now,
+      'expires_at' => $now + 300,
+    ))
+    ->execute();
+
+  return $token;
+}
+
+/**
+ * Deterministically maps a uid to one of 8 presence colors.
+ *
+ * @param int $uid
+ * @return string  CSS hex color string.
+ */
+function _dynamic_form_ws_user_color($uid) {
+  $colors = array(
+    '#e74c3c', '#3498db', '#2ecc71', '#f39c12',
+    '#9b59b6', '#1abc9c', '#e67e22', '#e84393',
+  );
+  return $colors[$uid % 8];
+}

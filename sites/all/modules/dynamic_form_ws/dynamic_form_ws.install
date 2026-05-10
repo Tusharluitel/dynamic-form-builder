@@ -1,0 +1,68 @@
+<?php
+
+/**
+ * @file
+ * Install, update, and uninstall hooks for the dynamic_form_ws module.
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function dynamic_form_ws_schema() {
+  $schema = array();
+
+  $schema['dynamic_form_ws_tokens'] = array(
+    'description' => 'Short-lived auth tokens issued to builder-page users for WebSocket authentication.',
+    'fields' => array(
+      'token' => array(
+        'description' => 'Random 64-character hex token (primary key).',
+        'type'        => 'varchar',
+        'length'      => 64,
+        'not null'    => TRUE,
+      ),
+      'uid' => array(
+        'description' => 'FK to {users}.uid.',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'username' => array(
+        'description' => 'Display name cached here so the WS server avoids a Drupal bootstrap.',
+        'type'        => 'varchar',
+        'length'      => 60,
+        'not null'    => TRUE,
+      ),
+      'form_id' => array(
+        'description' => 'The form this token grants presence access to.',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'created_at' => array(
+        'description' => 'Unix timestamp of token creation.',
+        'type'        => 'int',
+        'not null'    => TRUE,
+      ),
+      'expires_at' => array(
+        'description' => 'Unix timestamp when this token expires (created_at + 300).',
+        'type'        => 'int',
+        'not null'    => TRUE,
+      ),
+    ),
+    'primary key' => array('token'),
+    'indexes' => array(
+      'uid'        => array('uid'),
+      'form_id'    => array('form_id'),
+      'expires_at' => array('expires_at'),
+    ),
+  );
+
+  return $schema;
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function dynamic_form_ws_uninstall() {
+  db_drop_table('dynamic_form_ws_tokens');
+}

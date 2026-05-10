@@ -1,0 +1,12 @@
+{
+  "name": "dynamic_form/websocket",
+  "description": "Ratchet WebSocket server for collaborative form builder presence",
+  "require": {
+    "cboden/ratchet": "^0.4"
+  },
+  "autoload": {
+    "psr-4": {
+      "DynamicFormWs\\": "src/"
+    }
+  }
+}

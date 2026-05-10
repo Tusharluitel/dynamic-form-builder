@@ -1,0 +1,8 @@
+name = Dynamic Form WebSocket
+description = Real-time collaborative presence for the form builder using Ratchet WebSockets.
+core = 7.x
+package = Dynamic Form
+
+dependencies[] = dynamic_form
+
+files[] = src/FormBuilderPresence.php

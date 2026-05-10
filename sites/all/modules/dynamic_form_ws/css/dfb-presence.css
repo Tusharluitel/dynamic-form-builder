@@ -1,0 +1,113 @@
+/* ==========================================================================
+   Dynamic Form Builder — Collaborative Presence Styles
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Presence bar
+   -------------------------------------------------------------------------- */
+
+.dfb-presence-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  margin-bottom: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  min-height: 44px;
+  transition: opacity 0.3s;
+}
+
+.dfb-presence-bar.dfb-presence-disconnected {
+  opacity: 0.4;
+}
+
+.dfb-presence-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+  letter-spacing: 0.04em;
+  margin-right: 4px;
+  user-select: none;
+}
+
+/* --------------------------------------------------------------------------
+   Avatar circles
+   -------------------------------------------------------------------------- */
+
+.dfb-presence-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: default;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  animation: dfb-presence-pop 0.3s ease forwards;
+  position: relative;
+  user-select: none;
+}
+
+.dfb-presence-avatar:hover {
+  transform: scale(1.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  z-index: 2;
+}
+
+/* --------------------------------------------------------------------------
+   Card element highlights
+   -------------------------------------------------------------------------- */
+
+.dfb-presence-highlight {
+  border-left: 3px solid var(--dfb-presence-color, #3498db) !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05),
+              inset 3px 0 12px rgba(0, 0, 0, 0.1) !important;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  position: relative;
+}
+
+/* --------------------------------------------------------------------------
+   Avatar badge (pinned to the highlighted card)
+   -------------------------------------------------------------------------- */
+
+.dfb-presence-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  border: 2px solid rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  animation: dfb-presence-pop 0.25s ease forwards;
+  z-index: 10;
+}
+
+/* --------------------------------------------------------------------------
+   Animations
+   -------------------------------------------------------------------------- */
+
+@keyframes dfb-presence-pop {
+  0%   { transform: scale(0); opacity: 0; }
+  65%  { transform: scale(1.18); opacity: 1; }
+  100% { transform: scale(1);   opacity: 1; }
+}
+
+@keyframes dfb-presence-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; transform: scale(0.8); }
+}
