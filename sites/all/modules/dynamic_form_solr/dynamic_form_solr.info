@@ -1,0 +1,6 @@
+name = Dynamic Form Solr Tags
+description = Indexes dynamic_form_tags into Apache Solr and provides Solr-powered tag search/autocomplete.
+core = 7.x
+package = Dynamic Form
+
+dependencies[] = dynamic_form

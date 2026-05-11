@@ -6,13 +6,15 @@
       var $container = $('.dfr-form-container', context).once('dfr-form-init');
       if (!$container.length) { return; }
 
-      var formId      = parseInt($container.data('form-id'), 10);
-      var token       = $container.data('token');
-      var saveUrl     = $container.data('save-url');
-      var submitUrl   = $container.data('submit-url');
-      var uploadUrl   = $container.data('upload-url');
-      var thankyouUrl = $container.data('thankyou-url');
-      var totalSteps  = parseInt($container.data('total-steps'), 10);
+      var formId        = parseInt($container.data('form-id'), 10);
+      var token         = $container.data('token');
+      var saveUrl       = $container.data('save-url');
+      var submitUrl     = $container.data('submit-url');
+      var uploadUrl     = $container.data('upload-url');
+      var thankyouUrl   = $container.data('thankyou-url');
+      var totalSteps    = parseInt($container.data('total-steps'), 10);
+      var isAnon        = $container.data('is-anonymous') === 1;
+      var guestEmailUrl = $container.data('guest-email-url');
 
       var responseId  = parseInt($('#dfr-response-id').val(), 10) || 0;
       var currentStep = 1;
@@ -20,6 +22,98 @@
       var $steps    = $container.find('.dfr-step');
       var $progress = $container.find('.dfr-progress-fill');
       var $progText = $container.find('.dfr-progress-text');
+
+      // ----------------------------------------------------------------
+      // Anonymous email capture popup
+      // ----------------------------------------------------------------
+      var emailCollected = false;
+      var guestEmail     = '';
+      var pendingAction  = null;
+      var $overlay       = null;
+
+      function buildOverlay() {
+        var $el = $(
+          '<div class="dfr-email-overlay dfr-overlay-hidden">' +
+            '<div class="dfr-email-modal">' +
+              '<h3>One quick thing before you start</h3>' +
+              '<p>Please enter your email so we can identify your submission.</p>' +
+              '<input type="email" class="dfr-email-input" placeholder="you@example.com" autocomplete="email" />' +
+              '<div class="dfr-email-modal-error"></div>' +
+              '<button type="button" class="dfr-email-submit">Continue</button>' +
+              '<p class="dfr-email-note">Your email is only used to identify your response.</p>' +
+            '</div>' +
+          '</div>'
+        );
+        $el.on('click', '.dfr-email-submit', doSubmitEmail);
+        $el.on('keydown', '.dfr-email-input', function (e) {
+          if (e.which === 13) { doSubmitEmail(); }
+        });
+        $el.on('input', '.dfr-email-input', function () {
+          $(this).removeClass('dfr-input-error');
+          $el.find('.dfr-email-modal-error').hide();
+        });
+        return $el;
+      }
+
+      function showEmailPopup(cb) {
+        pendingAction = cb || null;
+        // Recreate overlay if user removed it from DOM via DevTools.
+        if (!$overlay || !$.contains(document.documentElement, $overlay[0])) {
+          $overlay = buildOverlay();
+          $('body').append($overlay);
+        }
+        $overlay.removeClass('dfr-overlay-hidden');
+        setTimeout(function () { $overlay.find('.dfr-email-input').focus(); }, 50);
+      }
+
+      function doSubmitEmail() {
+        var email  = $overlay.find('.dfr-email-input').val().trim();
+        var $err   = $overlay.find('.dfr-email-modal-error');
+        var $input = $overlay.find('.dfr-email-input');
+        var $btn   = $overlay.find('.dfr-email-submit');
+
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          $err.text('Please enter a valid email address.').show();
+          $input.addClass('dfr-input-error');
+          return;
+        }
+
+        $err.hide();
+        $input.removeClass('dfr-input-error');
+        $btn.prop('disabled', true).text('Saving…');
+
+        $.ajax({
+          url:      guestEmailUrl,
+          type:     'POST',
+          data:     { email: email, token: token },
+          dataType: 'json',
+          success: function (res) {
+            $btn.prop('disabled', false).text('Continue');
+            if (res && res.status === 'ok') {
+              emailCollected = true;
+              guestEmail     = email;
+              $overlay.addClass('dfr-overlay-hidden');
+              if (typeof pendingAction === 'function') {
+                var cb = pendingAction;
+                pendingAction = null;
+                cb();
+              }
+            } else {
+              $err.text((res && res.message) || 'Something went wrong. Please try again.').show();
+            }
+          },
+          error: function () {
+            $btn.prop('disabled', false).text('Continue');
+            $err.text('Network error. Please try again.').show();
+          }
+        });
+      }
+
+      if (isAnon) {
+        $overlay = buildOverlay();
+        $('body').append($overlay);
+        showEmailPopup(null);
+      }
 
       // ----------------------------------------------------------------
       // Progress bar
@@ -245,15 +339,19 @@
       // AJAX save
       // ----------------------------------------------------------------
       function saveStep($step, cb) {
+        var payload = {
+          form_id:     formId,
+          response_id: responseId,
+          answers:     collectStepAnswers($step),
+          token:       token
+        };
+        if (isAnon && guestEmail) {
+          payload.guest_email = guestEmail;
+        }
         $.ajax({
           url:      saveUrl,
           type:     'POST',
-          data:     {
-            form_id:     formId,
-            response_id: responseId,
-            answers:     collectStepAnswers($step),
-            token:       token
-          },
+          data:     payload,
           dataType: 'json',
           success: function (data) {
             if (data.status === 'ok') {
@@ -283,6 +381,12 @@
         var $current = $steps.filter('.dfr-step-active');
         if (!validateStep($current)) { return; }
 
+        if (isAnon && !emailCollected) {
+          var $self = $(this);
+          showEmailPopup(function () { $self.trigger('click'); });
+          return;
+        }
+
         var nextStep = parseInt($(this).data('step'), 10);
         var $btn     = $(this).prop('disabled', true).text('Saving…');
 
@@ -306,6 +410,12 @@
       $container.on('click', '.dfr-btn-submit', function () {
         var $current = $steps.filter('.dfr-step-active');
         if (!validateStep($current)) { return; }
+
+        if (isAnon && !emailCollected) {
+          var $self = $(this);
+          showEmailPopup(function () { $self.trigger('click'); });
+          return;
+        }
 
         var $btn = $(this).prop('disabled', true).text('Submitting…');
 

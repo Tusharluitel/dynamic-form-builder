@@ -182,23 +182,26 @@ function dynamic_form_response_render_form($record) {
   $steps = array_chunk($flat, $qpp);
   $total = count($steps);
 
-  $token      = drupal_get_token('dfr_submit');
-  $save_url   = url('dynamic-form-response/ajax/save');
-  $submit_url = url('dynamic-form-response/ajax/submit');
-  $upload_url = url('dynamic-form-response/ajax/upload');
-  $thanks_url = url('forms/' . check_plain($record->slug) . '/thank-you');
+  $token           = drupal_get_token('dfr_submit');
+  $save_url        = url('dynamic-form-response/ajax/save');
+  $submit_url      = url('dynamic-form-response/ajax/submit');
+  $upload_url      = url('dynamic-form-response/ajax/upload');
+  $guest_email_url = url('dynamic-form-response/ajax/guest-email');
+  $thanks_url      = url('forms/' . check_plain($record->slug) . '/thank-you');
 
   $col_map = array('full' => 12, 'half' => 6, 'third' => 4, 'quarter' => 3);
 
   $out  = '<div class="dfp-form-card">';
   $out .= '<div class="dfr-form-container"';
-  $out .= ' data-form-id="'     . (int) $record->id . '"';
-  $out .= ' data-token="'       . check_plain($token) . '"';
-  $out .= ' data-save-url="'    . check_url($save_url) . '"';
-  $out .= ' data-submit-url="'  . check_url($submit_url) . '"';
-  $out .= ' data-upload-url="'  . check_url($upload_url) . '"';
-  $out .= ' data-thankyou-url="'. check_url($thanks_url) . '"';
-  $out .= ' data-total-steps="' . $total . '">';
+  $out .= ' data-form-id="'          . (int) $record->id . '"';
+  $out .= ' data-token="'            . check_plain($token) . '"';
+  $out .= ' data-save-url="'         . check_url($save_url) . '"';
+  $out .= ' data-submit-url="'       . check_url($submit_url) . '"';
+  $out .= ' data-upload-url="'       . check_url($upload_url) . '"';
+  $out .= ' data-thankyou-url="'     . check_url($thanks_url) . '"';
+  $out .= ' data-total-steps="'      . $total . '"';
+  $out .= ' data-is-anonymous="'     . ($user->uid ? '0' : '1') . '"';
+  $out .= ' data-guest-email-url="'  . check_url($guest_email_url) . '">';
 
   $out .= '<input type="hidden" id="dfr-response-id" value="' . (int) $response_id . '">';
 
@@ -690,6 +693,37 @@ JS;
  * Creates or updates a draft response with the given answers.
  * Returns JSON: { status: 'ok', response_id: N } or { status: 'error', message: '...' }
  */
+/**
+ * AJAX callback: POST dynamic-form-response/ajax/guest-email
+ *
+ * Validates an email address submitted by an anonymous visitor via the
+ * capture popup. Returns { status: 'ok' } or { status: 'error', message }.
+ * The caller is responsible for passing the validated email in subsequent
+ * save requests so it can be persisted in dynamic_form_response_sessions.
+ */
+function dynamic_form_response_ajax_guest_email() {
+  drupal_json_output(_dynamic_form_response_do_guest_email());
+}
+
+function _dynamic_form_response_do_guest_email() {
+  global $user;
+  if ($user->uid) {
+    return array('status' => 'ok');
+  }
+
+  $token = isset($_POST['token']) ? $_POST['token'] : '';
+  if (!drupal_valid_token($token, 'dfr_submit', TRUE)) {
+    return array('status' => 'error', 'message' => t('Invalid security token.'));
+  }
+
+  $email = isset($_POST['email']) ? trim($_POST['email']) : '';
+  if (!valid_email_address($email)) {
+    return array('status' => 'error', 'message' => t('Please enter a valid email address.'));
+  }
+
+  return array('status' => 'ok');
+}
+
 function dynamic_form_response_ajax_save() {
   drupal_json_output(_dynamic_form_response_do_save());
 }
@@ -703,6 +737,15 @@ function _dynamic_form_response_do_save() {
   $form_id     = isset($_POST['form_id'])     ? (int) $_POST['form_id']     : 0;
   $response_id = isset($_POST['response_id']) ? (int) $_POST['response_id'] : 0;
   $answers     = isset($_POST['answers'])     ? $_POST['answers']            : array();
+
+  // Guest email submitted by anonymous visitor via the capture popup.
+  $guest_email = NULL;
+  if (!isset($GLOBALS['user']) || !$GLOBALS['user']->uid) {
+    $raw_email = isset($_POST['guest_email']) ? trim($_POST['guest_email']) : '';
+    if ($raw_email && valid_email_address($raw_email)) {
+      $guest_email = $raw_email;
+    }
+  }
 
   if (!$form_id) {
     return array('status' => 'error', 'message' => t('Missing form ID.'));
@@ -773,11 +816,12 @@ function _dynamic_form_response_do_save() {
     // Create a new draft response.
     $response_id = db_insert('dynamic_form_responses')
       ->fields(array(
-        'form_id'    => $form_id,
-        'user_id'    => (int) $user->uid,
-        'status'     => 0,
-        'created_at' => $now,
-        'updated_at' => $now,
+        'form_id'     => $form_id,
+        'user_id'     => (int) $user->uid,
+        'status'      => 0,
+        'guest_email' => $guest_email,
+        'created_at'  => $now,
+        'updated_at'  => $now,
       ))
       ->execute();
 
@@ -794,16 +838,54 @@ function _dynamic_form_response_do_save() {
       ->execute();
   }
 
+  // Persist the guest email whenever it arrives on an existing draft.
+  if (!$user->uid && $guest_email && $response_id) {
+    db_update('dynamic_form_responses')
+      ->fields(array('guest_email' => $guest_email))
+      ->condition('id', $response_id)
+      ->isNull('guest_email')
+      ->execute();
+  }
+
+  // Fetch question types for all answers being saved so tags can be routed
+  // to the dedicated tag-save function.
+  $q_types = array();
+  $q_ids   = array_filter(array_map('intval', array_keys($answers)));
+  if (!empty($q_ids)) {
+    $q_types = db_select('dynamic_form_questions', 'q')
+      ->fields('q', array('id', 'type'))
+      ->condition('id', $q_ids, 'IN')
+      ->execute()
+      ->fetchAllKeyed(0, 1);
+  }
+
   // Upsert each submitted answer.
   foreach ($answers as $question_id => $value) {
     $question_id = (int) $question_id;
     if (!$question_id) {
       continue;
     }
-    if (is_array($value)) {
-      $value = json_encode(array_values(array_filter($value, 'strlen')));
+
+    if (isset($q_types[$question_id]) && $q_types[$question_id] === 'tags') {
+      // Parse submitted value into a flat array of raw tag strings.
+      if (is_array($value)) {
+        $raw_tags = array_values(array_filter($value, 'strlen'));
+      }
+      else {
+        $decoded  = @json_decode($value, TRUE);
+        $raw_tags = is_array($decoded)
+          ? array_values(array_filter($decoded, 'strlen'))
+          : array_values(array_filter(array_map('trim', explode(',', (string) $value)), 'strlen'));
+      }
+      module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.tags');
+      _dynamic_form_save_tag_answers((int) $response_id, $question_id, $raw_tags);
     }
-    _dynamic_form_response_upsert_answer((int) $response_id, $question_id, (string) $value, $now);
+    else {
+      if (is_array($value)) {
+        $value = json_encode(array_values(array_filter($value, 'strlen')));
+      }
+      _dynamic_form_response_upsert_answer((int) $response_id, $question_id, (string) $value, $now);
+    }
   }
 
   return array('status' => 'ok', 'response_id' => (int) $response_id);
