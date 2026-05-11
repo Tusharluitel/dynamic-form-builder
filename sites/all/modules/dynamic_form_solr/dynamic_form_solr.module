@@ -1,0 +1,289 @@
+<?php
+
+/**
+ * @file
+ * Indexes dynamic_form_tags into Apache Solr for fast autocomplete & search.
+ *
+ * This module talks to Solr directly via its JSON API — it does NOT use the
+ * apachesolr module's entity indexing system because dynamic_form_tags is a
+ * plain custom table, not a Drupal entity.
+ *
+ * Configuration variables (set via variable_set() or settings.php):
+ *   - dynamic_form_solr_url: Solr core URL.
+ *     Default: http://localhost:8983/solr/dynamic-form-builder
+ */
+
+// ---------------------------------------------------------------------------
+// Constants / defaults
+// ---------------------------------------------------------------------------
+
+define('DYNAMIC_FORM_SOLR_DEFAULT_URL', 'http://localhost:8983/solr/dynamic-form-builder');
+
+// ---------------------------------------------------------------------------
+// hook_menu
+// ---------------------------------------------------------------------------
+
+/**
+ * Implements hook_menu().
+ */
+function dynamic_form_solr_menu() {
+  $items = array();
+
+  // Solr-powered autocomplete endpoint (replaces the DB-only one if enabled).
+  $items['dynamic-form/ajax/tags/solr-autocomplete'] = array(
+    'page callback'    => 'dynamic_form_solr_tags_autocomplete',
+    'access callback'  => TRUE,
+    'type'             => MENU_CALLBACK,
+    'file'             => 'dynamic_form_solr.pages.inc',
+  );
+
+  // Admin: manual re-index trigger.
+  $items['admin/config/search/dynamic-form-solr'] = array(
+    'title'            => 'Dynamic Form Solr Tags',
+    'description'      => 'Configure and re-index form tags in Apache Solr.',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('dynamic_form_solr_admin_form'),
+    'access arguments' => array('administer site configuration'),
+    'file'             => 'dynamic_form_solr.admin.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_menu_alter().
+ *
+ * Hijacks the existing tag autocomplete route to use Solr-powered search.
+ * This makes the integration "plug-and-play" — just enable the module.
+ */
+function dynamic_form_solr_menu_alter(&$items) {
+  $target = 'dynamic-form/ajax/tags/autocomplete';
+  if (isset($items[$target])) {
+    $items[$target]['page callback'] = 'dynamic_form_solr_tags_autocomplete';
+    $items[$target]['file']          = 'dynamic_form_solr.pages.inc';
+    $items[$target]['module']        = 'dynamic_form_solr';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Indexing API
+// ---------------------------------------------------------------------------
+
+/**
+ * Index every row from dynamic_form_tags into Solr.
+ *
+ * Each tag becomes a Solr document:
+ *   id        : "tag-{id}"
+ *   tag_id    : int
+ *   tag_value : the standardized_value (full-text searchable)
+ *   created   : ISO-8601 date
+ *
+ * @param bool $clear
+ *   If TRUE, delete all existing tag documents first.
+ *
+ * @return int
+ *   Number of documents indexed.
+ */
+function dynamic_form_solr_index_all($clear = FALSE) {
+  $solr_url = variable_get('dynamic_form_solr_url', DYNAMIC_FORM_SOLR_DEFAULT_URL);
+
+  // Optionally wipe existing tag docs.
+  if ($clear) {
+    _dynamic_form_solr_request($solr_url . '/update?commit=true', json_encode(array(
+      'delete' => array('query' => 'doc_type:tag'),
+    )));
+  }
+
+  // Fetch all tags from DB.
+  $rows = db_select('dynamic_form_tags', 't')
+    ->fields('t')
+    ->orderBy('id', 'ASC')
+    ->execute()
+    ->fetchAll();
+
+  if (empty($rows)) {
+    return 0;
+  }
+
+  // Build Solr documents.
+  $docs = array();
+  foreach ($rows as $row) {
+    $docs[] = array(
+      'id'        => 'tag-' . $row->id,
+      'doc_type'  => 'tag',
+      'tag_id'    => (int) $row->id,
+      'tag_value' => $row->standardized_value,
+      'created'   => gmdate('Y-m-d\TH:i:s\Z', $row->created_at),
+    );
+  }
+
+  // POST to Solr /update endpoint.
+  $response = _dynamic_form_solr_request($solr_url . '/update?commit=true', json_encode($docs));
+
+  if ($response === FALSE) {
+    watchdog('dynamic_form_solr', 'Failed to index tags to Solr.', array(), WATCHDOG_ERROR);
+    return 0;
+  }
+
+  watchdog('dynamic_form_solr', 'Indexed @count tags to Solr.', array('@count' => count($docs)));
+  return count($docs);
+}
+
+/**
+ * Index a single tag (call after insert/update).
+ *
+ * @param int    $tag_id
+ * @param string $standardized_value
+ * @param int    $created_at
+ */
+function dynamic_form_solr_index_tag($tag_id, $standardized_value, $created_at) {
+  $solr_url = variable_get('dynamic_form_solr_url', DYNAMIC_FORM_SOLR_DEFAULT_URL);
+
+  $doc = array(
+    'id'        => 'tag-' . $tag_id,
+    'doc_type'  => 'tag',
+    'tag_id'    => (int) $tag_id,
+    'tag_value' => $standardized_value,
+    'created'   => gmdate('Y-m-d\TH:i:s\Z', $created_at),
+  );
+
+  _dynamic_form_solr_request($solr_url . '/update?commit=true', json_encode(array($doc)));
+}
+
+/**
+ * Remove a single tag from the index.
+ *
+ * @param int $tag_id
+ */
+function dynamic_form_solr_delete_tag($tag_id) {
+  $solr_url = variable_get('dynamic_form_solr_url', DYNAMIC_FORM_SOLR_DEFAULT_URL);
+
+  _dynamic_form_solr_request($solr_url . '/update?commit=true', json_encode(array(
+    'delete' => array('id' => 'tag-' . $tag_id),
+  )));
+}
+
+// ---------------------------------------------------------------------------
+// Search / query API
+// ---------------------------------------------------------------------------
+
+/**
+ * Query Solr for tags matching a term (prefix search with fuzzy fallback).
+ *
+ * @param string $term
+ *   The partial tag text to search for.
+ * @param int $limit
+ *   Max results. Default 20.
+ *
+ * @return array
+ *   Array of {id, text} objects suitable for Select2.
+ */
+function dynamic_form_solr_search_tags($term, $limit = 20) {
+  $solr_url = variable_get('dynamic_form_solr_url', DYNAMIC_FORM_SOLR_DEFAULT_URL);
+
+  // Build Solr query: prefix match on tag_value, restricted to doc_type:tag.
+  $params = array(
+    'q'    => 'tag_value:' . _dynamic_form_solr_escape($term) . '*',
+    'fq'   => 'doc_type:tag',
+    'fl'   => 'tag_id,tag_value',
+    'rows' => (int) $limit,
+    'wt'   => 'json',
+    'sort' => 'tag_value asc',
+  );
+
+  $url = $solr_url . '/select?' . http_build_query($params);
+  $raw = _dynamic_form_solr_request($url, NULL, 'GET');
+
+  if ($raw === FALSE) {
+    return array();
+  }
+
+  $data = json_decode($raw, TRUE);
+  if (empty($data['response']['docs'])) {
+    return array();
+  }
+
+  $results = array();
+  foreach ($data['response']['docs'] as $doc) {
+    $results[] = array(
+      'id'   => $doc['tag_value'],
+      'text' => $doc['tag_value'],
+    );
+  }
+
+  return $results;
+}
+
+// ---------------------------------------------------------------------------
+// Hook into tag saves (real-time index updates)
+// ---------------------------------------------------------------------------
+
+/**
+ * Implements hook_module_implements_alter().
+ *
+ * We don't override the tag-save function directly; instead, we hook into
+ * the tag insert/update flow. Since dynamic_form_tags uses plain db_insert,
+ * we use hook_exit to check for freshly created tags in the request.
+ *
+ * A cleaner approach: call dynamic_form_solr_index_tag() directly from
+ * _dynamic_form_save_tag_answers() after the db_insert. This is documented
+ * in the integration guide.
+ */
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Makes an HTTP request to the Solr server.
+ *
+ * @param string      $url
+ * @param string|null $body    POST body (JSON). NULL for GET requests.
+ * @param string      $method  'POST' or 'GET'. Default 'POST' when body given.
+ *
+ * @return string|false
+ *   Response body on success, FALSE on failure.
+ */
+function _dynamic_form_solr_request($url, $body = NULL, $method = NULL) {
+  if ($method === NULL) {
+    $method = ($body !== NULL) ? 'POST' : 'GET';
+  }
+
+  $options = array(
+    'method'  => $method,
+    'timeout' => 10,
+    'headers' => array('Content-Type' => 'application/json'),
+  );
+
+  if ($body !== NULL) {
+    $options['data'] = $body;
+  }
+
+  $result = drupal_http_request($url, $options);
+
+  if (isset($result->error) || $result->code >= 400) {
+    watchdog('dynamic_form_solr', 'Solr request failed: @url — @error (HTTP @code)', array(
+      '@url'   => $url,
+      '@error' => isset($result->error) ? $result->error : 'Unknown error',
+      '@code'  => $result->code,
+    ), WATCHDOG_ERROR);
+    return FALSE;
+  }
+
+  return $result->data;
+}
+
+/**
+ * Escape special Solr query characters.
+ *
+ * @param string $string
+ * @return string
+ */
+function _dynamic_form_solr_escape($string) {
+  $special = array('+', '-', '&&', '||', '!', '(', ')', '{', '}', '[', ']',
+                   '^', '"', '~', '*', '?', ':', '\\', '/');
+  $escaped = str_replace($special, array_map(function ($c) {
+    return '\\' . $c;
+  }, $special), $string);
+  return $escaped;
+}

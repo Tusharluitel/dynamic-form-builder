@@ -92,6 +92,11 @@ function _dynamic_form_save_tag_answers($response_id, $question_id, array $raw_t
           'created_at'         => $now,
         ))
         ->execute();
+
+      // Index the new tag in Solr (if the Solr module is enabled).
+      if (module_exists('dynamic_form_solr')) {
+        dynamic_form_solr_index_tag($tag_id, $standardized, $now);
+      }
     }
 
     // Skip duplicate tags within the same submission.
