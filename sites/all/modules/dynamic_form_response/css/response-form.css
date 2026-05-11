@@ -139,6 +139,87 @@
 }
 
 /* ----------------------------------------------------------------
+   Anonymous email capture overlay
+   ---------------------------------------------------------------- */
+.dfr-email-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 9990;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dfr-email-overlay.dfr-overlay-hidden { display: none; }
+
+.dfr-email-modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 32px 28px 24px;
+  max-width: 400px;
+  width: calc(100% - 32px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.dfr-email-modal h3 {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+  color: #1a1a2e;
+}
+
+.dfr-email-modal > p {
+  margin: 0 0 20px;
+  font-size: 0.9rem;
+  color: #5a5a7a;
+}
+
+.dfr-email-input {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d0d0e8;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+  margin-bottom: 6px;
+}
+
+.dfr-email-input:focus    { outline: none; border-color: #5b6af7; }
+.dfr-email-input.dfr-input-error { border-color: #e53e3e; }
+
+.dfr-email-modal-error {
+  color: #e53e3e;
+  font-size: 0.82rem;
+  margin-bottom: 12px;
+  display: none;
+}
+
+.dfr-email-submit {
+  display: block;
+  width: 100%;
+  padding: 11px;
+  background: #5b6af7;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.dfr-email-submit:hover    { background: #4a59e6; }
+.dfr-email-submit:disabled { opacity: 0.65; cursor: not-allowed; }
+
+.dfr-email-note {
+  text-align: center;
+  font-size: 0.8rem;
+  color: #aaa;
+  margin: 12px 0 0;
+}
+
+/* ----------------------------------------------------------------
    Thank-you page
    ---------------------------------------------------------------- */
 .dfr-thankyou {

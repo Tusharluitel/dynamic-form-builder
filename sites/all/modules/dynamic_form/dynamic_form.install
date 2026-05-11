@@ -1358,3 +1358,25 @@ function dynamic_form_update_7004() {
   db_add_index('dynamic_form_response_sessions', 'guest_token', array('guest_token'));
   return t('Added guest_token column and index to dynamic_form_response_sessions.');
 }
+
+/**
+ * Implements hook_update_N().
+ *
+ * Update 7005 — Capture anonymous respondent email at form start.
+ *
+ * Adds a guest_email column to dynamic_form_responses so that the email
+ * collected from the popup shown to anonymous users is stored on the
+ * response itself. Kept out of dynamic_form_response_sessions because
+ * that table will be subject to automatic purging in a future release.
+ * NULL for authenticated users (who are identified by user_id).
+ */
+function dynamic_form_update_7005() {
+  db_add_field('dynamic_form_responses', 'guest_email', array(
+    'description' => 'Email address provided by anonymous respondent via the capture popup. NULL for authenticated users.',
+    'type'     => 'varchar',
+    'length'   => 255,
+    'not null' => FALSE,
+    'default'  => NULL,
+  ));
+  return t('Added guest_email column to dynamic_form_responses.');
+}

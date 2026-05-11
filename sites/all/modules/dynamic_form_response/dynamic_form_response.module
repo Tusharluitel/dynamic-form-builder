@@ -55,6 +55,14 @@ function dynamic_form_response_menu() {
     'file'            => 'includes/dynamic_form_response.submit.inc',
   );
 
+  // AJAX: validate and record email for anonymous respondents.
+  $items['dynamic-form-response/ajax/guest-email'] = array(
+    'page callback'   => 'dynamic_form_response_ajax_guest_email',
+    'access callback' => TRUE,
+    'type'            => MENU_CALLBACK,
+    'file'            => 'includes/dynamic_form_response.submit.inc',
+  );
+
   // AJAX: final submit — validates required fields, marks response submitted.
   $items['dynamic-form-response/ajax/submit'] = array(
     'page callback'   => 'dynamic_form_response_ajax_submit',
