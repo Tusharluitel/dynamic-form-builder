@@ -619,12 +619,6 @@ function dynamic_form_cron() {
     ->condition('expires_at', REQUEST_TIME, '<')
     ->execute();
   
-  // Change form status to Closed when the close date has passed
-  db_update('dynamic_form_forms')
-    ->fields(array('status' => 'closed'))
-    ->condition('status', 'open')
-    ->condition('close_date', REQUEST_TIME, '<')
-    ->execute();
 }
 
 /**

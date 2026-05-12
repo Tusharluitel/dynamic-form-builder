@@ -8,9 +8,6 @@
 /**
  * AJAX endpoint: Solr-powered autocomplete for tags (Select2 format).
  *
- * URL: dynamic-form/ajax/tags/solr-autocomplete?term=php
- * Returns JSON array of {id, text} objects.
- *
  * Falls back to the DB query if Solr is unreachable.
  */
 function dynamic_form_solr_tags_autocomplete() {
@@ -19,7 +16,6 @@ function dynamic_form_solr_tags_autocomplete() {
   $results = array();
 
   if (drupal_strlen($term) >= 1) {
-    // Try Solr first.
     $results = dynamic_form_solr_search_tags($term, 20);
 
     if (!empty($results)) {

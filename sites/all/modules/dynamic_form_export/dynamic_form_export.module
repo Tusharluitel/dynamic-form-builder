@@ -1,0 +1,88 @@
+<?php
+
+/**
+ * Returns an absolute path to a writable temp directory for export files.
+ *
+ * Defined here (in the always-loaded .module file) so it is available to all
+ * batch include files regardless of which one the batch system loads.
+ */
+function _dynamic_form_export_temp_dir() {
+  $dir = drupal_realpath('public://') . '/export-temp';
+  if (!is_dir($dir)) {
+    drupal_mkdir($dir);
+    @chmod($dir, 0775);
+  }
+  return $dir;
+}
+
+/**
+ * Implements hook_permission().
+ */
+function dynamic_form_export_permission() {
+  return array(
+    'export dynamic form audit log' => array(
+      'title'           => t('Export audit log'),
+      'description'     => t('Download the full dynamic form audit log as an XLSX file.'),
+      'restrict access' => TRUE,
+    ),
+  );
+}
+
+/**
+ * Implements hook_menu().
+ */
+function dynamic_form_export_menu() {
+  $items = array();
+
+  $items['dashboard/export'] = array(
+    'title'            => 'Export',
+    'page callback'    => 'dynamic_form_export_hub_page',
+    'access arguments' => array('export dynamic form audit log'),
+    'file'             => 'includes/dynamic_form_export.hub.inc',
+    'type'             => MENU_CALLBACK,
+  );
+
+  $items['dashboard/export/audit-log'] = array(
+    'title'            => 'Export Audit Log',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('dynamic_form_export_audit_log_form'),
+    'access arguments' => array('export dynamic form audit log'),
+    'file'             => 'includes/dynamic_form_export.audit_log.inc',
+    'type'             => MENU_CALLBACK,
+  );
+
+  $items['dashboard/export/download'] = array(
+    'title'           => 'Download Export',
+    'page callback'   => 'dynamic_form_export_download_page',
+    'access callback' => 'user_is_logged_in',
+    'file'            => 'includes/dynamic_form_export.helpers.inc',
+    'type'            => MENU_CALLBACK,
+  );
+
+  $items['dashboard/export/stream'] = array(
+    'title'           => 'Stream Export File',
+    'page callback'   => 'dynamic_form_export_stream_file',
+    'access callback' => 'user_is_logged_in',
+    'file'            => 'includes/dynamic_form_export.helpers.inc',
+    'type'            => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_dynamic_form_dashboard_sidebar_items_alter().
+ *
+ * Injects the Export entry into the sidebar, gated by the audit log permission
+ * (the only export permission that currently exists; expand the check here as
+ * more export types are added).
+ */
+function dynamic_form_export_dynamic_form_dashboard_sidebar_items_alter(&$items) {
+  if (user_access('export dynamic form audit log')) {
+    $items['export'] = array(
+      'label' => t('Export'),
+      'path'  => 'dashboard/export',
+      'icon'  => '&#128202;',
+    );
+  }
+}

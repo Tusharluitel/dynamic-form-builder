@@ -1,0 +1,6 @@
+name = Dynamic Form Export
+description = XLSX data export for dynamic form data (audit log, responses) using OpenSpout and Drupal Batch API.
+core = 7.x
+package = Dynamic Form
+dependencies[] = dynamic_form
+
