@@ -3,13 +3,7 @@
 /**
  * @file
  * Indexes dynamic_form_tags into Apache Solr for fast autocomplete & search.
- *
- * This module talks to Solr directly via its JSON API — it does NOT use the
- * apachesolr module's entity indexing system because dynamic_form_tags is a
- * plain custom table, not a Drupal entity.
- *
- * Configuration variables (set via variable_set() or settings.php):
- *   - dynamic_form_solr_url: Solr core URL.
+ *    - dynamic_form_solr_url: Solr core URL.
  *     Default: http://localhost:8983/solr/dynamic-form-builder
  */
 
@@ -53,8 +47,6 @@ function dynamic_form_solr_menu() {
 /**
  * Implements hook_menu_alter().
  *
- * Hijacks the existing tag autocomplete route to use Solr-powered search.
- * This makes the integration "plug-and-play" — just enable the module.
  */
 function dynamic_form_solr_menu_alter(&$items) {
   $target = 'dynamic-form/ajax/tags/autocomplete';
@@ -168,14 +160,12 @@ function dynamic_form_solr_delete_tag($tag_id) {
 // ---------------------------------------------------------------------------
 
 /**
- * Query Solr for tags matching a term (prefix search with fuzzy fallback).
+ * Query Solr for tags matching a term.
  *
  * @param string $term
  *   The partial tag text to search for.
  * @param int $limit
  *   Max results. Default 20.
- *
- * @return array
  *   Array of {id, text} objects suitable for Select2.
  */
 function dynamic_form_solr_search_tags($term, $limit = 20) {
@@ -214,35 +204,8 @@ function dynamic_form_solr_search_tags($term, $limit = 20) {
   return $results;
 }
 
-// ---------------------------------------------------------------------------
-// Hook into tag saves (real-time index updates)
-// ---------------------------------------------------------------------------
-
-/**
- * Implements hook_module_implements_alter().
- *
- * We don't override the tag-save function directly; instead, we hook into
- * the tag insert/update flow. Since dynamic_form_tags uses plain db_insert,
- * we use hook_exit to check for freshly created tags in the request.
- *
- * A cleaner approach: call dynamic_form_solr_index_tag() directly from
- * _dynamic_form_save_tag_answers() after the db_insert. This is documented
- * in the integration guide.
- */
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
 /**
  * Makes an HTTP request to the Solr server.
- *
- * @param string      $url
- * @param string|null $body    POST body (JSON). NULL for GET requests.
- * @param string      $method  'POST' or 'GET'. Default 'POST' when body given.
- *
- * @return string|false
- *   Response body on success, FALSE on failure.
  */
 function _dynamic_form_solr_request($url, $body = NULL, $method = NULL) {
   if ($method === NULL) {

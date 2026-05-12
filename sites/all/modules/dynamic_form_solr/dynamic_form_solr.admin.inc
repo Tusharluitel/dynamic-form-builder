@@ -1,11 +1,6 @@
 <?php
 
 /**
- * @file
- * Admin form for Dynamic Form Solr Tags — configure URL and trigger re-index.
- */
-
-/**
  * Admin settings form.
  */
 function dynamic_form_solr_admin_form($form, &$form_state) {

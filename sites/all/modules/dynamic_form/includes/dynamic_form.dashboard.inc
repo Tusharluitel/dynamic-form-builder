@@ -117,6 +117,8 @@ function _dynamic_form_dashboard_sidebar($active = 'overview')
     ),
   );
 
+  drupal_alter('dynamic_form_dashboard_sidebar_items', $items);
+
   $output = '<nav class="dfb-sidebar-nav">';
   $output .= '<div class="dfb-sidebar-header">';
   $output .= '<span class="dfb-sidebar-icon">&#9881;</span>';
