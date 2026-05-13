@@ -271,6 +271,14 @@ function dynamic_form_menu()
     'type'            => MENU_CALLBACK,
   );
 
+  $items['dynamic-form/ajax/builder/sections/%'] = array(
+    'page callback'   => 'dynamic_form_ajax_sections_reload',
+    'page arguments'  => array(4),
+    'access callback' => 'user_is_logged_in',
+    'file'            => 'includes/dynamic_form.builder.inc',
+    'type'            => MENU_CALLBACK,
+  );
+
   $items['dynamic-form/ajax/members/search'] = array(
     'page callback'   => 'dynamic_form_ajax_member_search',
     'access callback' => 'user_is_logged_in',
