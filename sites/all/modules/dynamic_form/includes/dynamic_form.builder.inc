@@ -77,15 +77,22 @@ function dynamic_form_builder_page($form_id) {
 
   drupal_set_title(t('Builder: @title', array('@title' => $form_record->title)));
 
+  global $user;
   $module_path = drupal_get_path('module', 'dynamic_form');
   drupal_add_css($module_path . '/css/builder.css');
   drupal_add_js('https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js', 'external');
   drupal_add_js($module_path . '/js/builder.js');
+  drupal_add_js($module_path . '/js/collaborate.js');
   drupal_add_js(array(
     'dynamicFormBuilder' => array(
       'formId'      => (int) $form_record->id,
       'basePath'    => url('dynamic-form/ajax/builder'),
       'deletePath'  => url('dynamic-form/ajax/delete'),
+      'wsUrl'       => 'ws://localhost:8080',
+      'currentUser' => array(
+        'uid'  => (int) $user->uid,
+        'name' => format_username($user),
+      ),
     ),
   ), 'setting');
 
@@ -1948,5 +1955,59 @@ function dynamic_form_ajax_section_rename($section_id) {
   );
 
   drupal_json_output(array('status' => 'success', 'name' => $name));
+  drupal_exit();
+}
+
+/* =====================================================================
+   COLLABORATION — sections reload endpoint
+   ===================================================================== */
+
+/**
+ * AJAX endpoint: returns an ajax_command_replace for #dfb-sections-wrapper.
+ *
+ * Called by collaborate.js when another user's content_changed message
+ * arrives, so the receiving client can refresh its sections in place.
+ */
+function dynamic_form_ajax_sections_reload($form_id) {
+  $form_id = (int) $form_id;
+
+  $sections = db_select('dynamic_form_sections', 's')
+    ->fields('s')
+    ->condition('form_id', $form_id)
+    ->condition('deleted_at', NULL, 'IS NULL')
+    ->orderBy('position', 'ASC')
+    ->execute()
+    ->fetchAll();
+
+  $all_questions = db_select('dynamic_form_questions', 'q')
+    ->fields('q')
+    ->condition('form_id', $form_id)
+    ->condition('deleted_at', NULL, 'IS NULL')
+    ->orderBy('position', 'ASC')
+    ->execute()
+    ->fetchAll();
+
+  $questions_by_section = array();
+  foreach ($all_questions as $q) {
+    $sid = $q->section_id ? (int) $q->section_id : 0;
+    $questions_by_section[$sid][] = $q;
+  }
+
+  $html = '<div id="dfb-sections-wrapper" class="dfb-sections-wrapper">';
+  if (empty($sections)) {
+    $html .= '<div class="dfb-builder-empty"><p>' . t('No sections yet.') . '</p></div>';
+  }
+  else {
+    foreach ($sections as $section) {
+      $q     = isset($questions_by_section[$section->id]) ? $questions_by_section[$section->id] : array();
+      $html .= _dynamic_form_render_builder_section($section, $q);
+    }
+  }
+  $html .= '</div>';
+
+  $commands = array();
+  $commands[] = ajax_command_replace('#dfb-sections-wrapper', $html);
+
+  drupal_json_output($commands);
   drupal_exit();
 }

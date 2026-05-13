@@ -1394,3 +1394,71 @@
   font-size: 1rem;
   flex-shrink: 0;
 }
+
+/* -----------------------------------------------------------------------
+   Collaboration presence bar
+   --------------------------------------------------------------------- */
+
+.dfb-collab-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: #f0f4ff;
+  border: 1px solid #c7d4f5;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 0.82rem;
+  color: #4a5568;
+}
+
+.dfb-collab-label {
+  font-weight: 600;
+  color: #374151;
+  margin-right: 2px;
+}
+
+.dfb-collab-avatars {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.dfb-collab-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: default;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  transition: transform 0.15s;
+}
+
+.dfb-collab-avatar:hover {
+  transform: scale(1.12);
+}
+
+.dfb-collab-avatar-me {
+  border-color: #6366f1;
+}
+
+.dfb-collab-status {
+  font-size: 0.78rem;
+  color: #9ca3af;
+  margin-left: 4px;
+}
+
+.dfb-collab-connecting {
+  animation: dfb-collab-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes dfb-collab-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
