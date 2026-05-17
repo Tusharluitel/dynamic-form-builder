@@ -112,6 +112,14 @@ function dynamic_form_response_menu() {
     'file'            => 'includes/dynamic_form_response.dashboard.inc',
   );
 
+  // AJAX: return question type + options for the response filter bar.
+  $items['dynamic-form-response/ajax/filter-options'] = array(
+    'page callback'   => 'dynamic_form_response_ajax_filter_options',
+    'access callback' => 'user_is_logged_in',
+    'type'            => MENU_CALLBACK,
+    'file'            => 'includes/dynamic_form_response.dashboard.inc',
+  );
+
   return $items;
 }
 

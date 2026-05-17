@@ -1,0 +1,40 @@
+/**
+ * @file
+ * Styles for the Solr spellcheck "Did you mean?" group in Select2 v3 dropdowns.
+ */
+
+/*
+ * Select2 v3 renders option groups as:
+ *   .select2-result-with-children > .select2-result-label   ← group header
+ *   .select2-result-sub > .select2-result                   ← child items
+ *
+ * We target only the group whose label text is the spell-suggestion header so
+ * it looks distinct from regular option groups.
+ */
+
+/* Group header — "Did you mean?" */
+.dfp-s2-preview-drop .select2-result-with-children > .select2-result-label,
+.select2-drop .select2-result-with-children > .select2-result-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #e07b00;
+  background: #fffbf0;
+  border-top: 1px solid #ffe0a0;
+  border-bottom: 1px solid #ffe0a0;
+  padding: 5px 10px 4px;
+}
+
+/* Spell-suggestion child items */
+.dfp-s2-preview-drop .select2-result-with-children .select2-result-sub .select2-result-label,
+.select2-drop .select2-result-with-children .select2-result-sub .select2-result-label {
+  font-style: italic;
+  color: #444;
+}
+
+.dfp-s2-preview-drop .select2-result-with-children .select2-result-sub .select2-result.select2-highlighted .select2-result-label,
+.select2-drop .select2-result-with-children .select2-result-sub .select2-result.select2-highlighted .select2-result-label {
+  font-style: italic;
+  color: #fff;
+}

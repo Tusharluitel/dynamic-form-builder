@@ -986,6 +986,10 @@ function dynamic_form_ajax_entity_delete($entity_type, $entity_id) {
 
   _dynamic_form_audit_log($entity_type, $entity_id, 'deleted', (array) $record, NULL);
 
+  if ($entity_type === 'response' && module_exists('dynamic_form_solr')) {
+    dynamic_form_solr_delete_response($entity_id);
+  }
+
   switch ($entity_type) {
     case 'form':     $label = $record->title; break;
     case 'section':  $label = $record->name;  break;
