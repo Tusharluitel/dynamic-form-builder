@@ -410,6 +410,10 @@ function _dynamic_form_trash_hard_delete_form($form_id) {
   db_delete('dynamic_form_sections')->condition('form_id', $form_id)->execute();
   db_delete('dynamic_form_members')->condition('form_id', $form_id)->execute();
   db_delete('dynamic_form_forms')->condition('id', $form_id)->execute();
+
+  if (module_exists('dynamic_form_solr')) {
+    dynamic_form_solr_delete_form_responses($form_id);
+  }
 }
 
 /**
@@ -454,6 +458,10 @@ function _dynamic_form_trash_hard_delete_response($response_id) {
 
   db_delete('dynamic_form_response_sessions')->condition('response_id', $response_id)->execute();
   db_delete('dynamic_form_responses')->condition('id', $response_id)->execute();
+
+  if (module_exists('dynamic_form_solr')) {
+    dynamic_form_solr_delete_response($response_id);
+  }
 }
 
 /**

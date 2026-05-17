@@ -1,19 +1,6 @@
 <?php
 /**
  * Simple WebSocket server for form builder collaboration.
- *
- * Run from terminal:  php ws_server.php
- * Listens on:         ws://localhost:8080
- *
- * PHP 8 note: socket_*() returns Socket objects, not integer resources.
- * We use object identity (===) and spl_object_id() throughout — never (int).
- *
- * Message types (JSON):
- *   join             { type, form_id, uid, name }
- *   presence         { type, users:[{uid,name,color}] }   (server→client)
- *   section_renamed  { type, form_id, section_id, name }
- *   deleted          { type, form_id, entity_type, entity_id }
- *   content_changed  { type, form_id }
  */
 
 $host = '0.0.0.0';

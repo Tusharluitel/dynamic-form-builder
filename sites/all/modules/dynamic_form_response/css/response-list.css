@@ -39,6 +39,208 @@
 }
 
 /* ----------------------------------------------------------------
+   Response filter bar
+   ---------------------------------------------------------------- */
+.dfr-filter-bar {
+  background: #fff;
+  border: 1px solid #e0e0ee;
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+}
+
+.dfr-filter-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dfr-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.dfr-filter-field label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #7777aa;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dfr-filter-field--question { flex: 2 1 220px; }
+.dfr-filter-field--value    { flex: 2 1 200px; }
+.dfr-filter-field--date     { flex: 1 1 140px; }
+.dfr-filter-field--respondent { flex: 1 1 130px; }
+
+.dfr-filter-field select,
+.dfr-filter-field input[type="date"],
+.dfr-filter-field input[type="time"] {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #d8d8ee;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #2c2c3e;
+  background: #fafafe;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.dfr-filter-field select:focus,
+.dfr-filter-field input:focus {
+  outline: none;
+  border-color: #5b6af7;
+  background: #fff;
+}
+
+/* Normalize Select2 container height in the filter bar */
+.dfr-filter-field .select2-container {
+  height: 34px;
+}
+
+.dfr-filter-field .select2-container .select2-choice {
+  height: 32px;
+  line-height: 30px;
+  border: 1px solid #d8d8ee;
+  border-radius: 6px;
+  background: #fafafe;
+  font-size: 0.85rem;
+  color: #2c2c3e;
+  padding: 0 8px;
+}
+
+.dfr-filter-field .select2-container.select2-container-active .select2-choice,
+.dfr-filter-field .select2-container-active .select2-choice {
+  border-color: #5b6af7;
+  background: #fff;
+  box-shadow: none;
+  outline: none;
+}
+
+.dfr-filter-value-input {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #d8d8ee;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #2c2c3e;
+  background: #fafafe;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.dfr-filter-value-input:focus {
+  outline: none;
+  border-color: #5b6af7;
+  background: #fff;
+}
+
+.dfr-filter-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding-bottom: 1px;
+}
+
+.dfr-filter-btn-apply {
+  height: 34px;
+  padding: 0 18px;
+  background: #5b6af7;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.dfr-filter-btn-apply:hover { background: #4a58e0; }
+
+/* ----------------------------------------------------------------
+   Active filter chips
+   ---------------------------------------------------------------- */
+.dfr-filter-active {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 0 12px;
+  font-size: 0.82rem;
+}
+
+.dfr-filter-active-label {
+  color: #9999bb;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dfr-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #eeeef8;
+  border: 1px solid #d5d5ee;
+  border-radius: 20px;
+  padding: 3px 12px;
+  font-size: 0.8rem;
+  color: #4444aa;
+}
+
+.dfr-filter-chip strong {
+  color: #2c2c3e;
+  font-weight: 600;
+}
+
+.dfr-filter-clear-all {
+  margin-left: 4px;
+  font-size: 0.8rem;
+  color: #e53e3e;
+  text-decoration: none;
+  font-weight: 500;
+  border: 1px solid #e53e3e;
+  border-radius: 20px;
+  padding: 3px 12px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.dfr-filter-clear-all:hover {
+  background: #e53e3e;
+  color: #fff;
+  text-decoration: none;
+}
+
+/* Filtered count variant */
+.dfr-response-count--filtered {
+  font-weight: 600;
+  color: #5b6af7;
+}
+
+.dfr-response-count-of {
+  color: #aaaacc;
+  font-weight: 400;
+  font-size: 0.8em;
+}
+
+.dfr-empty-filtered {
+  text-align: center;
+  color: #aaa;
+  padding: 40px 0;
+}
+
+/* ----------------------------------------------------------------
    Response table
    ---------------------------------------------------------------- */
 .dfr-response-table {
@@ -361,3 +563,343 @@
   word-break: break-all;
 }
 .dfr-file-link:hover { text-decoration: underline; }
+
+/* ----------------------------------------------------------------
+   Advanced filter: section wrapper + add-row button
+   ---------------------------------------------------------------- */
+.dfr-adv-section {
+  margin: 10px 0 4px;
+}
+
+.dfr-adv-add-btn {
+  margin-top: 8px;
+  height: 30px;
+  padding: 0 14px;
+  background: transparent;
+  color: #5b6af7;
+  border: 1px dashed #5b6af7;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+}
+.dfr-adv-add-btn:hover {
+  background: #5b6af7;
+  color: #fff;
+}
+
+/* ----------------------------------------------------------------
+   Advanced filter: individual rows
+   ---------------------------------------------------------------- */
+.dfr-adv-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.dfr-adv-cell { display: flex; align-items: center; }
+
+.dfr-adv-cell--op {
+  flex: 0 0 72px;
+  justify-content: center;
+}
+
+.dfr-adv-cell--question {
+  flex: 2 1 240px;
+  min-width: 0;
+  max-width: 480px;
+}
+
+.dfr-adv-cell--value {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.dfr-adv-cell--remove {
+  flex: 0 0 28px;
+  justify-content: center;
+  align-self: center;
+}
+
+/* "Where" label on the first row */
+.dfr-adv-where {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #9999bb;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* AND/OR operator select */
+.dfr-adv-op {
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid #d8d8ee;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #5b6af7;
+  background: #f0f0fc;
+  font-family: inherit;
+  cursor: pointer;
+}
+.dfr-adv-op:focus {
+  outline: none;
+  border-color: #5b6af7;
+}
+
+/* Question picker — Select2 container sizing */
+.dfr-adv-cell--question .select2-container { width: 100% !important; }
+.dfr-adv-cell--question .select2-container .select2-choice {
+  height: 32px;
+  line-height: 30px;
+  border: 1px solid #d8d8ee;
+  border-radius: 6px;
+  background: #fafafe;
+  font-size: 0.85rem;
+  color: #2c2c3e;
+  padding: 0 24px 0 8px;
+}
+.dfr-adv-cell--question .select2-container .select2-chosen {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+.dfr-adv-cell--question .select2-container-active .select2-choice {
+  border-color: #5b6af7;
+  background: #fff;
+  box-shadow: none;
+}
+
+/* Value widget */
+.dfr-adv-value { width: 100%; }
+
+.dfr-adv-value-input {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid #d8d8ee;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #2c2c3e;
+  background: #fafafe;
+  font-family: inherit;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+.dfr-adv-value-input:focus {
+  outline: none;
+  border-color: #5b6af7;
+  background: #fff;
+}
+
+.dfr-adv-value-select + .select2-container { width: 100% !important; }
+
+/* Remove row button */
+.dfr-adv-remove {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: transparent;
+  color: #aaa;
+  border: 1px solid #ddd;
+  border-radius: 50%;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.dfr-adv-remove:hover {
+  background: #e53e3e;
+  color: #fff;
+  border-color: #e53e3e;
+}
+
+/* Meta row: date + respondent + sort */
+.dfr-filter-row--meta {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f0f0f5;
+}
+
+.dfr-filter-field--sort { flex: 1 1 140px; }
+
+/* AND/OR label in active chips */
+.dfr-chip-op {
+  font-style: normal;
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: #5b6af7;
+  text-transform: uppercase;
+  margin-right: 2px;
+}
+
+/* ----------------------------------------------------------------
+   Solr full-text search row
+   ---------------------------------------------------------------- */
+.dfr-filter-row--search {
+  margin-bottom: 10px;
+}
+.dfr-filter-field--search {
+  width: 100%;
+}
+.dfr-filter-search-input {
+  width: 100%;
+  padding: 7px 11px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.92rem;
+  box-sizing: border-box;
+}
+.dfr-filter-search-input:focus {
+  outline: none;
+  border-color: #5b6af7;
+  box-shadow: 0 0 0 3px rgba(91,106,247,.12);
+}
+
+/* ----------------------------------------------------------------
+   Solr unavailable error banner
+   ---------------------------------------------------------------- */
+.dfr-solr-error {
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: #856404;
+}
+
+/* ----------------------------------------------------------------
+   Facet two-column layout
+   ---------------------------------------------------------------- */
+.dfr-facet-layout {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.dfr-facet-main {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ----------------------------------------------------------------
+   Facet sidebar panel
+   ---------------------------------------------------------------- */
+.dfr-facet-panel {
+  width: 200px;
+  flex-shrink: 0;
+  background: #fff;
+  border: 1px solid #e0e0ee;
+  border-radius: 10px;
+  overflow: hidden;
+  position: sticky;
+  top: 70px;
+}
+
+.dfr-facet-panel-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9999bb;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid #f0f0f8;
+}
+
+.dfr-facet-section {
+  padding: 10px 0 6px;
+  border-bottom: 1px solid #f0f0f8;
+}
+
+.dfr-facet-section:last-child {
+  border-bottom: none;
+}
+
+.dfr-facet-section-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #4a4a7a;
+  padding: 0 14px 4px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  cursor: default;
+  line-height: 1.35;
+}
+
+/* ----------------------------------------------------------------
+   Facet item list
+   ---------------------------------------------------------------- */
+.dfr-facet-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dfr-facet-link {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 14px;
+  text-decoration: none;
+  color: #3a3a5c;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  transition: background 0.12s;
+}
+
+.dfr-facet-link:hover {
+  background: #f4f4fc;
+  text-decoration: none;
+}
+
+.dfr-facet-item--active .dfr-facet-link {
+  background: #eeeef8;
+  color: #5b6af7;
+  font-weight: 600;
+}
+
+.dfr-facet-check {
+  font-size: 0.78rem;
+  color: #5b6af7;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.dfr-facet-val {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dfr-facet-count {
+  flex-shrink: 0;
+  font-size: 0.74rem;
+  color: #aaaacc;
+  background: #f4f4fc;
+  border-radius: 20px;
+  padding: 1px 6px;
+  font-weight: 600;
+}
+
+.dfr-facet-item--active .dfr-facet-count {
+  background: #ddddf5;
+  color: #5b6af7;
+}

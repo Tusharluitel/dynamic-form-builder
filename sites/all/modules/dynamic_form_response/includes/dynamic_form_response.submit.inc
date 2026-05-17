@@ -625,12 +625,29 @@ function _dynamic_form_response_maybe_load_select2($form_id) {
           dropdownCssClass: 'dfp-s2-preview-drop',
           ajax: {
             url: acUrl, dataType: 'json', quietMillis: 250,
-            data:    function (term) { return { term: term }; },
-            results: function (data) { return { results: data }; }
+            data: function (term) { return { term: term }; },
+            results: function (data) {
+              // Legacy: plain array (no spellcheck).
+              if ($.isArray(data)) { return { results: data }; }
+              // Exact/prefix results — return directly.
+              if (data.results && data.results.length > 0) {
+                return { results: data.results };
+              }
+              // Spellcheck suggestions — show as a grouped "Did you mean?" set.
+              if (data.spellcheck && data.spellcheck.found && data.spellcheck.suggestions.length) {
+                return { results: [{ text: Drupal.t('Did you mean?'), children: data.spellcheck.suggestions }] };
+              }
+              return { results: [] };
+            }
           },
           createSearchChoice: function (term, data) {
+            var termLC = term.toLowerCase();
             for (var i = 0; i < data.length; i++) {
-              if (data[i].text.toLowerCase() === term.toLowerCase()) { return; }
+              // Handle both flat items and grouped children.
+              var items = data[i].children ? data[i].children : [data[i]];
+              for (var j = 0; j < items.length; j++) {
+                if (items[j].text && items[j].text.toLowerCase() === termLC) { return; }
+              }
             }
             return { id: term, text: term };
           }
@@ -880,6 +897,23 @@ function _dynamic_form_response_do_save() {
       module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.tags');
       _dynamic_form_save_tag_answers((int) $response_id, $question_id, $raw_tags);
     }
+    elseif (isset($q_types[$question_id]) && $q_types[$question_id] === 'file') {
+      $answer_id = _dynamic_form_response_upsert_answer((int) $response_id, $question_id, (string) $value, $now);
+      $fdec = @json_decode($value, TRUE);
+      if ($answer_id && is_array($fdec) && !empty($fdec['fid'])) {
+        $managed = db_select('file_managed', 'fm')
+          ->fields('fm', array('uri', 'filename', 'filemime', 'filesize'))
+          ->condition('fid', (int) $fdec['fid'])
+          ->execute()
+          ->fetchObject();
+        if ($managed) {
+          _dynamic_form_response_upsert_answer_file(
+            $answer_id, $managed->uri, $managed->filename,
+            $managed->filemime, (int) $managed->filesize, $now
+          );
+        }
+      }
+    }
     else {
       if (is_array($value)) {
         $value = json_encode(array_values(array_filter($value, 'strlen')));
@@ -1000,6 +1034,10 @@ function _dynamic_form_response_do_submit() {
     NULL, array('form_id' => $form_id, 'submitted_at' => $now)
   );
 
+  if (module_exists('dynamic_form_solr')) {
+    dynamic_form_solr_index_response($response_id);
+  }
+
   return array('status' => 'ok');
 }
 
@@ -1049,14 +1087,56 @@ function _dynamic_form_response_upsert_answer($response_id, $question_id, $value
       ->fields(array('value' => $value, 'updated_at' => $now))
       ->condition('id', $existing_id)
       ->execute();
+    return (int) $existing_id;
   } else {
-    db_insert('dynamic_form_answers')
+    return (int) db_insert('dynamic_form_answers')
       ->fields(array(
         'response_id' => $response_id,
         'question_id' => $question_id,
         'value'       => $value,
         'created_at'  => $now,
         'updated_at'  => $now,
+      ))
+      ->execute();
+  }
+}
+
+/**
+ * Inserts or updates a dynamic_form_answer_files record for a file answer.
+ */
+function _dynamic_form_response_upsert_answer_file($answer_id, $file_path, $file_name, $file_type, $file_size, $now = NULL) {
+  if ($now === NULL) {
+    $now = REQUEST_TIME;
+  }
+
+  $existing = db_select('dynamic_form_answer_files', 'f')
+    ->fields('f', array('id'))
+    ->condition('answer_id', $answer_id)
+    ->isNull('deleted_at')
+    ->execute()
+    ->fetchField();
+
+  if ($existing) {
+    db_update('dynamic_form_answer_files')
+      ->fields(array(
+        'file_path'  => $file_path,
+        'file_name'  => $file_name,
+        'file_type'  => $file_type,
+        'file_size'  => $file_size,
+        'updated_at' => $now,
+      ))
+      ->condition('id', $existing)
+      ->execute();
+  } else {
+    db_insert('dynamic_form_answer_files')
+      ->fields(array(
+        'answer_id'  => $answer_id,
+        'file_path'  => $file_path,
+        'file_name'  => $file_name,
+        'file_type'  => $file_type,
+        'file_size'  => $file_size,
+        'created_at' => $now,
+        'updated_at' => $now,
       ))
       ->execute();
   }
@@ -1090,7 +1170,7 @@ function dynamic_form_response_thankyou_page($slug) {
   $out .= '<h2>' . t('Thank you for your response!') . '</h2>';
   $out .= '<p>' . t('Your response to &ldquo;@title&rdquo; has been submitted successfully.',
     array('@title' => $record->title)) . '</p>';
-  $out .= l('&larr; ' . t('Back to public forms'), 'forms',
+  $out .= l('&larr; ' . t('Back to forms'), 'forms',
     array('html' => TRUE, 'attributes' => array('class' => array('dfr-btn-back'))));
   $out .= '</div>';
 

@@ -2,36 +2,27 @@
 
 /**
  * @file
- * Indexes dynamic_form_tags into Apache Solr for fast autocomplete & search.
- *    - dynamic_form_solr_url: Solr core URL.
+ * Indexes dynamic_form tags and responses into Apache Solr.
+ *   - dynamic_form_solr_url: Solr core URL.
  *     Default: http://localhost:8983/solr/dynamic-form-builder
  */
-
-// ---------------------------------------------------------------------------
-// Constants / defaults
-// ---------------------------------------------------------------------------
 
 define('DYNAMIC_FORM_SOLR_DEFAULT_URL', 'http://localhost:8983/solr/dynamic-form-builder');
 
 // ---------------------------------------------------------------------------
-// hook_menu
+// hook_menu / hook_menu_alter / hook_init
 // ---------------------------------------------------------------------------
 
-/**
- * Implements hook_menu().
- */
 function dynamic_form_solr_menu() {
   $items = array();
 
-  // Solr-powered autocomplete endpoint (replaces the DB-only one if enabled).
   $items['dynamic-form/ajax/tags/solr-autocomplete'] = array(
-    'page callback'    => 'dynamic_form_solr_tags_autocomplete',
-    'access callback'  => TRUE,
-    'type'             => MENU_CALLBACK,
-    'file'             => 'dynamic_form_solr.pages.inc',
+    'page callback'   => 'dynamic_form_solr_tags_autocomplete',
+    'access callback' => TRUE,
+    'type'            => MENU_CALLBACK,
+    'file'            => 'dynamic_form_solr.pages.inc',
   );
 
-  // Admin: manual re-index trigger.
   $items['admin/config/search/dynamic-form-solr'] = array(
     'title'            => 'Dynamic Form Solr Tags',
     'description'      => 'Configure and re-index form tags in Apache Solr.',
@@ -44,10 +35,6 @@ function dynamic_form_solr_menu() {
   return $items;
 }
 
-/**
- * Implements hook_menu_alter().
- *
- */
 function dynamic_form_solr_menu_alter(&$items) {
   $target = 'dynamic-form/ajax/tags/autocomplete';
   if (isset($items[$target])) {
@@ -57,155 +44,47 @@ function dynamic_form_solr_menu_alter(&$items) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Indexing API
-// ---------------------------------------------------------------------------
-
-/**
- * Index every row from dynamic_form_tags into Solr.
- *
- * Each tag becomes a Solr document:
- *   id        : "tag-{id}"
- *   tag_id    : int
- *   tag_value : the standardized_value (full-text searchable)
- *   created   : ISO-8601 date
- *
- * @param bool $clear
- *   If TRUE, delete all existing tag documents first.
- *
- * @return int
- *   Number of documents indexed.
- */
-function dynamic_form_solr_index_all($clear = FALSE) {
-  $solr_url = variable_get('dynamic_form_solr_url', DYNAMIC_FORM_SOLR_DEFAULT_URL);
-
-  // Optionally wipe existing tag docs.
-  if ($clear) {
-    _dynamic_form_solr_request($solr_url . '/update?commit=true', json_encode(array(
-      'delete' => array('query' => 'doc_type:tag'),
-    )));
+function dynamic_form_solr_init() {
+  $path = current_path();
+  if (strpos($path, 'forms/') === 0 || strpos($path, 'dashboard/forms/') === 0) {
+    drupal_add_css(drupal_get_path('module', 'dynamic_form_solr') . '/dynamic_form_solr.css');
   }
-
-  // Fetch all tags from DB.
-  $rows = db_select('dynamic_form_tags', 't')
-    ->fields('t')
-    ->orderBy('id', 'ASC')
-    ->execute()
-    ->fetchAll();
-
-  if (empty($rows)) {
-    return 0;
-  }
-
-  // Build Solr documents.
-  $docs = array();
-  foreach ($rows as $row) {
-    $docs[] = array(
-      'id'        => 'tag-' . $row->id,
-      'doc_type'  => 'tag',
-      'tag_id'    => (int) $row->id,
-      'tag_value' => $row->standardized_value,
-      'created'   => gmdate('Y-m-d\TH:i:s\Z', $row->created_at),
-    );
-  }
-
-  // POST to Solr /update endpoint.
-  $response = _dynamic_form_solr_request($solr_url . '/update?commit=true', json_encode($docs));
-
-  if ($response === FALSE) {
-    watchdog('dynamic_form_solr', 'Failed to index tags to Solr.', array(), WATCHDOG_ERROR);
-    return 0;
-  }
-
-  watchdog('dynamic_form_solr', 'Indexed @count tags to Solr.', array('@count' => count($docs)));
-  return count($docs);
-}
-
-/**
- * Index a single tag (call after insert/update).
- *
- * @param int    $tag_id
- * @param string $standardized_value
- * @param int    $created_at
- */
-function dynamic_form_solr_index_tag($tag_id, $standardized_value, $created_at) {
-  $solr_url = variable_get('dynamic_form_solr_url', DYNAMIC_FORM_SOLR_DEFAULT_URL);
-
-  $doc = array(
-    'id'        => 'tag-' . $tag_id,
-    'doc_type'  => 'tag',
-    'tag_id'    => (int) $tag_id,
-    'tag_value' => $standardized_value,
-    'created'   => gmdate('Y-m-d\TH:i:s\Z', $created_at),
-  );
-
-  _dynamic_form_solr_request($solr_url . '/update?commit=true', json_encode(array($doc)));
-}
-
-/**
- * Remove a single tag from the index.
- *
- * @param int $tag_id
- */
-function dynamic_form_solr_delete_tag($tag_id) {
-  $solr_url = variable_get('dynamic_form_solr_url', DYNAMIC_FORM_SOLR_DEFAULT_URL);
-
-  _dynamic_form_solr_request($solr_url . '/update?commit=true', json_encode(array(
-    'delete' => array('id' => 'tag-' . $tag_id),
-  )));
 }
 
 // ---------------------------------------------------------------------------
-// Search / query API
+// Shared HTTP layer
 // ---------------------------------------------------------------------------
 
 /**
- * Query Solr for tags matching a term.
+ * POST an array of documents to Solr /update.
  *
- * @param string $term
- *   The partial tag text to search for.
- * @param int $limit
- *   Max results. Default 20.
- *   Array of {id, text} objects suitable for Select2.
+ * @param array $docs    Array of document arrays to index.
+ * @param bool  $commit  Append ?commit=true to the URL (default TRUE).
+ * @return bool  TRUE on success, FALSE if Solr is unreachable or returned an error.
  */
-function dynamic_form_solr_search_tags($term, $limit = 20) {
+function _dynamic_form_solr_send_documents(array $docs, $commit = TRUE) {
   $solr_url = variable_get('dynamic_form_solr_url', DYNAMIC_FORM_SOLR_DEFAULT_URL);
-
-  // Build Solr query: prefix match on tag_value, restricted to doc_type:tag.
-  $params = array(
-    'q'    => 'tag_value:' . _dynamic_form_solr_escape($term) . '*',
-    'fq'   => 'doc_type:tag',
-    'fl'   => 'tag_id,tag_value',
-    'rows' => (int) $limit,
-    'wt'   => 'json',
-    'sort' => 'tag_value asc',
-  );
-
-  $url = $solr_url . '/select?' . http_build_query($params);
-  $raw = _dynamic_form_solr_request($url, NULL, 'GET');
-
-  if ($raw === FALSE) {
-    return array();
-  }
-
-  $data = json_decode($raw, TRUE);
-  if (empty($data['response']['docs'])) {
-    return array();
-  }
-
-  $results = array();
-  foreach ($data['response']['docs'] as $doc) {
-    $results[] = array(
-      'id'   => $doc['tag_value'],
-      'text' => $doc['tag_value'],
-    );
-  }
-
-  return $results;
+  $url      = $solr_url . '/update' . ($commit ? '?commit=true' : '');
+  return _dynamic_form_solr_request($url, json_encode($docs)) !== FALSE;
 }
 
 /**
- * Makes an HTTP request to the Solr server.
+ * Send a delete command to Solr /update.
+ *
+ * @param array $delete  A Solr delete payload, e.g.:
+ *                         array('id' => 'tag-1')           — single doc by ID
+ *                         array('query' => 'doc_type:tag')  — by query
+ * @param bool  $commit  Append ?commit=true (default TRUE).
+ * @return bool
+ */
+function _dynamic_form_solr_delete_documents(array $delete, $commit = TRUE) {
+  $solr_url = variable_get('dynamic_form_solr_url', DYNAMIC_FORM_SOLR_DEFAULT_URL);
+  $url      = $solr_url . '/update' . ($commit ? '?commit=true' : '');
+  return _dynamic_form_solr_request($url, json_encode(array('delete' => $delete))) !== FALSE;
+}
+
+/**
+ * Low-level HTTP request to Solr. Returns the raw response body or FALSE on error.
  */
 function _dynamic_form_solr_request($url, $body = NULL, $method = NULL) {
   if ($method === NULL) {
@@ -217,7 +96,6 @@ function _dynamic_form_solr_request($url, $body = NULL, $method = NULL) {
     'timeout' => 10,
     'headers' => array('Content-Type' => 'application/json'),
   );
-
   if ($body !== NULL) {
     $options['data'] = $body;
   }
@@ -236,17 +114,654 @@ function _dynamic_form_solr_request($url, $body = NULL, $method = NULL) {
   return $result->data;
 }
 
+// ---------------------------------------------------------------------------
+// Document builders
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a Solr document array for a single tag.
+ *
+ * Fields:
+ *   id        — "tag-{id}"  (unique Solr doc ID)
+ *   doc_type  — "tag"       (discriminator)
+ *   is_tag_id — int         (is_* prefix: long, single-valued)
+ *   ts_value  — string, full-text searchable (ts_* prefix: text, single-valued)
+ *   created   — ISO-8601 UTC date
+ */
+function _dynamic_form_solr_build_tag_doc($tag_id, $standardized_value, $created_at) {
+  return array(
+    'id'        => 'tag-' . $tag_id,
+    'doc_type'  => 'tag',
+    'is_tag_id' => (int) $tag_id,
+    'ts_value'  => $standardized_value,
+    'created'   => gmdate('Y-m-d\TH:i:s\Z', $created_at),
+  );
+}
+
+/**
+ * Build a single flat Solr document for a submitted response.
+ *
+ * Cross-answer full-text search:
+ *   tm_answers  all text/textarea/text_editor/tags answers merged (tokenized, multi).
+ *               Needed because Solr cannot query wildcard field names (tm_q_*:term).
+ *
+ * Per-question fields (use apachesolr dynamic-field prefixes so schema auto-types them):
+ *   tm_q_{qid}  text/textarea/text_editor/tags answers  (tokenized, multi)
+ *   sm_q_{qid}  checkbox/select JSON-array answers      (string exact, multi)
+ *   ss_q_{qid}  all scalar answers                      (string exact, single)
+ */
+function _dynamic_form_solr_build_response_doc($response, array $answers, array $question_types = array()) {
+  $text_types = array('text', 'textarea', 'text_editor');
+  $tm_answers = array();
+
+  $doc = array(
+    'id'              => 'response-' . (int) $response->id,
+    'doc_type'        => 'response',
+    'is_response_id'  => (int) $response->id,
+    'is_form_id'      => (int) $response->form_id,
+    'is_user_id'      => (int) $response->user_id,
+    'ds_submitted_at' => gmdate('Y-m-d\TH:i:s\Z', $response->submitted_at),
+  );
+
+  foreach ($answers as $a) {
+    $qid  = (int) $a->question_id;
+    $type = isset($question_types[$qid]) ? $question_types[$qid] : NULL;
+    $raw  = (string) $a->value;
+    $field_key = 'q_' . $qid;
+
+    if ($type !== NULL && in_array($type, $text_types)) {
+      $val = ($type === 'text_editor') ? strip_tags($raw) : $raw;
+      if ($val !== '') {
+        $tm_answers[] = $val;
+        $doc['tm_' . $field_key] = $val;
+      }
+    }
+    elseif ($type === 'tags') {
+      $decoded = @json_decode($raw, TRUE);
+      $tags = is_array($decoded)
+        ? array_values(array_filter(array_map('strval', $decoded), 'strlen'))
+        : (strlen($raw) ? array($raw) : array());
+      if (!empty($tags)) {
+        $tm_answers = array_merge($tm_answers, $tags);
+        $doc['tm_' . $field_key] = $tags;
+        // Also store as exact-string multi for faceting.
+        $doc['sm_' . $field_key] = $tags;
+      }
+    }
+    else {
+      $decoded = @json_decode($raw, TRUE);
+      if (is_array($decoded)) {
+        $vals = array_values(array_filter(array_map('strval', $decoded), 'strlen'));
+        if (!empty($vals)) {
+          $doc['sm_' . $field_key] = $vals;
+        }
+      }
+      elseif ($raw !== '') {
+        $doc['ss_' . $field_key] = $raw;
+        // Also store as exact-string multi for faceting (radio, single-select, etc.).
+        $doc['sm_' . $field_key] = array($raw);
+      }
+    }
+  }
+
+  if (!empty($tm_answers)) {
+    $doc['tm_answers'] = array_values(array_unique($tm_answers));
+  }
+
+  return $doc;
+}
+
+// ---------------------------------------------------------------------------
+// Tag indexing API
+// ---------------------------------------------------------------------------
+
+/**
+ * Index every tag from dynamic_form_tags into Solr.
+ *
+ * @param bool $clear  If TRUE, delete all tag documents first.
+ * @return int  Number of documents indexed, or 0 on failure.
+ */
+function dynamic_form_solr_index_all($clear = FALSE) {
+  if ($clear) {
+    _dynamic_form_solr_delete_documents(array('query' => 'doc_type:tag'));
+  }
+
+  $rows = db_select('dynamic_form_tags', 't')
+    ->fields('t')
+    ->orderBy('id', 'ASC')
+    ->execute()
+    ->fetchAll();
+
+  if (empty($rows)) {
+    return 0;
+  }
+
+  $docs = array();
+  foreach ($rows as $row) {
+    $docs[] = _dynamic_form_solr_build_tag_doc($row->id, $row->standardized_value, $row->created_at);
+  }
+
+  if (!_dynamic_form_solr_send_documents($docs)) {
+    watchdog('dynamic_form_solr', 'Failed to index tags to Solr.', array(), WATCHDOG_ERROR);
+    return 0;
+  }
+
+  watchdog('dynamic_form_solr', 'Indexed @count tags to Solr.', array('@count' => count($docs)));
+  return count($docs);
+}
+
+/**
+ * Index a single tag (call after insert/update).
+ */
+function dynamic_form_solr_index_tag($tag_id, $standardized_value, $created_at) {
+  _dynamic_form_solr_send_documents(array(
+    _dynamic_form_solr_build_tag_doc($tag_id, $standardized_value, $created_at),
+  ));
+}
+
+/**
+ * Remove a single tag from the index.
+ */
+function dynamic_form_solr_delete_tag($tag_id) {
+  _dynamic_form_solr_delete_documents(array('id' => 'tag-' . $tag_id));
+}
+
+// ---------------------------------------------------------------------------
+// Response indexing API
+// ---------------------------------------------------------------------------
+
+/**
+ * Index a submitted response as a single flat document in Solr.
+ *
+ * Only indexes responses with status = 1 (submitted). Safe to call on any
+ * response_id — silently returns FALSE if not found or still a draft.
+ * Re-indexing is idempotent: the existing document is deleted first.
+ *
+ * @param int $response_id
+ * @return bool  TRUE on success, FALSE on failure.
+ */
+function dynamic_form_solr_index_response($response_id) {
+  $response_id = (int) $response_id;
+
+  $response = db_select('dynamic_form_responses', 'r')
+    ->fields('r')
+    ->condition('id', $response_id)
+    ->condition('status', 1)
+    ->isNull('deleted_at')
+    ->execute()
+    ->fetchObject();
+
+  if (!$response) {
+    return FALSE;
+  }
+
+  $answers = db_select('dynamic_form_answers', 'a')
+    ->fields('a', array('question_id', 'value'))
+    ->condition('response_id', $response_id)
+    ->execute()
+    ->fetchAll();
+
+  $question_types = array();
+  if (!empty($answers)) {
+    $qids = array_map(function ($a) { return (int) $a->question_id; }, $answers);
+    $question_types = db_select('dynamic_form_questions', 'q')
+      ->fields('q', array('id', 'type'))
+      ->condition('id', $qids, 'IN')
+      ->execute()
+      ->fetchAllKeyed(0, 1);
+  }
+
+  _dynamic_form_solr_delete_documents(array('id' => 'response-' . $response_id), TRUE);
+
+  $doc = _dynamic_form_solr_build_response_doc($response, $answers, $question_types);
+  return _dynamic_form_solr_send_documents(array($doc));
+}
+
+/**
+ * Remove the Solr response document for a response.
+ *
+ * @param int $response_id
+ * @return bool
+ */
+function dynamic_form_solr_delete_response($response_id) {
+  $response_id = (int) $response_id;
+  return _dynamic_form_solr_delete_documents(array('id' => 'response-' . $response_id));
+}
+
+/**
+ * Remove all Solr response documents belonging to a form.
+ *
+ * Called when an entire form is permanently deleted so its responses are
+ * also removed from the index.
+ *
+ * @param int $form_id
+ * @return bool
+ */
+function dynamic_form_solr_delete_form_responses($form_id) {
+  return _dynamic_form_solr_delete_documents(
+    array('query' => 'doc_type:response AND is_form_id:' . (int) $form_id)
+  );
+}
+
+/**
+ * Index all submitted responses as flat response documents.
+ *
+ * Deletes all existing response documents first, then re-indexes every
+ * submitted, non-deleted response (one document per response).
+ *
+ * @return int  Number of response documents indexed.
+ */
+function dynamic_form_solr_index_all_responses() {
+  _dynamic_form_solr_delete_documents(array('query' => 'doc_type:response'), TRUE);
+
+  $response_ids = db_select('dynamic_form_responses', 'r')
+    ->fields('r', array('id'))
+    ->condition('status', 1)
+    ->isNull('deleted_at')
+    ->orderBy('id', 'ASC')
+    ->execute()
+    ->fetchCol();
+
+  if (empty($response_ids)) {
+    return 0;
+  }
+
+  $total = 0;
+
+  // Process in batches to avoid sending one giant Solr request.
+  foreach (array_chunk($response_ids, 50) as $batch_ids) {
+    $responses = db_select('dynamic_form_responses', 'r')
+      ->fields('r')
+      ->condition('id', $batch_ids, 'IN')
+      ->execute()
+      ->fetchAllAssoc('id');
+
+    $answers_by_response = array();
+    $all_qids            = array();
+    $rows = db_select('dynamic_form_answers', 'a')
+      ->fields('a', array('response_id', 'question_id', 'value'))
+      ->condition('response_id', $batch_ids, 'IN')
+      ->execute()
+      ->fetchAll();
+    foreach ($rows as $row) {
+      $answers_by_response[(int) $row->response_id][] = $row;
+      $all_qids[(int) $row->question_id] = TRUE;
+    }
+
+    $question_types = array();
+    if (!empty($all_qids)) {
+      $question_types = db_select('dynamic_form_questions', 'q')
+        ->fields('q', array('id', 'type'))
+        ->condition('id', array_keys($all_qids), 'IN')
+        ->execute()
+        ->fetchAllKeyed(0, 1);
+    }
+
+    $docs = array();
+    foreach ($responses as $r) {
+      $answers = isset($answers_by_response[(int) $r->id]) ? $answers_by_response[(int) $r->id] : array();
+      $docs[] = _dynamic_form_solr_build_response_doc($r, $answers, $question_types);
+    }
+
+    if (!empty($docs) && _dynamic_form_solr_send_documents($docs)) {
+      $total += count($docs);
+    }
+  }
+
+  watchdog('dynamic_form_solr', 'Indexed @count response documents to Solr.', array('@count' => $total));
+  return $total;
+}
+
+// ---------------------------------------------------------------------------
+// Response search API
+// ---------------------------------------------------------------------------
+
+/**
+ * Build Solr q and fq params from filter criteria.
+ *
+ * Shared by dynamic_form_solr_filter_responses() and
+ * dynamic_form_solr_get_response_facets() to avoid duplicating the
+ * AND/OR grouping and date/respondent logic.
+ *
+ * @param array $criteria  Same keys as dynamic_form_solr_filter_responses().
+ * @return array  ['q' => string, 'fq' => array]
+ */
+function _dynamic_form_solr_build_criteria_params(array $criteria) {
+  $fq = array();
+
+  if (!empty($criteria['date_from'])) {
+    $fq[] = 'ds_submitted_at:[' . $criteria['date_from'] . 'T00:00:00Z TO *]';
+  }
+  if (!empty($criteria['date_to'])) {
+    $fq[] = 'ds_submitted_at:[* TO ' . $criteria['date_to'] . 'T23:59:59Z]';
+  }
+  if (!empty($criteria['respondent'])) {
+    if ($criteria['respondent'] === 'anonymous') {
+      $fq[] = 'is_user_id:0';
+    }
+    elseif ($criteria['respondent'] === 'registered') {
+      $fq[] = 'is_user_id:[1 TO *]';
+    }
+  }
+
+  if (!empty($criteria['filters'])) {
+    $and_groups = array();
+    $or_group   = array();
+
+    foreach ($criteria['filters'] as $i => $filter) {
+      $clause = _dynamic_form_solr_build_filter_clause($filter);
+      if ($clause === '') {
+        continue;
+      }
+      $is_or = ($i > 0 && isset($filter['op']) && strtoupper($filter['op']) === 'OR');
+
+      if ($is_or) {
+        $or_group[] = $clause;
+      }
+      else {
+        if (!empty($or_group)) {
+          $and_groups[] = $or_group;
+        }
+        $or_group = array($clause);
+      }
+    }
+    if (!empty($or_group)) {
+      $and_groups[] = $or_group;
+    }
+
+    foreach ($and_groups as $group) {
+      $fq[] = (count($group) === 1) ? $group[0] : '(' . implode(' OR ', $group) . ')';
+    }
+  }
+
+  $q = '*:*';
+  if (!empty($criteria['search'])) {
+    $term = _dynamic_form_solr_escape(trim($criteria['search']));
+    $q    = 'tm_answers:' . $term;
+  }
+
+  return array('q' => $q, 'fq' => $fq);
+}
+
+/**
+ * Filter responses for a form using Solr response documents.
+ *
+ * Returns an array of matching response IDs, or FALSE if Solr is unreachable.
+ * Returns NULL when no filter criteria are provided (caller should use DB directly).
+ *
+ * Supported criteria keys:
+ *   search     (string)  Full-text keyword across tm_answers.
+ *   filters    (array)   Zero or more per-question filters, each with keys:
+ *                          question_id, value, question_type, op ('AND'|'OR').
+ *   date_from  (string)  YYYY-MM-DD start of submission date range.
+ *   date_to    (string)  YYYY-MM-DD end of submission date range.
+ *   respondent (string)  'registered', 'anonymous', or '' (any).
+ *
+ * @param int   $form_id
+ * @param array $criteria
+ * @return array|bool|null
+ */
+function dynamic_form_solr_filter_responses($form_id, array $criteria) {
+  $form_id = (int) $form_id;
+  $params  = _dynamic_form_solr_build_criteria_params($criteria);
+
+  if ($params['q'] === '*:*' && empty($params['fq'])) {
+    return NULL;
+  }
+
+  return _dynamic_form_solr_fetch_response_ids($form_id, $params['q'], $params['fq']);
+}
+
+/**
+ * Fetch Solr field facets for option-type and tags questions on a form.
+ *
+ * Returns facet value counts keyed by question ID. Always queries Solr
+ * (even with no active criteria) so the caller gets totals for the full
+ * form result set. The same criteria used for filtering are applied so
+ * facet counts are context-aware.
+ *
+ * Each question's facets are stored in sm_q_{qid} (exact-string multi),
+ * which covers: checkbox, multi-select (already sm_*), radio and
+ * single-select (also indexed as sm_* since the last re-index), and tags
+ * (dual-indexed as both tm_* and sm_*).
+ *
+ * @param int   $form_id
+ * @param array $criteria   Same keys as dynamic_form_solr_filter_responses().
+ * @param array $facet_qids Question IDs to facet on.
+ * @return array|false
+ *   Keyed by int question_id => array of ['value' => string, 'count' => int],
+ *   sorted by count desc. Returns FALSE if Solr is unreachable.
+ */
+function dynamic_form_solr_get_response_facets($form_id, array $criteria, array $facet_qids) {
+  if (empty($facet_qids)) {
+    return array();
+  }
+
+  $form_id = (int) $form_id;
+  $params  = _dynamic_form_solr_build_criteria_params($criteria);
+  $fq      = $params['fq'];
+  $q       = $params['q'];
+
+  $fq[] = 'doc_type:response';
+  $fq[] = 'is_form_id:' . $form_id;
+
+  $solr_url = variable_get('dynamic_form_solr_url', DYNAMIC_FORM_SOLR_DEFAULT_URL);
+
+  $url = $solr_url . '/select'
+    . '?wt=json&rows=0'
+    . '&facet=true&facet.mincount=1&facet.limit=100&facet.sort=count'
+    . '&q=' . urlencode($q);
+
+  foreach ($fq as $f) {
+    $url .= '&fq=' . urlencode($f);
+  }
+  foreach ($facet_qids as $qid) {
+    $url .= '&facet.field=' . urlencode('sm_q_' . (int) $qid);
+  }
+
+  $raw = _dynamic_form_solr_request($url, NULL, 'GET');
+  if ($raw === FALSE) {
+    return FALSE;
+  }
+
+  $data = json_decode($raw, TRUE);
+  if (empty($data['facet_counts']['facet_fields'])) {
+    $result = array();
+    foreach ($facet_qids as $qid) {
+      $result[(int) $qid] = array();
+    }
+    return $result;
+  }
+
+  $result = array();
+  foreach ($facet_qids as $qid) {
+    $field     = 'sm_q_' . (int) $qid;
+    $raw_pairs = isset($data['facet_counts']['facet_fields'][$field])
+      ? $data['facet_counts']['facet_fields'][$field]
+      : array();
+
+    $items = array();
+    // Solr returns facets as a flat alternating [value, count, value, count, …] array.
+    for ($i = 0, $len = count($raw_pairs) - 1; $i < $len; $i += 2) {
+      if ((int) $raw_pairs[$i + 1] > 0) {
+        $items[] = array('value' => (string) $raw_pairs[$i], 'count' => (int) $raw_pairs[$i + 1]);
+      }
+    }
+    $result[(int) $qid] = $items;
+  }
+
+  return $result;
+}
+
+/**
+ * Execute a Solr select query and return unique response IDs.
+ *
+ * @param int    $form_id
+ * @param string $q       Solr q parameter.
+ * @param array  $fq      Additional filter queries (doc_type and is_form_id are added automatically).
+ * @return array|false    Array of int response IDs, or FALSE if Solr is unreachable.
+ */
+function _dynamic_form_solr_fetch_response_ids($form_id, $q, array $fq = array()) {
+  $solr_url = variable_get('dynamic_form_solr_url', DYNAMIC_FORM_SOLR_DEFAULT_URL);
+
+  $fq[] = 'doc_type:response';
+  $fq[] = 'is_form_id:' . (int) $form_id;
+
+  $url = $solr_url . '/select'
+    . '?wt=json&rows=10000&fl=is_response_id'
+    . '&q=' . urlencode($q ?: '*:*');
+  foreach ($fq as $f) {
+    $url .= '&fq=' . urlencode($f);
+  }
+
+  $raw = _dynamic_form_solr_request($url, NULL, 'GET');
+  if ($raw === FALSE) {
+    return FALSE;
+  }
+
+  $data = json_decode($raw, TRUE);
+  if (empty($data['response']['docs'])) {
+    return array();
+  }
+
+  $ids = array();
+  foreach ($data['response']['docs'] as $doc) {
+    if (isset($doc['is_response_id'])) {
+      $ids[(int) $doc['is_response_id']] = TRUE;
+    }
+  }
+  return array_keys($ids);
+}
+
+// ---------------------------------------------------------------------------
+// Tag search / query API
+// ---------------------------------------------------------------------------
+
+/**
+ * Query Solr for tags matching a term (prefix search).
+ *
+ * @param string $term
+ * @param int    $limit  Max results. Default 20.
+ * @return array|false  Array of {id, text} objects for Select2, or FALSE if
+ *                      Solr is unreachable.
+ */
+function dynamic_form_solr_search_tags($term, $limit = 20) {
+  $solr_url = variable_get('dynamic_form_solr_url', DYNAMIC_FORM_SOLR_DEFAULT_URL);
+
+  $params = array(
+    'q'    => 'ts_value:' . _dynamic_form_solr_escape($term) . '*',
+    'fq'   => 'doc_type:tag',
+    'fl'   => 'is_tag_id,ts_value',
+    'rows' => (int) $limit,
+    'wt'   => 'json',
+    'sort' => 'score desc',
+  );
+
+  $raw = _dynamic_form_solr_request($solr_url . '/select?' . http_build_query($params), NULL, 'GET');
+
+  if ($raw === FALSE) {
+    return FALSE;
+  }
+
+  $data = json_decode($raw, TRUE);
+  if (empty($data['response']['docs'])) {
+    return array();
+  }
+
+  $results = array();
+  foreach ($data['response']['docs'] as $doc) {
+    $results[] = array('id' => $doc['ts_value'], 'text' => $doc['ts_value']);
+  }
+  return $results;
+}
+
+/**
+ * Query Solr for fuzzy (typo-tolerant) tag matches.
+ *
+ * Fuzziness is adaptive: 1 edit for 3–4 char terms, 2 edits for 5+.
+ * Exact matches are excluded so only genuine corrections are surfaced.
+ *
+ * @param string $term
+ * @param int    $limit  Default 6.
+ * @return array  [{id, text}, …] or empty array (never FALSE — spellcheck is best-effort).
+ */
+function dynamic_form_solr_fuzzy_search_tags($term, $limit = 6) {
+  $solr_url = variable_get('dynamic_form_solr_url', DYNAMIC_FORM_SOLR_DEFAULT_URL);
+
+  $len = drupal_strlen($term);
+  if ($len < 3) {
+    return array();
+  }
+
+  $fuzz = ($len >= 5) ? 2 : 1;
+
+  $params = array(
+    'q'    => 'ts_value:' . _dynamic_form_solr_escape($term) . '~' . $fuzz,
+    'fq'   => 'doc_type:tag',
+    'fl'   => 'ts_value',
+    'rows' => (int) $limit,
+    'wt'   => 'json',
+    'sort' => 'score desc',
+  );
+
+  $raw = _dynamic_form_solr_request($solr_url . '/select?' . http_build_query($params), NULL, 'GET');
+
+  if ($raw === FALSE) {
+    return array();
+  }
+
+  $data = json_decode($raw, TRUE);
+  if (empty($data['response']['docs'])) {
+    return array();
+  }
+
+  $term_lower = drupal_strtolower($term);
+  $results    = array();
+  foreach ($data['response']['docs'] as $doc) {
+    if (drupal_strtolower($doc['ts_value']) === $term_lower) {
+      continue;
+    }
+    $results[] = array('id' => $doc['ts_value'], 'text' => $doc['ts_value']);
+  }
+  return $results;
+}
+
+/**
+ * Build one Solr filter clause from a single question-filter row.
+ *
+ * Returns an empty string when the filter is incomplete (no question or value).
+ */
+function _dynamic_form_solr_build_filter_clause(array $filter) {
+  if (empty($filter['question_id']) || !isset($filter['value']) || $filter['value'] === '') {
+    return '';
+  }
+  $qid   = (int) $filter['question_id'];
+  $qtype = isset($filter['question_type']) ? $filter['question_type'] : '';
+  $esc   = _dynamic_form_solr_escape(trim($filter['value']));
+  $fk    = 'q_' . $qid;
+
+  if (in_array($qtype, array('text', 'textarea', 'text_editor', 'tags'))) {
+    return 'tm_' . $fk . ':' . $esc;
+  }
+  if ($qtype === 'checkbox') {
+    // Checkbox answers are stored as JSON arrays → indexed as sm_* (multi-string).
+    return 'sm_' . $fk . ':"' . $esc . '"';
+  }
+  if ($qtype === 'select') {
+    // Single-select stores a plain string (→ ss_*); allow_multiple stores a JSON
+    // array (→ sm_*). Query both so either storage format matches.
+    return '(sm_' . $fk . ':"' . $esc . '" OR ss_' . $fk . ':"' . $esc . '")';
+  }
+  // radio, number, date, time, rating, linear_scale, etc. → scalar exact string.
+  // Wrap in quotes so multi-word values (e.g. "Option A") are not split by Solr.
+  return 'ss_' . $fk . ':"' . $esc . '"';
+}
+
 /**
  * Escape special Solr query characters.
- *
- * @param string $string
- * @return string
  */
 function _dynamic_form_solr_escape($string) {
   $special = array('+', '-', '&&', '||', '!', '(', ')', '{', '}', '[', ']',
                    '^', '"', '~', '*', '?', ':', '\\', '/');
-  $escaped = str_replace($special, array_map(function ($c) {
-    return '\\' . $c;
-  }, $special), $string);
-  return $escaped;
+  return str_replace($special, array_map(function ($c) { return '\\' . $c; }, $special), $string);
 }
