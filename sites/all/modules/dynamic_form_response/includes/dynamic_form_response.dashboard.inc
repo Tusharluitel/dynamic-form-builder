@@ -77,9 +77,15 @@ function dynamic_form_response_list_page($form_id) {
     $raw_rows = array();
     foreach ($_GET['f'] as $row) {
       $qid = isset($row['qid']) ? (int) $row['qid'] : 0;
-      $val = isset($row['val']) ? trim($row['val']) : '';
+      $raw = isset($row['val']) ? $row['val'] : '';
+      // Multi-select submits val as an array (f[i][val][]); join with | for storage.
+      if (is_array($raw)) {
+        $val = implode('|', array_filter(array_map('trim', $raw)));
+      } else {
+        $val = trim($raw);
+      }
       $op  = (isset($row['op']) && strtoupper($row['op']) === 'OR') ? 'OR' : 'AND';
-      if ($qid > 0) {
+      if ($qid > 0 && $val !== '') {
         $raw_rows[] = array('qid' => $qid, 'val' => $val, 'op' => $op);
         $raw_qids[] = $qid;
       }
@@ -109,10 +115,11 @@ function dynamic_form_response_list_page($form_id) {
   $has_filters = $filter_search !== '' || !empty($filter_rows)
                || $filter_date_from || $filter_date_to || $filter_respondent;
 
-  // Load all questions for the filter UI and JS settings.
+  // Load only questions marked allow_filter=1 for the filter UI and JS settings.
   $filter_questions = db_select('dynamic_form_questions', 'q')
     ->fields('q', array('id', 'label', 'type'))
     ->condition('form_id', $form_id)
+    ->condition('allow_filter', 1)
     ->isNull('deleted_at')
     ->orderBy('position', 'ASC')
     ->execute()
@@ -143,7 +150,6 @@ function dynamic_form_response_list_page($form_id) {
     ),
   ), 'setting');
 
-  // ---- Build Solr filter rows (shared by ID filter + facets) ---------
   $solr_filters = array();
   foreach ($filter_rows as $row) {
     $solr_filters[] = array(
@@ -161,7 +167,6 @@ function dynamic_form_response_list_page($form_id) {
     'respondent' => $filter_respondent,
   );
 
-  // ---- Resolve matching response IDs (Solr when available) ------------
   $solr_ids   = NULL;
   $solr_error = FALSE;
 
@@ -172,42 +177,6 @@ function dynamic_form_response_list_page($form_id) {
       $solr_error = TRUE;
     }
   }
-
-  // ---- Facets (option-type + tags questions, always when Solr is up) --
-  $facet_data = array();
-  if (module_exists('dynamic_form_solr') && !$solr_error) {
-    $facetable_types = array('radio', 'checkbox', 'select', 'tags');
-    $facet_qids      = array();
-    $facet_q_map     = array();
-    foreach ($filter_questions as $fq) {
-      if (in_array($fq->type, $facetable_types)) {
-        $facet_qids[] = (int) $fq->id;
-        $facet_q_map[(int) $fq->id] = $fq;
-      }
-    }
-    if (!empty($facet_qids)) {
-      $raw_facets = dynamic_form_solr_get_response_facets($form_id, $solr_criteria, $facet_qids);
-      if ($raw_facets !== FALSE) {
-        foreach ($facet_q_map as $qid => $fq) {
-          if (!empty($raw_facets[$qid])) {
-            $facet_data[$qid] = array(
-              'label' => $fq->label,
-              'type'  => $fq->type,
-              'items' => $raw_facets[$qid],
-            );
-          }
-        }
-      }
-    }
-  }
-
-  $current_params = array(
-    's'         => $filter_search,
-    'date_from' => $filter_date_from,
-    'date_to'   => $filter_date_to,
-    'respondent' => $filter_respondent,
-    'sort'      => $sort,
-  );
 
   // ---- Build the base DB query ----------------------------------------
   $sort_dir = ($sort === 'date_asc') ? 'ASC' : 'DESC';
@@ -235,6 +204,30 @@ function dynamic_form_response_list_page($form_id) {
 
   $filtered_total = $base->countQuery()->execute()->fetchField();
   $responses      = $base->extend('PagerDefault')->limit(25)->execute()->fetchAll();
+
+  // Build an ordered list of question IDs for the inline answer columns.
+  $filter_question_ids = array();
+  foreach ($filter_questions as $fq) {
+    $filter_question_ids[] = (int) $fq->id;
+  }
+
+  // Batch-load answers for allow_filter questions across the current page.
+  $inline_answers = array();
+  if (!empty($filter_question_ids) && !empty($responses)) {
+    $resp_ids = array();
+    foreach ($responses as $r) {
+      $resp_ids[] = (int) $r->id;
+    }
+    $ans_rows = db_select('dynamic_form_answers', 'a')
+      ->fields('a', array('response_id', 'question_id', 'value'))
+      ->condition('response_id', $resp_ids, 'IN')
+      ->condition('question_id', $filter_question_ids, 'IN')
+      ->execute()
+      ->fetchAll();
+    foreach ($ans_rows as $ar) {
+      $inline_answers[(int) $ar->response_id][(int) $ar->question_id] = $ar->value;
+    }
+  }
 
   // Batch-load respondent names.
   $uid_map = array();
@@ -289,7 +282,7 @@ function dynamic_form_response_list_page($form_id) {
   // Filter bar.
   $out .= _dynamic_form_response_render_filter_bar(
     $form_id, $filter_rows, $filter_date_from, $filter_date_to,
-    $filter_respondent, $filter_search, $sort
+    $filter_respondent, $filter_search, $sort, $filter_questions
   );
 
   // Active filter chips.
@@ -298,14 +291,6 @@ function dynamic_form_response_list_page($form_id) {
       $form_id, $filter_rows, $filter_date_from, $filter_date_to,
       $filter_respondent, $filter_search
     );
-  }
-
-  // Open two-column layout when facets are present.
-  $has_facets = !empty($facet_data);
-  if ($has_facets) {
-    $out .= '<div class="dfr-facet-layout">';
-    $out .= _dynamic_form_response_render_facet_panel($form_id, $facet_data, $filter_rows, $current_params);
-    $out .= '<div class="dfr-facet-main">';
   }
 
   if ($solr_error && $has_filters) {
@@ -321,13 +306,23 @@ function dynamic_form_response_list_page($form_id) {
     $out .= '<p class="dfr-empty-note">' . t('No responses have been submitted yet.') . '</p>';
   }
   else {
-    $out .= '<table class="dfr-response-table">';
-    $out .= '<thead><tr>'
-      . '<th>#</th>'
-      . '<th>' . t('Respondent') . '</th>'
-      . '<th>' . t('Submitted') . '</th>'
-      . '<th>' . t('Actions') . '</th>'
-      . '</tr></thead><tbody>';
+    $has_inline_cols = !empty($filter_questions);
+
+    $out .= '<div class="dfr-table-scroll">';
+    $out .= '<table class="dfr-response-table' . ($has_inline_cols ? ' dfr-response-table--expanded' : '') . '">';
+
+    // Header.
+    $out .= '<thead><tr>';
+    $out .= '<th class="dfr-col-num">#</th>';
+    $out .= '<th class="dfr-col-respondent">' . t('Respondent') . '</th>';
+    foreach ($filter_questions as $fq) {
+      $out .= '<th class="dfr-col-answer" title="' . check_plain($fq->label) . '">'
+        . check_plain(truncate_utf8($fq->label, 28, TRUE, TRUE))
+        . '</th>';
+    }
+    $out .= '<th class="dfr-col-date">' . t('Submitted') . '</th>';
+    $out .= '<th class="dfr-col-actions">' . t('Actions') . '</th>';
+    $out .= '</tr></thead><tbody>';
 
     $i = 1;
     foreach ($responses as $r) {
@@ -356,24 +351,25 @@ function dynamic_form_response_list_page($form_id) {
         . ' data-entity-id="' . (int) $r->id . '"'
         . ' data-entity-name="' . check_plain($modal_name) . '">'
         . t('Delete') . '</button>';
-      $actions    = '<div class="dfr-resp-actions">' . $view_link . $delete_btn . '</div>';
+      $actions = '<div class="dfr-resp-actions">' . $view_link . $delete_btn . '</div>';
 
-      $out .= '<tr>'
-        . '<td>' . $i . '</td>'
-        . '<td>' . $name . '</td>'
-        . '<td>' . $date . '</td>'
-        . '<td>' . $actions . '</td>'
-        . '</tr>';
+      $out .= '<tr>';
+      $out .= '<td class="dfr-col-num">' . $i . '</td>';
+      $out .= '<td class="dfr-col-respondent">' . $name . '</td>';
+      foreach ($filter_questions as $fq) {
+        $qid = (int) $fq->id;
+        $val = isset($inline_answers[(int) $r->id][$qid]) ? $inline_answers[(int) $r->id][$qid] : NULL;
+        $out .= '<td class="dfr-col-answer">' . _dfr_format_inline_answer($val, $fq->type) . '</td>';
+      }
+      $out .= '<td class="dfr-col-date">' . $date . '</td>';
+      $out .= '<td class="dfr-col-actions">' . $actions . '</td>';
+      $out .= '</tr>';
       $i++;
     }
 
     $out .= '</tbody></table>';
+    $out .= '</div>';
     $out .= theme('pager');
-  }
-
-  if ($has_facets) {
-    $out .= '</div>'; // .dfr-facet-main
-    $out .= '</div>'; // .dfr-facet-layout
   }
 
   module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.dashboard');
@@ -387,125 +383,56 @@ function dynamic_form_response_list_page($form_id) {
 }
 
 /* =====================================================================
-   FACET HELPERS
-   ===================================================================== */
-
-/**
- * Build the URL for a facet link.
- *
- * If the qid+val pair is already an active filter row it is removed;
- * otherwise it is appended as a new AND filter row.
- *
- * @param int    $form_id
- * @param int    $facet_qid
- * @param string $facet_val
- * @param array  $filter_rows   Current filter rows (each has qid, val, op).
- * @param array  $current_params  s, date_from, date_to, respondent, sort.
- * @return string  Drupal-generated URL.
- */
-function _dynamic_form_response_facet_url($form_id, $facet_qid, $facet_val, array $filter_rows, array $current_params) {
-  $is_active  = FALSE;
-  $new_rows   = array();
-  foreach ($filter_rows as $row) {
-    if ((int) $row['qid'] === (int) $facet_qid && $row['val'] === $facet_val) {
-      $is_active = TRUE;
-    }
-    else {
-      $new_rows[] = $row;
-    }
-  }
-  if (!$is_active) {
-    $new_rows[] = array('qid' => $facet_qid, 'val' => $facet_val, 'op' => 'AND');
-  }
-
-  $query = array();
-  if (!empty($current_params['s']))          { $query['s']          = $current_params['s']; }
-  if (!empty($current_params['date_from']))  { $query['date_from']  = $current_params['date_from']; }
-  if (!empty($current_params['date_to']))    { $query['date_to']    = $current_params['date_to']; }
-  if (!empty($current_params['respondent'])) { $query['respondent'] = $current_params['respondent']; }
-  if (!empty($current_params['sort']) && $current_params['sort'] !== 'date_desc') {
-    $query['sort'] = $current_params['sort'];
-  }
-  foreach ($new_rows as $i => $row) {
-    $query['f'][$i] = array('qid' => $row['qid'], 'val' => $row['val'], 'op' => $row['op']);
-  }
-
-  return url('dashboard/forms/' . $form_id . '/responses', array('query' => $query));
-}
-
-/**
- * Render the facet sidebar panel.
- *
- * @param int   $form_id
- * @param array $facet_data     Keyed by qid => ['label', 'type', 'items' => [['value','count']]].
- * @param array $filter_rows    Active filter rows.
- * @param array $current_params Current GET params (s, date_from, date_to, respondent, sort).
- * @return string HTML, or '' when facet_data is empty.
- */
-function _dynamic_form_response_render_facet_panel($form_id, array $facet_data, array $filter_rows, array $current_params) {
-  if (empty($facet_data)) {
-    return '';
-  }
-
-  $out  = '<aside class="dfr-facet-panel">';
-  $out .= '<div class="dfr-facet-panel-title">' . t('Filter by') . '</div>';
-
-  foreach ($facet_data as $qid => $facet) {
-    if (empty($facet['items'])) {
-      continue;
-    }
-
-    $out .= '<div class="dfr-facet-section">';
-    $out .= '<div class="dfr-facet-section-label" title="' . check_plain($facet['label']) . '">'
-      . check_plain($facet['label']) . '</div>';
-    $out .= '<ul class="dfr-facet-list">';
-
-    foreach ($facet['items'] as $item) {
-      $is_active = FALSE;
-      foreach ($filter_rows as $row) {
-        if ((int) $row['qid'] === (int) $qid && $row['val'] === $item['value']) {
-          $is_active = TRUE;
-          break;
-        }
-      }
-
-      $href         = _dynamic_form_response_facet_url($form_id, $qid, $item['value'], $filter_rows, $current_params);
-      $active_class = $is_active ? ' dfr-facet-item--active' : '';
-
-      $out .= '<li class="dfr-facet-item' . $active_class . '">';
-      $out .= '<a href="' . check_url($href) . '" class="dfr-facet-link"'
-        . ' title="' . check_plain($item['value']) . '">';
-      if ($is_active) {
-        $out .= '<span class="dfr-facet-check">&#10003;</span>';
-      }
-      $out .= '<span class="dfr-facet-val">' . check_plain($item['value']) . '</span>';
-      $out .= '<span class="dfr-facet-count">' . (int) $item['count'] . '</span>';
-      $out .= '</a>';
-      $out .= '</li>';
-    }
-
-    $out .= '</ul>';
-    $out .= '</div>';
-  }
-
-  $out .= '</aside>';
-  return $out;
-}
-
-/* =====================================================================
    RESPONSE FILTER HELPERS
    ===================================================================== */
 
 /**
- * Renders the advanced filter bar above the responses table.
+ * Renders the filter bar above the responses table.
+ *
+ * @param int    $form_id
+ * @param array  $filter_rows       Currently active filter rows (non-empty val only).
+ * @param string $filter_date_from
+ * @param string $filter_date_to
+ * @param string $filter_respondent
+ * @param string $filter_search
+ * @param string $sort
+ * @param array  $filter_questions  Questions with allow_filter=1 (id, label, type).
  */
-function _dynamic_form_response_render_filter_bar($form_id, array $filter_rows, $filter_date_from, $filter_date_to, $filter_respondent, $filter_search = '', $sort = 'date_desc') {
+function _dynamic_form_response_render_filter_bar($form_id, array $filter_rows, $filter_date_from, $filter_date_to, $filter_respondent, $filter_search = '', $sort = 'date_desc', array $filter_questions = array()) {
   $action = check_url(url('dashboard/forms/' . $form_id . '/responses'));
+
+  // Build a qid → active val map for pre-filling question fields.
+  $active_vals = array();
+  foreach ($filter_rows as $row) {
+    $active_vals[(int) $row['qid']] = $row['val'];
+  }
+
+  // Batch-load options for option-type questions (single query).
+  $option_types = array('radio', 'checkbox', 'select', 'tags');
+  $option_qids  = array();
+  foreach ($filter_questions as $fq) {
+    if (in_array($fq->type, $option_types)) {
+      $option_qids[] = (int) $fq->id;
+    }
+  }
+  $options_by_qid = array();
+  if (!empty($option_qids)) {
+    $opt_rows = db_select('dynamic_form_question_options', 'o')
+      ->fields('o', array('question_id', 'option_label'))
+      ->condition('question_id', $option_qids, 'IN')
+      ->isNull('deleted_at')
+      ->orderBy('position', 'ASC')
+      ->execute()
+      ->fetchAll();
+    foreach ($opt_rows as $or) {
+      $options_by_qid[(int) $or->question_id][] = $or->option_label;
+    }
+  }
 
   $out  = '<div class="dfr-filter-bar">';
   $out .= '<form method="get" action="' . $action . '" id="dfr-filter-form">';
 
-  // Full-text search row.
+  // ── Full-text search ────────────────────────────────────────────────────
   $out .= '<div class="dfr-filter-row dfr-filter-row--search">';
   $out .= '<div class="dfr-filter-field dfr-filter-field--search">';
   $out .= '<label for="dfr-filter-search">' . t('Search answers') . '</label>';
@@ -516,15 +443,68 @@ function _dynamic_form_response_render_filter_bar($form_id, array $filter_rows, 
   $out .= '</div>';
   $out .= '</div>';
 
-  // Advanced question filter rows (populated by JS from config.filterRows).
-  $out .= '<div class="dfr-adv-section">';
-  $out .= '<div id="dfr-filter-rows"></div>';
-  $out .= '<button type="button" id="dfr-filter-add-row" class="dfr-adv-add-btn">'
-    . t('+ Add filter')
-    . '</button>';
-  $out .= '</div>';
+  // ── Question filters (static grid, one field per allow_filter question) ─
+  if (!empty($filter_questions)) {
+    $out .= '<div class="dfr-qfilter-section">';
+    $out .= '<div class="dfr-qfilter-heading">' . t('Filter by question') . '</div>';
+    $out .= '<div class="dfr-qfilter-grid">';
 
-  // Meta row: date, respondent, sort, apply.
+    foreach ($filter_questions as $idx => $fq) {
+      $qid      = (int) $fq->id;
+      $val      = isset($active_vals[$qid]) ? $active_vals[$qid] : '';
+      $input_id = 'dfr-qf-' . $qid;
+
+      $out .= '<div class="dfr-qfilter-field" data-qid="' . $qid . '">';
+      $out .= '<label for="' . $input_id . '" title="' . check_plain($fq->label) . '">'
+            . check_plain(truncate_utf8($fq->label, 24, TRUE, TRUE)) . '</label>';
+
+      // Hidden fields carry qid and operator; the visible input carries val.
+      $out .= '<input type="hidden" class="dfr-qfilter-qid" name="f[' . $idx . '][qid]" value="' . $qid . '">';
+      $out .= '<input type="hidden" class="dfr-qfilter-op"  name="f[' . $idx . '][op]"  value="AND">';
+
+      if (in_array($fq->type, $option_types) && !empty($options_by_qid[$qid])) {
+        $active_arr = ($val !== '') ? explode('|', $val) : array();
+        $out .= '<select name="f[' . $idx . '][val][]" id="' . $input_id
+              . '" class="dfr-qfilter-select dfr-qfilter-val" multiple="multiple"'
+              . ' data-placeholder="' . t('— Any —') . '">';
+        foreach ($options_by_qid[$qid] as $opt) {
+          $sel  = in_array($opt, $active_arr, TRUE) ? ' selected="selected"' : '';
+          $out .= '<option value="' . check_plain($opt) . '"' . $sel . '>' . check_plain($opt) . '</option>';
+        }
+        $out .= '</select>';
+      }
+      elseif ($fq->type === 'date') {
+        $out .= '<input type="date" name="f[' . $idx . '][val]" id="' . $input_id . '"'
+          . ' value="' . check_plain($val) . '" class="dfr-qfilter-input dfr-qfilter-val">';
+      }
+      elseif ($fq->type === 'time') {
+        $out .= '<input type="time" name="f[' . $idx . '][val]" id="' . $input_id . '"'
+          . ' value="' . check_plain($val) . '" class="dfr-qfilter-input dfr-qfilter-val">';
+      }
+      elseif (in_array($fq->type, array('number', 'rating', 'linear_scale'))) {
+        $out .= '<input type="number" name="f[' . $idx . '][val]" id="' . $input_id . '"'
+          . ' value="' . check_plain($val) . '" placeholder="' . t('Any') . '"'
+          . ' class="dfr-qfilter-input dfr-qfilter-val">';
+      }
+      else {
+        $out .= '<input type="text" name="f[' . $idx . '][val]" id="' . $input_id . '"'
+          . ' value="' . check_plain($val) . '" placeholder="' . t('Any answer…') . '"'
+          . ' class="dfr-qfilter-input dfr-qfilter-val" autocomplete="off">';
+      }
+
+      // Clear button — only visible when there is an active value.
+      $clear_cls = $val !== '' ? '' : ' style="display:none"';
+      $out .= '<button type="button" class="dfr-qfilter-clear" aria-label="' . t('Clear') . '"'
+        . $clear_cls . '>&#10005;</button>';
+
+      $out .= '</div>'; // .dfr-qfilter-field
+    }
+
+    $out .= '</div>'; // .dfr-qfilter-grid
+    $out .= '</div>'; // .dfr-qfilter-section
+  }
+
+  // ── Meta row: date range, respondent type, sort, apply ──────────────────
   $out .= '<div class="dfr-filter-row dfr-filter-row--meta">';
 
   $out .= '<div class="dfr-filter-field dfr-filter-field--date">';
@@ -582,9 +562,10 @@ function _dynamic_form_response_render_active_filters($form_id, array $filter_ro
       continue;
     }
     $prefix = ($i > 0) ? '<em class="dfr-chip-op">' . check_plain($row['op']) . '</em> ' : '';
+    $display_val = str_replace('|', ', ', $row['val']);
     $chips[] = '<span class="dfr-filter-chip">'
       . $prefix
-      . check_plain($row['label']) . ': <strong>' . check_plain(truncate_utf8($row['val'], 40, TRUE, TRUE)) . '</strong>'
+      . check_plain($row['label']) . ': <strong>' . check_plain(truncate_utf8($display_val, 40, TRUE, TRUE)) . '</strong>'
       . '</span>';
   }
 
@@ -1027,4 +1008,47 @@ function _dynamic_form_response_render_answer_card($q, array $answers) {
 
   $out .= '</div>';
   return $out;
+}
+
+/**
+ * Formats a raw answer value for inline display in the responses table.
+ *
+ * @param string|null $val   Raw value from dynamic_form_answers.value.
+ * @param string      $type  Question type key.
+ * @return string  Safe HTML, never exceeds one short line.
+ */
+function _dfr_format_inline_answer($val, $type) {
+  if ($val === NULL || $val === '') {
+    return '<span class="dfr-inline-empty">—</span>';
+  }
+
+  $decoded = @json_decode($val, TRUE);
+
+  // File upload: show the filename.
+  if (is_array($decoded) && isset($decoded['fid'], $decoded['filename'])) {
+    return '<span class="dfr-inline-file" title="' . check_plain($decoded['filename']) . '">'
+      . '&#128206; ' . check_plain(truncate_utf8($decoded['filename'], 30, TRUE, TRUE))
+      . '</span>';
+  }
+
+  // Multi-value (checkbox, tags, etc.): join with a comma.
+  if (is_array($decoded)) {
+    $text = implode(', ', array_map('check_plain', $decoded));
+    return '<span class="dfr-inline-val" title="' . check_plain($text) . '">'
+      . check_plain(truncate_utf8($text, 50, TRUE, TRUE))
+      . '</span>';
+  }
+
+  // Rich text: strip tags before truncating.
+  if ($type === 'text_editor') {
+    $text = strip_tags($val);
+    return '<span class="dfr-inline-val" title="' . check_plain($text) . '">'
+      . check_plain(truncate_utf8($text, 50, TRUE, TRUE))
+      . '</span>';
+  }
+
+  // Plain text.
+  return '<span class="dfr-inline-val" title="' . check_plain($val) . '">'
+    . check_plain(truncate_utf8($val, 50, TRUE, TRUE))
+    . '</span>';
 }

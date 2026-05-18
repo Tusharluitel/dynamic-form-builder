@@ -374,8 +374,8 @@ function dynamic_form_edit_form($form, &$form_state, $form_id)
   // Store the record for use in validate/submit.
   $form_state['dynamic_form_record'] = $record;
 
-  // Wrapper for dashboard styling.
-  $form['#prefix'] = '<div class="dfb-form-wrapper">';
+  // Wrapper — inner panel only; the outer dfb-form-wrapper is built by the page callback.
+  $form['#prefix'] = '<div class="dfb-edit-form-panel">';
   $form['#suffix'] = '</div>';
 
   // -- Basic Info section --

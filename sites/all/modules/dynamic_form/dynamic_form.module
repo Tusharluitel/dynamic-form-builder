@@ -1,6 +1,19 @@
 <?php
 
 /**
+ * Implements hook_init().
+ *
+ * Loads toast.js and toast.css on every page through Drupal's asset pipeline
+ * so they benefit from aggregation, cache-busting, and proper load ordering.
+ * jQuery is guaranteed to be present because Drupal core adds it first.
+ */
+function dynamic_form_init() {
+  $mp = drupal_get_path('module', 'dynamic_form');
+  drupal_add_css($mp . '/css/toast.css');
+  drupal_add_js($mp . '/js/toast.js', array('scope' => 'footer', 'weight' => 5));
+}
+
+/**
  * Returns an AJAX command array that triggers a DFBToast notification.
  *
  * @param string $type     One of: success, error, warning, info.
@@ -283,6 +296,14 @@ function dynamic_form_menu()
     'page callback'   => 'dynamic_form_ajax_member_search',
     'access callback' => 'user_is_logged_in',
     'file'            => 'includes/dynamic_form.members.inc',
+    'type'            => MENU_CALLBACK,
+  );
+
+  $items['dynamic-form/ajax/question/%/toggle-filter'] = array(
+    'page callback'   => 'dynamic_form_ajax_toggle_allow_filter',
+    'page arguments'  => array(3),
+    'access callback' => 'user_is_logged_in',
+    'file'            => 'includes/dynamic_form.dashboard.inc',
     'type'            => MENU_CALLBACK,
   );
 

@@ -1,0 +1,6 @@
+name = Dynamic Form Analytics
+description = D3-powered analytics dashboard for dynamic form responses and submissions.
+core = 7.x
+package = Dynamic Form
+dependencies[] = dynamic_form
+dependencies[] = dynamic_form_response
