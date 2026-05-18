@@ -1,0 +1,154 @@
+/* ==========================================================================
+   Filter-toggle panel — form edit page two-column layout
+   ========================================================================== */
+
+/* Override the single-column max-width when the edit page uses both panels.
+   Double-class specificity beats the theme's .dfb-form-wrapper rule. */
+.dfb-form-wrapper.dfb-form-wrapper--edit {
+  max-width: none;
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+}
+
+/* Left panel: the existing edit form */
+.dfb-edit-form-panel {
+  flex: 1;
+  min-width: 0;
+  max-width: 780px;
+}
+
+/* Right panel: filter question toggles */
+.dfb-filter-questions-panel {
+  width: 280px;
+  flex-shrink: 0;
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  padding: 20px;
+  position: sticky;
+  top: 24px;
+}
+
+.dfb-filter-questions-panel h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text, #111827);
+}
+
+.dfb-filter-panel-desc {
+  margin: 0 0 16px;
+  font-size: 12px;
+  color: var(--color-text-muted, #6b7280);
+  line-height: 1.5;
+}
+
+.dfb-filter-panel-empty {
+  font-size: 13px;
+  color: var(--color-text-muted, #6b7280);
+  font-style: italic;
+}
+
+/* Individual question row */
+.dfb-filter-question-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border, #f3f4f6);
+}
+
+.dfb-filter-question-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.dfb-filter-question-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.dfb-filter-question-type {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--color-text-muted, #9ca3af);
+  margin-bottom: 2px;
+}
+
+.dfb-filter-question-label {
+  font-size: 13px;
+  color: var(--color-text, #374151);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Toggle switch */
+.dfb-toggle-wrap {
+  flex-shrink: 0;
+  position: relative;
+}
+
+.dfb-filter-toggle-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.dfb-toggle-label {
+  display: block;
+  width: 38px;
+  height: 22px;
+  background: #d1d5db;
+  border-radius: 11px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  position: relative;
+}
+
+.dfb-toggle-label::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  top: 3px;
+  left: 3px;
+  transition: left 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+
+.dfb-filter-toggle-input:checked + .dfb-toggle-label {
+  background: var(--color-primary, #4f46e5);
+}
+
+.dfb-filter-toggle-input:checked + .dfb-toggle-label::after {
+  left: 19px;
+}
+
+.dfb-filter-toggle-input:focus + .dfb-toggle-label {
+  outline: 2px solid var(--color-primary, #4f46e5);
+  outline-offset: 2px;
+}
+
+/* Responsive: stack panels on small screens */
+@media (max-width: 960px) {
+  .dfb-form-wrapper.dfb-form-wrapper--edit {
+    flex-direction: column;
+  }
+
+  .dfb-edit-form-panel {
+    max-width: none;
+    width: 100%;
+  }
+
+  .dfb-filter-questions-panel {
+    width: 100%;
+    position: static;
+  }
+}

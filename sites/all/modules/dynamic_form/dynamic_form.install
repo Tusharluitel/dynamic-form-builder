@@ -286,6 +286,13 @@ function dynamic_form_schema()
         'not null' => TRUE,
         'default' => 0,
       ),
+      'allow_filter' => array(
+        'description' => '1 if this question should appear as a filter option on the response dashboard.',
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
       'width' => array(
         'description' => 'Column width for multi-column row layout: full, half, third, quarter.',
         'type' => 'varchar',
@@ -1379,4 +1386,27 @@ function dynamic_form_update_7005() {
     'default'  => NULL,
   ));
   return t('Added guest_email column to dynamic_form_responses.');
+}
+
+/**
+ * Implements hook_update_N().
+ *
+ * Update 7006 — allow_filter flag on questions.
+ *
+ * Adds allow_filter (tinyint, default 0) to dynamic_form_questions so
+ * individual questions can be opted into the response-dashboard filter bar
+ * without showing all questions by default.
+ */
+function dynamic_form_update_7006() {
+  if (db_field_exists('dynamic_form_questions', 'allow_filter')) {
+    return t('allow_filter column already exists; skipped.');
+  }
+  db_add_field('dynamic_form_questions', 'allow_filter', array(
+    'description' => '1 if this question should appear as a filter option on the response dashboard.',
+    'type'        => 'int',
+    'size'        => 'tiny',
+    'not null'    => TRUE,
+    'default'     => 0,
+  ));
+  return t('Added allow_filter column to dynamic_form_questions.');
 }

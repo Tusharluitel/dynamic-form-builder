@@ -241,6 +241,17 @@
 }
 
 /* ----------------------------------------------------------------
+   Horizontal scroll wrapper for wide tables
+   ---------------------------------------------------------------- */
+.dfr-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+/* ----------------------------------------------------------------
    Response table
    ---------------------------------------------------------------- */
 .dfr-response-table {
@@ -251,6 +262,13 @@
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   margin-bottom: 16px;
+}
+
+/* When inside the scroll wrapper, let the wrapper own the shadow/radius */
+.dfr-table-scroll .dfr-response-table {
+  box-shadow: none;
+  border-radius: 0;
+  margin-bottom: 0;
 }
 
 .dfr-response-table th,
@@ -268,6 +286,7 @@
   font-size: 0.74rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  white-space: nowrap;
 }
 
 .dfr-response-table tbody tr:last-child td { border-bottom: none; }
@@ -280,6 +299,68 @@
   font-weight: 500;
 }
 .dfr-response-table a:hover { text-decoration: underline; }
+
+/* ----------------------------------------------------------------
+   Expanded table column widths
+   ---------------------------------------------------------------- */
+.dfr-response-table--expanded .dfr-col-num {
+  width: 44px;
+  text-align: center;
+}
+.dfr-response-table--expanded .dfr-col-num td {
+  text-align: center;
+  color: #aaaacc;
+  font-size: 0.78rem;
+}
+.dfr-response-table--expanded .dfr-col-respondent {
+  min-width: 180px;
+  max-width: 260px;
+}
+.dfr-response-table--expanded .dfr-col-date {
+  white-space: nowrap;
+  min-width: 130px;
+}
+.dfr-response-table--expanded .dfr-col-actions {
+  white-space: nowrap;
+  min-width: 120px;
+}
+
+/* Answer columns: fixed width so they don't stretch too wide */
+.dfr-response-table--expanded .dfr-col-answer {
+  min-width: 140px;
+  max-width: 220px;
+}
+
+/* ----------------------------------------------------------------
+   Inline answer cell content
+   ---------------------------------------------------------------- */
+.dfr-inline-empty {
+  color: #cccce0;
+  font-size: 0.85rem;
+}
+
+.dfr-inline-val {
+  display: block;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #2c2c3e;
+  font-size: 0.85rem;
+  cursor: default;
+}
+
+.dfr-inline-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #5b6af7;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
 
 .dfr-empty-note {
   text-align: center;
@@ -565,125 +646,52 @@
 .dfr-file-link:hover { text-decoration: underline; }
 
 /* ----------------------------------------------------------------
-   Advanced filter: section wrapper + add-row button
+   Question filter section (static grid, one field per allow_filter q)
    ---------------------------------------------------------------- */
-.dfr-adv-section {
-  margin: 10px 0 4px;
+.dfr-qfilter-section {
+  margin: 12px 0 4px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f5;
 }
 
-.dfr-adv-add-btn {
-  margin-top: 8px;
-  height: 30px;
-  padding: 0 14px;
-  background: transparent;
-  color: #5b6af7;
-  border: 1px dashed #5b6af7;
-  border-radius: 6px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background 0.15s, color 0.15s;
-}
-.dfr-adv-add-btn:hover {
-  background: #5b6af7;
-  color: #fff;
-}
-
-/* ----------------------------------------------------------------
-   Advanced filter: individual rows
-   ---------------------------------------------------------------- */
-.dfr-adv-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-  flex-wrap: wrap;
-}
-
-.dfr-adv-cell { display: flex; align-items: center; }
-
-.dfr-adv-cell--op {
-  flex: 0 0 72px;
-  justify-content: center;
-}
-
-.dfr-adv-cell--question {
-  flex: 2 1 240px;
-  min-width: 0;
-  max-width: 480px;
-}
-
-.dfr-adv-cell--value {
-  flex: 1 1 180px;
-  min-width: 0;
-}
-
-.dfr-adv-cell--remove {
-  flex: 0 0 28px;
-  justify-content: center;
-  align-self: center;
-}
-
-/* "Where" label on the first row */
-.dfr-adv-where {
-  font-size: 0.78rem;
+.dfr-qfilter-heading {
+  font-size: 0.68rem;
   font-weight: 700;
   color: #9999bb;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
+  margin-bottom: 10px;
 }
 
-/* AND/OR operator select */
-.dfr-adv-op {
-  width: 100%;
-  height: 32px;
-  padding: 0 8px;
-  border: 1px solid #d8d8ee;
-  border-radius: 6px;
-  font-size: 0.82rem;
+/* Responsive auto-fill grid: 2-4 columns depending on width */
+.dfr-qfilter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px 14px;
+}
+
+.dfr-qfilter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+
+.dfr-qfilter-field label {
+  font-size: 0.72rem;
   font-weight: 600;
-  color: #5b6af7;
-  background: #f0f0fc;
-  font-family: inherit;
-  cursor: pointer;
-}
-.dfr-adv-op:focus {
-  outline: none;
-  border-color: #5b6af7;
-}
-
-/* Question picker — Select2 container sizing */
-.dfr-adv-cell--question .select2-container { width: 100% !important; }
-.dfr-adv-cell--question .select2-container .select2-choice {
-  height: 32px;
-  line-height: 30px;
-  border: 1px solid #d8d8ee;
-  border-radius: 6px;
-  background: #fafafe;
-  font-size: 0.85rem;
-  color: #2c2c3e;
-  padding: 0 24px 0 8px;
-}
-.dfr-adv-cell--question .select2-container .select2-chosen {
+  color: #5555aa;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-  display: block;
-}
-.dfr-adv-cell--question .select2-container-active .select2-choice {
-  border-color: #5b6af7;
-  background: #fff;
-  box-shadow: none;
+  cursor: default;
 }
 
-/* Value widget */
-.dfr-adv-value { width: 100%; }
-
-.dfr-adv-value-input {
+.dfr-qfilter-input,
+.dfr-qfilter-select {
   width: 100%;
-  height: 32px;
-  padding: 0 10px;
+  height: 34px;
+  padding: 0 30px 0 10px; /* right padding reserves space for the × button */
   border: 1px solid #d8d8ee;
   border-radius: 6px;
   font-size: 0.85rem;
@@ -691,35 +699,124 @@
   background: #fafafe;
   font-family: inherit;
   box-sizing: border-box;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, background 0.15s;
+  appearance: none;
+  -webkit-appearance: none;
 }
-.dfr-adv-value-input:focus {
+
+.dfr-qfilter-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239999bb'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+  cursor: pointer;
+}
+
+.dfr-qfilter-input:focus,
+.dfr-qfilter-select:focus {
   outline: none;
+  border-color: #5b6af7;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(91,106,247,.1);
+}
+
+/* Active / has-value state: slightly highlighted border */
+.dfr-qfilter-input:not(:placeholder-shown),
+.dfr-qfilter-input[value]:not([value=""]) {
   border-color: #5b6af7;
   background: #fff;
 }
 
-.dfr-adv-value-select + .select2-container { width: 100% !important; }
-
-/* Remove row button */
-.dfr-adv-remove {
-  width: 26px;
-  height: 26px;
+/* Clear (×) button — top-right of input area, works for both fixed and
+   variable-height Select2 multi containers */
+.dfr-qfilter-clear {
+  position: absolute;
+  right: 4px;
+  top: 24px;
+  width: 20px;
+  height: 20px;
   padding: 0;
-  background: transparent;
-  color: #aaa;
-  border: 1px solid #ddd;
+  border: none;
+  background: #e0e0f0;
+  color: #7777aa;
   border-radius: 50%;
-  font-size: 1rem;
-  line-height: 1;
+  font-size: 0.7rem;
+  line-height: 20px;
+  text-align: center;
   cursor: pointer;
   font-family: inherit;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition: background 0.15s, color 0.15s;
+  z-index: 1;
 }
-.dfr-adv-remove:hover {
+.dfr-qfilter-clear:hover {
   background: #e53e3e;
   color: #fff;
-  border-color: #e53e3e;
+}
+
+/* ----------------------------------------------------------------
+   Select2 v3 overrides for multi-select question filters
+   ---------------------------------------------------------------- */
+.dfr-qfilter-field .select2-container {
+  width: 100% !important;
+}
+
+/* Leave room on the right for the clear (×) button */
+.dfr-qfilter-field .select2-container-multi .select2-choices {
+  min-height: 34px;
+  padding: 3px 28px 3px 6px;
+  border: 1px solid #d8d8ee;
+  border-radius: 6px;
+  background: #fafafe;
+  box-shadow: none;
+  cursor: text;
+}
+
+.dfr-qfilter-field .select2-container-multi.select2-container-active .select2-choices {
+  border-color: #5b6af7;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(91, 106, 247, .1);
+  outline: none;
+}
+
+/* Selected value chips */
+.dfr-qfilter-field .select2-container-multi .select2-search-choice {
+  background: #eeeef8;
+  border: 1px solid #d0d0ee;
+  border-radius: 4px;
+  color: #4444aa;
+  font-size: 0.78rem;
+  padding: 2px 22px 2px 6px;
+  margin: 2px 4px 2px 0;
+  box-shadow: none;
+  line-height: 1.45;
+}
+
+.dfr-qfilter-field .select2-container-multi .select2-search-choice-close {
+  top: 4px;
+}
+
+/* Search input inside the choices box */
+.dfr-qfilter-field .select2-container-multi .select2-search-field input {
+  height: 26px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  color: #2c2c3e;
+  background: transparent;
+}
+
+/* Placeholder */
+.dfr-qfilter-field .select2-container-multi .select2-search-field .select2-input {
+  color: #aaaacc;
+}
+
+/* Dropdown — scoped via the open-state class Select2 adds to <body> */
+.select2-drop-active {
+  border-color: #5b6af7;
+}
+
+.select2-results .select2-highlighted {
+  background: #5b6af7;
+  color: #fff;
 }
 
 /* Meta row: date + respondent + sort */
@@ -781,125 +878,3 @@
   color: #856404;
 }
 
-/* ----------------------------------------------------------------
-   Facet two-column layout
-   ---------------------------------------------------------------- */
-.dfr-facet-layout {
-  display: flex;
-  gap: 18px;
-  align-items: flex-start;
-}
-
-.dfr-facet-main {
-  flex: 1;
-  min-width: 0;
-}
-
-/* ----------------------------------------------------------------
-   Facet sidebar panel
-   ---------------------------------------------------------------- */
-.dfr-facet-panel {
-  width: 200px;
-  flex-shrink: 0;
-  background: #fff;
-  border: 1px solid #e0e0ee;
-  border-radius: 10px;
-  overflow: hidden;
-  position: sticky;
-  top: 70px;
-}
-
-.dfr-facet-panel-title {
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #9999bb;
-  padding: 12px 14px 10px;
-  border-bottom: 1px solid #f0f0f8;
-}
-
-.dfr-facet-section {
-  padding: 10px 0 6px;
-  border-bottom: 1px solid #f0f0f8;
-}
-
-.dfr-facet-section:last-child {
-  border-bottom: none;
-}
-
-.dfr-facet-section-label {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #4a4a7a;
-  padding: 0 14px 4px;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  word-break: break-word;
-  cursor: default;
-  line-height: 1.35;
-}
-
-/* ----------------------------------------------------------------
-   Facet item list
-   ---------------------------------------------------------------- */
-.dfr-facet-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.dfr-facet-link {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 14px;
-  text-decoration: none;
-  color: #3a3a5c;
-  font-size: 0.82rem;
-  line-height: 1.4;
-  transition: background 0.12s;
-}
-
-.dfr-facet-link:hover {
-  background: #f4f4fc;
-  text-decoration: none;
-}
-
-.dfr-facet-item--active .dfr-facet-link {
-  background: #eeeef8;
-  color: #5b6af7;
-  font-weight: 600;
-}
-
-.dfr-facet-check {
-  font-size: 0.78rem;
-  color: #5b6af7;
-  flex-shrink: 0;
-  line-height: 1;
-}
-
-.dfr-facet-val {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.dfr-facet-count {
-  flex-shrink: 0;
-  font-size: 0.74rem;
-  color: #aaaacc;
-  background: #f4f4fc;
-  border-radius: 20px;
-  padding: 1px 6px;
-  font-weight: 600;
-}
-
-.dfr-facet-item--active .dfr-facet-count {
-  background: #ddddf5;
-  color: #5b6af7;
-}

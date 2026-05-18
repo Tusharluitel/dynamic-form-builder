@@ -731,12 +731,20 @@ function dynamic_form_dashboard_form_edit_page($form_id)
 {
   drupal_set_title(t('Edit Form'));
 
-  // Load the forms include so the form builder is available.
   module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.forms');
+
+  $mp = drupal_get_path('module', 'dynamic_form');
+  drupal_add_css($mp . '/css/filter-toggle.css');
+  drupal_add_js($mp . '/js/filter-toggle.js');
+  drupal_add_js(array(
+    'dfbFilterToggle' => array(
+      'toggleUrl' => url('dynamic-form/ajax/question'),
+    ),
+  ), 'setting');
 
   $sidebar_html = _dynamic_form_dashboard_sidebar('forms');
 
-  $content_html = '<div class="dfb-dashboard-header">';
+  $content_html  = '<div class="dfb-dashboard-header">';
   $content_html .= '<div class="dfb-dashboard-header-row">';
   $content_html .= '<div>';
   $content_html .= '<h2>' . t('Edit Form') . '</h2>';
@@ -745,12 +753,70 @@ function dynamic_form_dashboard_form_edit_page($form_id)
   $content_html .= '</div>';
   $content_html .= '</div>';
 
+  // Load questions for the filter toggle panel.
+  $questions = db_select('dynamic_form_questions', 'q')
+    ->fields('q', array('id', 'label', 'type', 'allow_filter'))
+    ->condition('form_id', (int) $form_id)
+    ->isNull('deleted_at')
+    ->orderBy('position', 'ASC')
+    ->execute()
+    ->fetchAll();
+
+  // Two-panel wrapper: left = form fields, right = filter toggles.
+  $content_html .= '<div class="dfb-form-wrapper dfb-form-wrapper--edit">';
   $content_html .= drupal_render(drupal_get_form('dynamic_form_edit_form', $form_id));
+  $content_html .= _dfb_render_filter_toggle_panel((int) $form_id, $questions);
+  $content_html .= '</div>';
 
   return theme('dynamic_form_dashboard', array(
     'sidebar' => $sidebar_html,
     'content' => $content_html,
   ));
+}
+
+/**
+ * Renders the filter-toggle sidebar panel for the form edit page.
+ *
+ * @param int   $form_id    Form primary key.
+ * @param array $questions  Question rows (id, label, type, allow_filter).
+ * @return string HTML.
+ */
+function _dfb_render_filter_toggle_panel($form_id, array $questions) {
+  $out  = '<div class="dfb-filter-questions-panel">';
+  $out .= '<h3>' . t('Response Filters') . '</h3>';
+  $out .= '<p class="dfb-filter-panel-desc">'
+    . t('Toggle which questions appear as filter options on the responses page.')
+    . '</p>';
+
+  if (empty($questions)) {
+    $out .= '<p class="dfb-filter-panel-empty">'
+      . t('No questions yet. Add questions via the Builder.')
+      . '</p>';
+  }
+  else {
+    foreach ($questions as $q) {
+      $qid     = (int) $q->id;
+      $checked = !empty($q->allow_filter) ? ' checked="checked"' : '';
+      $out .= '<div class="dfb-filter-question-item">';
+      $out .= '<div class="dfb-filter-question-info">';
+      $out .= '<div class="dfb-filter-question-type">' . check_plain($q->type) . '</div>';
+      $out .= '<div class="dfb-filter-question-label" title="' . check_plain($q->label) . '">'
+        . check_plain(truncate_utf8($q->label, 50, TRUE, TRUE))
+        . '</div>';
+      $out .= '</div>';
+      $out .= '<div class="dfb-toggle-wrap">';
+      $out .= '<input type="checkbox" class="dfb-filter-toggle-input"'
+        . ' id="dfb-toggle-' . $qid . '"'
+        . ' data-question-id="' . $qid . '"'
+        . $checked . '>';
+      $out .= '<label class="dfb-toggle-label" for="dfb-toggle-' . $qid . '"></label>';
+      $out .= '</div>';
+      $out .= '</div>';
+    }
+  }
+
+  $out .= '</div>';
+  return $out;
 }
 
 /* =====================================================================
@@ -1016,6 +1082,65 @@ function _dynamic_form_dashboard_entity_table($entity_type) {
     'response' => 'dynamic_form_responses',
   );
   return isset($map[$entity_type]) ? $map[$entity_type] : NULL;
+}
+
+/* =====================================================================
+   AJAX — QUESTION ALLOW_FILTER TOGGLE
+   ===================================================================== */
+
+/**
+ * AJAX callback: toggles allow_filter on a question.
+ *
+ * Route: POST dynamic-form/ajax/question/{question_id}/toggle-filter
+ * POST body: allow_filter=0|1
+ *
+ * @param int $question_id  Question primary key.
+ */
+function dynamic_form_ajax_toggle_allow_filter($question_id) {
+  global $user;
+
+  if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    drupal_json_output(array('status' => 'error', 'message' => t('Invalid request method.')));
+    drupal_exit();
+  }
+
+  $question_id  = (int) $question_id;
+  $allow_filter = isset($_POST['allow_filter']) ? ((int) $_POST['allow_filter'] ? 1 : 0) : 0;
+
+  $question = db_select('dynamic_form_questions', 'q')
+    ->fields('q', array('id', 'form_id', 'label', 'created_by'))
+    ->condition('id', $question_id)
+    ->isNull('deleted_at')
+    ->execute()
+    ->fetchObject();
+
+  if (!$question) {
+    drupal_json_output(array('status' => 'error', 'message' => t('Question not found.')));
+    drupal_exit();
+  }
+
+  $can_edit = user_access('edit any form')
+    || (int) $question->created_by === (int) $user->uid;
+
+  if (!$can_edit) {
+    drupal_json_output(array('status' => 'error', 'message' => t('Access denied.')));
+    drupal_exit();
+  }
+
+  db_update('dynamic_form_questions')
+    ->fields(array(
+      'allow_filter' => $allow_filter,
+      'updated_at'   => REQUEST_TIME,
+    ))
+    ->condition('id', $question_id)
+    ->execute();
+
+  $msg = $allow_filter
+    ? t('Question added to response filters.')
+    : t('Question removed from response filters.');
+
+  drupal_json_output(array('status' => 'ok', 'message' => $msg));
+  drupal_exit();
 }
 
 /* =====================================================================

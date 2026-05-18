@@ -1,0 +1,468 @@
+/**
+ * @file
+ * D3 v5 analytics charts for Dynamic Form Analytics module.
+ *
+ * Reads data from Drupal.settings.dfAnalytics and renders charts
+ * into the mount elements placed by the PHP page callbacks.
+ *
+ * Chart types:
+ *   renderLineChart  — time-series submissions trend (line + area)
+ *   renderHBarChart  — horizontal bar for option/tag distributions
+ *   renderVBarChart  — vertical bar for date month distributions
+ *   renderDonutChart — donut for status/respondent/file-type breakdowns
+ */
+
+(function ($) {
+
+  'use strict';
+
+  var COLORS = ['#4f6ef7', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899'];
+
+  /* ================================================================
+     TOOLTIP helper — single shared DOM element
+     ================================================================ */
+
+  var tooltip = null;
+
+  function getTooltip() {
+    if (!tooltip) {
+      tooltip = d3.select('body')
+        .append('div')
+        .attr('class', 'dfa-tooltip');
+    }
+    return tooltip;
+  }
+
+  function showTooltip(html, event) {
+    getTooltip()
+      .html(html)
+      .style('opacity', 1)
+      .style('left', (event.pageX + 12) + 'px')
+      .style('top',  (event.pageY - 28) + 'px');
+  }
+
+  function hideTooltip() {
+    if (tooltip) {
+      tooltip.style('opacity', 0);
+    }
+  }
+
+  /* ================================================================
+     LINE CHART — time-series (submissions over time)
+     el: DOM element, data: [{day:'YYYY-MM-DD', cnt:N}, ...]
+     ================================================================ */
+
+  function renderLineChart(el, data) {
+    var margin = { top: 16, right: 20, bottom: 36, left: 44 };
+    var totalW  = el.clientWidth || 600;
+    var totalH  = 220;
+    var W = totalW - margin.left - margin.right;
+    var H = totalH - margin.top  - margin.bottom;
+
+    d3.select(el).selectAll('*').remove();
+
+    var parseDay = d3.timeParse('%Y-%m-%d');
+    var points   = data.map(function (d) {
+      return { day: parseDay(d.day), cnt: +d.cnt };
+    });
+
+    var x = d3.scaleTime()
+      .domain(d3.extent(points, function (d) { return d.day; }))
+      .range([0, W]);
+
+    var y = d3.scaleLinear()
+      .domain([0, d3.max(points, function (d) { return d.cnt; }) * 1.15])
+      .nice()
+      .range([H, 0]);
+
+    var svg = d3.select(el)
+      .append('svg')
+      .attr('width',  totalW)
+      .attr('height', totalH)
+      .append('g')
+      .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
+
+    // Dashed grid lines.
+    svg.append('g')
+      .attr('class', 'dfa-grid')
+      .call(d3.axisLeft(y).ticks(4).tickSize(-W).tickFormat(''));
+
+    // Gradient fill under line.
+    var gradId = 'dfa-grad-' + Math.random().toString(36).slice(2, 7);
+    var defs = svg.append('defs');
+    var grad = defs.append('linearGradient')
+      .attr('id', gradId)
+      .attr('x1', '0').attr('x2', '0')
+      .attr('y1', '0').attr('y2', '1');
+    grad.append('stop').attr('offset', '0%').attr('stop-color', COLORS[0]).attr('stop-opacity', 0.25);
+    grad.append('stop').attr('offset', '100%').attr('stop-color', COLORS[0]).attr('stop-opacity', 0.02);
+
+    var area = d3.area()
+      .x(function (d) { return x(d.day); })
+      .y0(H)
+      .y1(function (d) { return y(d.cnt); })
+      .curve(d3.curveCatmullRom.alpha(0.5));
+
+    svg.append('path')
+      .datum(points)
+      .attr('fill', 'url(#' + gradId + ')')
+      .attr('d', area);
+
+    var line = d3.line()
+      .x(function (d) { return x(d.day); })
+      .y(function (d) { return y(d.cnt); })
+      .curve(d3.curveCatmullRom.alpha(0.5));
+
+    svg.append('path')
+      .datum(points)
+      .attr('fill', 'none')
+      .attr('stroke', COLORS[0])
+      .attr('stroke-width', 2.5)
+      .attr('d', line);
+
+    // Dot per data point.
+    svg.selectAll('.dfa-dot')
+      .data(points)
+      .enter()
+      .append('circle')
+      .attr('class', 'dfa-dot')
+      .attr('cx', function (d) { return x(d.day); })
+      .attr('cy', function (d) { return y(d.cnt); })
+      .attr('r', 4)
+      .attr('fill', '#fff')
+      .attr('stroke', COLORS[0])
+      .attr('stroke-width', 2)
+      .on('mouseover', function (d) {
+        showTooltip(d3.timeFormat('%b %d')(d.day) + ': <strong>' + d.cnt + '</strong>', d3.event);
+      })
+      .on('mouseout', hideTooltip);
+
+    // Axes.
+    svg.append('g')
+      .attr('class', 'dfa-axis')
+      .attr('transform', 'translate(0,' + H + ')')
+      .call(d3.axisBottom(x).ticks(6).tickFormat(d3.timeFormat('%b %d')));
+
+    svg.append('g')
+      .attr('class', 'dfa-axis')
+      .call(d3.axisLeft(y).ticks(4));
+  }
+
+  /* ================================================================
+     HORIZONTAL BAR CHART — option/tag distributions
+     el: DOM element, data: [{label:'...', cnt:N}, ...]
+     ================================================================ */
+
+  function renderHBarChart(el, data) {
+    var BAR_H   = 28;
+    var BAR_GAP = 8;
+    var margin  = { top: 8, right: 56, bottom: 8, left: 160 };
+    var totalW  = el.clientWidth || 600;
+    var totalH  = margin.top + (data.length * (BAR_H + BAR_GAP)) + margin.bottom;
+    var W = totalW - margin.left - margin.right;
+
+    // Clamp label column to available space.
+    if (margin.left > totalW * 0.4) {
+      margin.left = Math.floor(totalW * 0.4);
+      W = totalW - margin.left - margin.right;
+    }
+
+    d3.select(el).selectAll('*').remove();
+
+    el.style.height = totalH + 'px';
+
+    var maxCnt = d3.max(data, function (d) { return d.cnt; }) || 1;
+
+    var x = d3.scaleLinear().domain([0, maxCnt]).range([0, W]);
+    var y = d3.scaleBand()
+      .domain(data.map(function (d) { return d.label; }))
+      .range([0, data.length * (BAR_H + BAR_GAP)])
+      .padding(0.15);
+
+    var svg = d3.select(el)
+      .append('svg')
+      .attr('width',  totalW)
+      .attr('height', totalH)
+      .append('g')
+      .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
+
+    // Bars.
+    svg.selectAll('.dfa-bar')
+      .data(data)
+      .enter()
+      .append('rect')
+      .attr('class', 'dfa-bar')
+      .attr('y',      function (d) { return y(d.label); })
+      .attr('height', y.bandwidth())
+      .attr('x', 0)
+      .attr('width',  function (d) { return x(d.cnt); })
+      .attr('fill',   function (d, i) { return COLORS[i % COLORS.length]; })
+      .attr('rx', 4)
+      .on('mouseover', function (d) {
+        showTooltip('<strong>' + d.label + '</strong>: ' + d.cnt, d3.event);
+      })
+      .on('mouseout', hideTooltip);
+
+    // Value labels on bars.
+    svg.selectAll('.dfa-bar-label')
+      .data(data)
+      .enter()
+      .append('text')
+      .attr('class', 'dfa-bar-label')
+      .attr('x',  function (d) { return x(d.cnt) + 6; })
+      .attr('y',  function (d) { return y(d.label) + y.bandwidth() / 2; })
+      .attr('dy', '0.35em')
+      .attr('font-size', 11)
+      .attr('fill', '#64748b')
+      .text(function (d) { return d.cnt; });
+
+    // Y-axis (labels on left).
+    var yAxis = d3.axisLeft(y).tickSize(0).tickPadding(8);
+    svg.append('g')
+      .attr('class', 'dfa-axis')
+      .call(yAxis)
+      .select('.domain').remove();
+
+    // Truncate long labels (guard against axis elements with no bound datum).
+    svg.selectAll('.dfa-axis text')
+      .each(function (d) {
+        if (typeof d !== 'string') { return; }
+        var self  = d3.select(this);
+        var label = d.length > 22 ? d.slice(0, 21) + '…' : d;
+        self.text(label);
+      });
+  }
+
+  /* ================================================================
+     VERTICAL BAR CHART — date (month) distributions
+     el: DOM element, data: [{label:'YYYY-MM', cnt:N}, ...]
+     ================================================================ */
+
+  function renderVBarChart(el, data) {
+    var margin = { top: 16, right: 16, bottom: 46, left: 44 };
+    var totalW  = el.clientWidth || 600;
+    var totalH  = 200;
+    var W = totalW - margin.left - margin.right;
+    var H = totalH - margin.top  - margin.bottom;
+
+    d3.select(el).selectAll('*').remove();
+
+    var maxCnt = d3.max(data, function (d) { return d.cnt; }) || 1;
+
+    var x = d3.scaleBand()
+      .domain(data.map(function (d) { return d.label; }))
+      .range([0, W])
+      .padding(0.25);
+
+    var y = d3.scaleLinear()
+      .domain([0, maxCnt * 1.15])
+      .nice()
+      .range([H, 0]);
+
+    var svg = d3.select(el)
+      .append('svg')
+      .attr('width',  totalW)
+      .attr('height', totalH)
+      .append('g')
+      .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
+
+    svg.append('g')
+      .attr('class', 'dfa-grid')
+      .call(d3.axisLeft(y).ticks(4).tickSize(-W).tickFormat(''));
+
+    svg.selectAll('.dfa-vbar')
+      .data(data)
+      .enter()
+      .append('rect')
+      .attr('class', 'dfa-vbar')
+      .attr('x',      function (d) { return x(d.label); })
+      .attr('y',      function (d) { return y(d.cnt); })
+      .attr('width',  x.bandwidth())
+      .attr('height', function (d) { return H - y(d.cnt); })
+      .attr('fill',   COLORS[0])
+      .attr('rx', 3)
+      .on('mouseover', function (d) {
+        showTooltip(d.label + ': <strong>' + d.cnt + '</strong>', d3.event);
+      })
+      .on('mouseout', hideTooltip);
+
+    // X axis — show every Nth label to avoid overlap.
+    var tickEvery = Math.max(1, Math.ceil(data.length / Math.floor(W / 60)));
+    svg.append('g')
+      .attr('class', 'dfa-axis')
+      .attr('transform', 'translate(0,' + H + ')')
+      .call(d3.axisBottom(x).tickValues(
+        data.filter(function (d, i) { return i % tickEvery === 0; }).map(function (d) { return d.label; })
+      ).tickFormat(function (d) {
+        var parts = d.split('-');
+        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        return months[parseInt(parts[1], 10) - 1] + ' ' + parts[0].slice(2);
+      }))
+      .selectAll('text')
+      .attr('transform', 'rotate(-35)')
+      .attr('text-anchor', 'end')
+      .attr('dx', '-4')
+      .attr('dy', '6');
+
+    svg.append('g')
+      .attr('class', 'dfa-axis')
+      .call(d3.axisLeft(y).ticks(4));
+  }
+
+  /* ================================================================
+     DONUT CHART — status / respondent type / file type breakdown
+     el: DOM element, data: [{label:'...', cnt:N}, ...]
+     centerLabel: optional string displayed in the hole
+     ================================================================ */
+
+  function renderDonutChart(el, data, centerLabel) {
+    var totalW  = el.clientWidth || 320;
+    var totalH  = 200;
+    var radius  = Math.min(totalW, totalH) / 2 - 10;
+    var inner   = radius * 0.55;
+
+    d3.select(el).selectAll('*').remove();
+
+    var svg = d3.select(el)
+      .append('svg')
+      .attr('width',  totalW)
+      .attr('height', totalH)
+      .append('g')
+      .attr('transform', 'translate(' + (totalW / 2) + ',' + (totalH / 2) + ')');
+
+    var pie  = d3.pie().sort(null).value(function (d) { return d.cnt; });
+    var arc  = d3.arc().innerRadius(inner).outerRadius(radius);
+    var hArc = d3.arc().innerRadius(inner).outerRadius(radius + 6);
+
+    var arcs = svg.selectAll('.dfa-arc')
+      .data(pie(data))
+      .enter()
+      .append('g')
+      .attr('class', 'dfa-arc');
+
+    arcs.append('path')
+      .attr('d', arc)
+      .attr('fill', function (d, i) { return COLORS[i % COLORS.length]; })
+      .on('mouseover', function (d) {
+        d3.select(this).attr('d', hArc);
+        showTooltip('<strong>' + d.data.label + '</strong>: ' + d.data.cnt, d3.event);
+      })
+      .on('mouseout', function (d) {
+        d3.select(this).attr('d', arc);
+        hideTooltip();
+      });
+
+    // Center text.
+    var total = d3.sum(data, function (d) { return d.cnt; });
+    svg.append('text')
+      .attr('text-anchor', 'middle')
+      .attr('dy', '-0.2em')
+      .attr('font-size', 20)
+      .attr('font-weight', 700)
+      .attr('fill', '#1e293b')
+      .text(centerLabel !== undefined ? centerLabel : total);
+
+    svg.append('text')
+      .attr('text-anchor', 'middle')
+      .attr('dy', '1.2em')
+      .attr('font-size', 11)
+      .attr('fill', '#94a3b8')
+      .text('total');
+
+    // Small legend below donut.
+    var legendG = svg.append('g')
+      .attr('transform', 'translate(' + (-totalW / 2 + 8) + ',' + (radius + 18) + ')');
+
+    data.forEach(function (d, i) {
+      var row = legendG.append('g')
+        .attr('transform', 'translate(' + (i * (totalW / data.length)) + ',0)');
+      row.append('rect')
+        .attr('width', 10).attr('height', 10).attr('rx', 2)
+        .attr('fill', COLORS[i % COLORS.length]);
+      row.append('text')
+        .attr('x', 14).attr('y', 9)
+        .attr('font-size', 10).attr('fill', '#64748b')
+        .text(d.label);
+    });
+  }
+
+  /* ================================================================
+     DRUPAL BEHAVIOR — wires chart functions to DOM elements
+     ================================================================ */
+
+  Drupal.behaviors.dfAnalytics = {
+    attach: function (context, settings) {
+      if (!settings.dfAnalytics) { return; }
+
+      /* ---------- GLOBAL PAGE ---------- */
+      if (settings.dfAnalytics.global) {
+        var g = settings.dfAnalytics.global;
+
+        // Submissions trend (line).
+        var trendEl = document.getElementById('dfa-chart-global-trend');
+        if (trendEl && g.trend && g.trend.length) {
+          renderLineChart(trendEl, g.trend);
+        }
+
+        // Status donut.
+        var statusEl = document.getElementById('dfa-chart-status-donut');
+        if (statusEl && g.status_data) {
+          renderDonutChart(statusEl, g.status_data);
+        }
+
+        // Top forms horizontal bar.
+        var topEl = document.getElementById('dfa-chart-top-forms');
+        if (topEl && g.top_forms && g.top_forms.length) {
+          renderHBarChart(topEl, g.top_forms);
+        }
+      }
+
+      /* ---------- PER-FORM PAGE ---------- */
+      if (settings.dfAnalytics.form) {
+        var f = settings.dfAnalytics.form;
+
+        // Daily trend (line).
+        var formTrendEl = document.getElementById('dfa-chart-form-trend');
+        if (formTrendEl && f.trend && f.trend.length) {
+          renderLineChart(formTrendEl, f.trend);
+        }
+
+        // Completion funnel (donut: submitted vs abandoned).
+        var funnelEl = document.getElementById('dfa-chart-funnel');
+        if (funnelEl && f.kpi) {
+          renderDonutChart(funnelEl, [
+            { label: 'Submitted', cnt: f.kpi.total_submitted },
+            { label: 'Abandoned', cnt: f.kpi.abandoned }
+          ], f.kpi.total_started);
+        }
+
+        // Respondent type donut.
+        var respEl = document.getElementById('dfa-chart-respondent');
+        if (respEl && f.respondent) {
+          renderDonutChart(respEl, f.respondent);
+        }
+
+        // Per-question charts.
+        if (f.questions) {
+          f.questions.forEach(function (q) {
+            var qEl = document.getElementById('dfa-q-' + q.id);
+            if (!qEl || !q.data || !q.data.length) { return; }
+
+            switch (q.chart) {
+              case 'hbar':
+                renderHBarChart(qEl, q.data);
+                break;
+              case 'vbar':
+                renderVBarChart(qEl, q.data);
+                break;
+              case 'donut':
+                renderDonutChart(qEl, q.data, q.total_files !== undefined ? q.total_files : undefined);
+                break;
+            }
+          });
+        }
+      }
+    }
+  };
+
+}(jQuery));

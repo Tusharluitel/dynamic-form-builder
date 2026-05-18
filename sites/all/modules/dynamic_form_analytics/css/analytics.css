@@ -1,0 +1,261 @@
+/* ============================================================
+   Dynamic Form Analytics — page layout and chart cards
+   ============================================================ */
+
+/* ── Page wrapper ─────────────────────────────────────────── */
+.dfb-analytics-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ── Page header ──────────────────────────────────────────── */
+.dfb-analytics-header {
+  margin-bottom: 4px;
+}
+
+.dfb-analytics-header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.dfb-analytics-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* ── Button helpers ───────────────────────────────────────── */
+.dfb-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 18px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: var(--radius-full, 9999px);
+  text-decoration: none;
+  transition: opacity 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+
+.dfb-btn-secondary {
+  background: var(--color-primary, #4f6ef7);
+  color: #fff;
+}
+
+.dfb-btn-secondary:hover {
+  opacity: 0.88;
+  color: #fff;
+}
+
+.dfb-btn-ghost {
+  background: transparent;
+  color: var(--color-text-muted, #64748b);
+  border: 1px solid var(--color-border, #e2e8f0);
+}
+
+.dfb-btn-ghost:hover {
+  background: var(--color-surface-hover, #f8fafc);
+  color: var(--color-text, #1e293b);
+}
+
+/* ── Chart grid: 2-column, collapses to 1 on narrow screens ─ */
+.dfb-analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .dfb-analytics-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Chart card ───────────────────────────────────────────── */
+.dfb-chart-card {
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-lg, 12px);
+  padding: 22px 24px 20px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  min-width: 0;
+}
+
+.dfb-chart-card--wide {
+  grid-column: 1 / -1;
+}
+
+.dfb-chart-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text-muted, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 16px;
+}
+
+/* ── Chart SVG containers ─────────────────────────────────── */
+.dfb-chart-container {
+  width: 100%;
+  overflow: hidden;
+}
+
+.dfb-chart-container svg {
+  display: block;
+  width: 100%;
+}
+
+/* Fixed heights per chart type */
+.dfb-chart-container:not(.dfb-chart-container--hbar):not(.dfb-chart-container--donut) {
+  height: 220px;
+}
+
+.dfb-chart-container--donut {
+  height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* hbar heights are set dynamically by JS based on row count */
+.dfb-chart-container--hbar {
+  /* min-height keeps 1-item bars from collapsing */
+  min-height: 48px;
+}
+
+/* ── Empty state ──────────────────────────────────────────── */
+.dfb-analytics-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+  font-size: 0.875rem;
+  color: var(--color-text-muted, #94a3b8);
+  font-style: italic;
+}
+
+/* ── Question breakdown section ───────────────────────────── */
+.dfb-analytics-section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text, #1e293b);
+  margin: 0 0 16px;
+}
+
+.dfb-analytics-questions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dfb-question-analytics-card {
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-lg, 12px);
+  padding: 20px 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.dfb-question-analytics-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.dfb-question-analytics-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text, #1e293b);
+  flex: 1;
+  min-width: 0;
+}
+
+.dfb-question-type-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: var(--radius-full, 9999px);
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--color-primary, #4f6ef7);
+  flex-shrink: 0;
+}
+
+/* ── Text/textarea answer display ─────────────────────────── */
+.dfb-analytics-text-responses {
+  padding: 4px 0;
+}
+
+.dfb-analytics-text-count {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted, #64748b);
+  margin: 0 0 10px;
+}
+
+.dfb-analytics-samples {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dfb-analytics-samples li {
+  font-size: 0.85rem;
+  color: var(--color-text, #1e293b);
+  background: var(--color-surface-alt, #f8fafc);
+  border-left: 3px solid var(--color-border, #e2e8f0);
+  padding: 6px 10px;
+  border-radius: 0 4px 4px 0;
+  line-height: 1.4;
+}
+
+/* ── D3 axis and tick styling ─────────────────────────────── */
+.dfa-axis path,
+.dfa-axis line {
+  stroke: var(--color-border, #e2e8f0);
+}
+
+.dfa-axis text {
+  fill: var(--color-text-muted, #94a3b8);
+  font-size: 11px;
+  font-family: inherit;
+}
+
+.dfa-grid line {
+  stroke: var(--color-border, #e2e8f0);
+  stroke-dasharray: 3 3;
+}
+
+.dfa-grid path {
+  stroke-width: 0;
+}
+
+/* ── D3 tooltip ───────────────────────────────────────────── */
+.dfa-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--color-text, #1e293b);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  transition: opacity 0.1s;
+  z-index: 9999;
+}
