@@ -205,30 +205,6 @@ function dynamic_form_response_list_page($form_id) {
   $filtered_total = $base->countQuery()->execute()->fetchField();
   $responses      = $base->extend('PagerDefault')->limit(25)->execute()->fetchAll();
 
-  // Build an ordered list of question IDs for the inline answer columns.
-  $filter_question_ids = array();
-  foreach ($filter_questions as $fq) {
-    $filter_question_ids[] = (int) $fq->id;
-  }
-
-  // Batch-load answers for allow_filter questions across the current page.
-  $inline_answers = array();
-  if (!empty($filter_question_ids) && !empty($responses)) {
-    $resp_ids = array();
-    foreach ($responses as $r) {
-      $resp_ids[] = (int) $r->id;
-    }
-    $ans_rows = db_select('dynamic_form_answers', 'a')
-      ->fields('a', array('response_id', 'question_id', 'value'))
-      ->condition('response_id', $resp_ids, 'IN')
-      ->condition('question_id', $filter_question_ids, 'IN')
-      ->execute()
-      ->fetchAll();
-    foreach ($ans_rows as $ar) {
-      $inline_answers[(int) $ar->response_id][(int) $ar->question_id] = $ar->value;
-    }
-  }
-
   // Batch-load respondent names.
   $uid_map = array();
   foreach ($responses as $r) {
@@ -306,20 +282,13 @@ function dynamic_form_response_list_page($form_id) {
     $out .= '<p class="dfr-empty-note">' . t('No responses have been submitted yet.') . '</p>';
   }
   else {
-    $has_inline_cols = !empty($filter_questions);
-
     $out .= '<div class="dfr-table-scroll">';
-    $out .= '<table class="dfr-response-table' . ($has_inline_cols ? ' dfr-response-table--expanded' : '') . '">';
+    $out .= '<table class="dfr-response-table">';
 
     // Header.
     $out .= '<thead><tr>';
     $out .= '<th class="dfr-col-num">#</th>';
     $out .= '<th class="dfr-col-respondent">' . t('Respondent') . '</th>';
-    foreach ($filter_questions as $fq) {
-      $out .= '<th class="dfr-col-answer" title="' . check_plain($fq->label) . '">'
-        . check_plain(truncate_utf8($fq->label, 28, TRUE, TRUE))
-        . '</th>';
-    }
     $out .= '<th class="dfr-col-date">' . t('Submitted') . '</th>';
     $out .= '<th class="dfr-col-actions">' . t('Actions') . '</th>';
     $out .= '</tr></thead><tbody>';
@@ -356,11 +325,6 @@ function dynamic_form_response_list_page($form_id) {
       $out .= '<tr>';
       $out .= '<td class="dfr-col-num">' . $i . '</td>';
       $out .= '<td class="dfr-col-respondent">' . $name . '</td>';
-      foreach ($filter_questions as $fq) {
-        $qid = (int) $fq->id;
-        $val = isset($inline_answers[(int) $r->id][$qid]) ? $inline_answers[(int) $r->id][$qid] : NULL;
-        $out .= '<td class="dfr-col-answer">' . _dfr_format_inline_answer($val, $fq->type) . '</td>';
-      }
       $out .= '<td class="dfr-col-date">' . $date . '</td>';
       $out .= '<td class="dfr-col-actions">' . $actions . '</td>';
       $out .= '</tr>';
@@ -1010,45 +974,3 @@ function _dynamic_form_response_render_answer_card($q, array $answers) {
   return $out;
 }
 
-/**
- * Formats a raw answer value for inline display in the responses table.
- *
- * @param string|null $val   Raw value from dynamic_form_answers.value.
- * @param string      $type  Question type key.
- * @return string  Safe HTML, never exceeds one short line.
- */
-function _dfr_format_inline_answer($val, $type) {
-  if ($val === NULL || $val === '') {
-    return '<span class="dfr-inline-empty">—</span>';
-  }
-
-  $decoded = @json_decode($val, TRUE);
-
-  // File upload: show the filename.
-  if (is_array($decoded) && isset($decoded['fid'], $decoded['filename'])) {
-    return '<span class="dfr-inline-file" title="' . check_plain($decoded['filename']) . '">'
-      . '&#128206; ' . check_plain(truncate_utf8($decoded['filename'], 30, TRUE, TRUE))
-      . '</span>';
-  }
-
-  // Multi-value (checkbox, tags, etc.): join with a comma.
-  if (is_array($decoded)) {
-    $text = implode(', ', array_map('check_plain', $decoded));
-    return '<span class="dfr-inline-val" title="' . check_plain($text) . '">'
-      . check_plain(truncate_utf8($text, 50, TRUE, TRUE))
-      . '</span>';
-  }
-
-  // Rich text: strip tags before truncating.
-  if ($type === 'text_editor') {
-    $text = strip_tags($val);
-    return '<span class="dfr-inline-val" title="' . check_plain($text) . '">'
-      . check_plain(truncate_utf8($text, 50, TRUE, TRUE))
-      . '</span>';
-  }
-
-  // Plain text.
-  return '<span class="dfr-inline-val" title="' . check_plain($val) . '">'
-    . check_plain(truncate_utf8($val, 50, TRUE, TRUE))
-    . '</span>';
-}

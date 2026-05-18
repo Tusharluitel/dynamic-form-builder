@@ -300,67 +300,6 @@
 }
 .dfr-response-table a:hover { text-decoration: underline; }
 
-/* ----------------------------------------------------------------
-   Expanded table column widths
-   ---------------------------------------------------------------- */
-.dfr-response-table--expanded .dfr-col-num {
-  width: 44px;
-  text-align: center;
-}
-.dfr-response-table--expanded .dfr-col-num td {
-  text-align: center;
-  color: #aaaacc;
-  font-size: 0.78rem;
-}
-.dfr-response-table--expanded .dfr-col-respondent {
-  min-width: 180px;
-  max-width: 260px;
-}
-.dfr-response-table--expanded .dfr-col-date {
-  white-space: nowrap;
-  min-width: 130px;
-}
-.dfr-response-table--expanded .dfr-col-actions {
-  white-space: nowrap;
-  min-width: 120px;
-}
-
-/* Answer columns: fixed width so they don't stretch too wide */
-.dfr-response-table--expanded .dfr-col-answer {
-  min-width: 140px;
-  max-width: 220px;
-}
-
-/* ----------------------------------------------------------------
-   Inline answer cell content
-   ---------------------------------------------------------------- */
-.dfr-inline-empty {
-  color: #cccce0;
-  font-size: 0.85rem;
-}
-
-.dfr-inline-val {
-  display: block;
-  max-width: 200px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: #2c2c3e;
-  font-size: 0.85rem;
-  cursor: default;
-}
-
-.dfr-inline-file {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: #5b6af7;
-  font-size: 0.82rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 200px;
-}
 
 .dfr-empty-note {
   text-align: center;
