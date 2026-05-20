@@ -10,6 +10,30 @@
 define('DYNAMIC_FORM_SOLR_DEFAULT_URL', 'http://localhost:8983/solr/dynamic-form-builder');
 
 // ---------------------------------------------------------------------------
+// hook_dynamic_form_*_predelete — clean up Solr index on permanent deletion
+// ---------------------------------------------------------------------------
+
+/**
+ * Implements hook_dynamic_form_form_predelete().
+ *
+ * Removes all Solr response documents for the form before its DB rows are
+ * deleted.
+ */
+function dynamic_form_solr_dynamic_form_form_predelete($form_id, $record) {
+  dynamic_form_solr_delete_form_responses($form_id);
+}
+
+/**
+ * Implements hook_dynamic_form_response_predelete().
+ *
+ * Removes the Solr response document for a single response before its DB row
+ * is deleted.
+ */
+function dynamic_form_solr_dynamic_form_response_predelete($response_id, $record) {
+  dynamic_form_solr_delete_response($response_id);
+}
+
+// ---------------------------------------------------------------------------
 // hook_menu / hook_menu_alter / hook_init
 // ---------------------------------------------------------------------------
 
