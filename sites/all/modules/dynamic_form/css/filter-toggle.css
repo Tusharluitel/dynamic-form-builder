@@ -53,7 +53,7 @@
 /* Individual question row */
 .dfb-filter-question-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   padding: 10px 0;
@@ -81,9 +81,8 @@
 .dfb-filter-question-label {
   font-size: 13px;
   color: var(--color-text, #374151);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  word-break: break-word;
+  line-height: 1.4;
 }
 
 /* Toggle switch */

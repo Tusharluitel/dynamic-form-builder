@@ -107,13 +107,7 @@ function dynamic_form_response_render_form($record) {
     ->fetchAll();
 
   // Load questions ordered by position.
-  $questions = db_select('dynamic_form_questions', 'q')
-    ->fields('q')
-    ->condition('form_id', $record->id)
-    ->isNull('deleted_at')
-    ->orderBy('position', 'ASC')
-    ->execute()
-    ->fetchAll();
+  $questions = dynamic_form_get_questions($record->id);
 
   if (empty($questions)) {
     return '<p class="dfr-empty">' . t('This form has no questions yet.') . '</p>';
@@ -144,15 +138,25 @@ function dynamic_form_response_render_form($record) {
 
   // Load scale / allow_multiple meta rules, grouped by question.
   $scale_by_q = array();
+  $rules_by_q = array();
   if (!empty($question_ids)) {
     $metas = db_select('dynamic_form_question_validations', 'v')
       ->fields('v')
       ->condition('question_id', $question_ids, 'IN')
-      ->condition('rule_type', array('scale_min', 'scale_max', 'scale_min_label', 'scale_max_label', 'allow_multiple'), 'IN')
       ->execute()
       ->fetchAll();
+    $scale_keys = array('scale_min', 'scale_max', 'scale_min_label', 'scale_max_label', 'allow_multiple');
     foreach ($metas as $m) {
-      $scale_by_q[(int) $m->question_id][$m->rule_type] = $m->rule_value;
+      $qid = (int) $m->question_id;
+      if (in_array($m->rule_type, $scale_keys)) {
+        $scale_by_q[$qid][$m->rule_type] = $m->rule_value;
+      } else {
+        $rules_by_q[$qid][] = array(
+          'rule_type'     => $m->rule_type,
+          'rule_value'    => $m->rule_value,
+          'error_message' => $m->error_message,
+        );
+      }
     }
   }
 
@@ -266,10 +270,11 @@ function dynamic_form_response_render_form($record) {
       $qid   = (int) $q->id;
       $opts  = isset($options_by_q[$qid]) ? $options_by_q[$qid] : array();
       $scale = isset($scale_by_q[$qid])   ? $scale_by_q[$qid]   : array();
+      $rules = isset($rules_by_q[$qid])   ? $rules_by_q[$qid]   : array();
       $val   = isset($existing_answers[$qid]) ? $existing_answers[$qid] : NULL;
 
       $out .= '<div class="dfp-question-col dfp-col-' . check_plain($width) . '">';
-      $out .= _dynamic_form_response_render_question($q, $opts, $scale, $val);
+      $out .= _dynamic_form_response_render_question($q, $opts, $scale, $val, $rules);
       $out .= '</div>';
     }
 
@@ -312,7 +317,7 @@ function dynamic_form_response_render_form($record) {
 /**
  * Renders a question's outer container with all accessibility / data attributes.
  */
-function _dynamic_form_response_render_question($q, array $opts, array $scale, $existing_value = NULL) {
+function _dynamic_form_response_render_question($q, array $opts, array $scale, $existing_value = NULL, array $rules = array()) {
   $qid  = (int) $q->id;
   $type = $q->type;
   $req  = (int) $q->is_required;
@@ -327,7 +332,11 @@ function _dynamic_form_response_render_question($q, array $opts, array $scale, $
   $out  = '<div class="dfp-question"';
   $out .= ' data-question-id="' . $qid . '"';
   $out .= ' data-type="'        . check_plain($type) . '"';
-  $out .= ' data-required="'    . $req . '">';
+  $out .= ' data-required="'    . $req . '"';
+  if (!empty($rules)) {
+    $out .= ' data-validations="' . check_plain(drupal_json_encode($rules)) . '"';
+  }
+  $out .= '>';
   $out .= '<div class="dfp-question-label">' . check_plain($q->label) . $req_html . '</div>';
   $out .= $desc_html;
   $out .= '<div class="dfp-question-input">';
@@ -580,14 +589,13 @@ function _dynamic_form_response_render_input($q, array $opts, array $scale, $exi
  * Loads Select2 and inline initialisation JS when the form has select/tags questions.
  */
 function _dynamic_form_response_maybe_load_select2($form_id) {
-  $has = db_select('dynamic_form_questions', 'q')
-    ->fields('q', array('id'))
-    ->condition('form_id', $form_id)
-    ->condition('type', array('select', 'tags'), 'IN')
-    ->isNull('deleted_at')
-    ->range(0, 1)
-    ->execute()
-    ->fetchField();
+  $has = FALSE;
+  foreach (dynamic_form_get_questions($form_id) as $q) {
+    if ($q->type === 'select' || $q->type === 'tags') {
+      $has = TRUE;
+      break;
+    }
+  }
 
   if (!$has) {
     return;
@@ -664,14 +672,13 @@ JS;
  * Loads TinyMCE and inline initialisation JS when the form has text_editor questions.
  */
 function _dynamic_form_response_maybe_load_tinymce($form_id) {
-  $has = db_select('dynamic_form_questions', 'q')
-    ->fields('q', array('id'))
-    ->condition('form_id', $form_id)
-    ->condition('type', 'text_editor')
-    ->isNull('deleted_at')
-    ->range(0, 1)
-    ->execute()
-    ->fetchField();
+  $has = FALSE;
+  foreach (dynamic_form_get_questions($form_id) as $q) {
+    if ($q->type === 'text_editor') {
+      $has = TRUE;
+      break;
+    }
+  }
 
   if (!$has) {
     return;
@@ -869,11 +876,12 @@ function _dynamic_form_response_do_save() {
   $q_types = array();
   $q_ids   = array_filter(array_map('intval', array_keys($answers)));
   if (!empty($q_ids)) {
-    $q_types = db_select('dynamic_form_questions', 'q')
-      ->fields('q', array('id', 'type'))
-      ->condition('id', $q_ids, 'IN')
-      ->execute()
-      ->fetchAllKeyed(0, 1);
+    $q_id_set = array_flip($q_ids);
+    foreach (dynamic_form_get_questions($form_id) as $q) {
+      if (isset($q_id_set[(int) $q->id])) {
+        $q_types[(int) $q->id] = $q->type;
+      }
+    }
   }
 
   // Upsert each submitted answer.
@@ -994,13 +1002,12 @@ function _dynamic_form_response_do_submit() {
   }
 
   // Validate required fields.
-  $required = db_select('dynamic_form_questions', 'q')
-    ->fields('q', array('id', 'label'))
-    ->condition('form_id', $form_id)
-    ->condition('is_required', 1)
-    ->isNull('deleted_at')
-    ->execute()
-    ->fetchAllAssoc('id');
+  $required = array();
+  foreach (dynamic_form_get_questions($form_id) as $q) {
+    if ($q->is_required) {
+      $required[(int) $q->id] = $q;
+    }
+  }
 
   $answers = db_select('dynamic_form_answers', 'a')
     ->fields('a', array('question_id', 'value'))
@@ -1013,6 +1020,28 @@ function _dynamic_form_response_do_submit() {
     $v = isset($answers[$qid]) ? trim($answers[$qid]) : '';
     if ($v === '' || $v === '[]' || $v === 'null') {
       $errors[(int) $qid] = t('This field is required.');
+    }
+  }
+  if (!empty($errors)) {
+    return array('status' => 'error', 'errors' => $errors);
+  }
+
+  // Validate custom rules (min_length, max_length, min_value, max_value, regex).
+  $user_rules = db_select('dynamic_form_question_validations', 'v')
+    ->fields('v')
+    ->condition('question_id', array_keys($answers), 'IN')
+    ->condition('rule_type', array('min_length', 'max_length', 'min_value', 'max_value', 'regex'), 'IN')
+    ->execute()
+    ->fetchAll();
+
+  foreach ($user_rules as $rule) {
+    $qid = (int) $rule->question_id;
+    if (isset($errors[$qid])) { continue; }
+    $val = isset($answers[$qid]) ? $answers[$qid] : '';
+    if ($val === '') { continue; }
+    $err = _dynamic_form_response_apply_rule($rule->rule_type, $rule->rule_value, $rule->error_message, $val);
+    if ($err !== NULL) {
+      $errors[$qid] = $err;
     }
   }
   if (!empty($errors)) {
@@ -1044,6 +1073,35 @@ function _dynamic_form_response_do_submit() {
 /* =====================================================================
    HELPERS
    ===================================================================== */
+
+/**
+ * Applies one validation rule to a value. Returns an error string or NULL.
+ */
+function _dynamic_form_response_apply_rule($rule_type, $rule_value, $error_message, $value) {
+  $default_messages = array(
+    'min_length' => t('Must be at least @n characters.', array('@n' => $rule_value)),
+    'max_length' => t('Must be at most @n characters.',  array('@n' => $rule_value)),
+    'min_value'  => t('Must be at least @n.',            array('@n' => $rule_value)),
+    'max_value'  => t('Must be at most @n.',             array('@n' => $rule_value)),
+    'regex'      => t('Invalid format.'),
+  );
+  $msg = (!empty($error_message)) ? $error_message : (isset($default_messages[$rule_type]) ? $default_messages[$rule_type] : t('Invalid value.'));
+
+  switch ($rule_type) {
+    case 'min_length':
+      return (drupal_strlen($value) < (int) $rule_value) ? $msg : NULL;
+    case 'max_length':
+      return (drupal_strlen($value) > (int) $rule_value) ? $msg : NULL;
+    case 'min_value':
+      return (is_numeric($value) && (float) $value < (float) $rule_value) ? $msg : NULL;
+    case 'max_value':
+      return (is_numeric($value) && (float) $value > (float) $rule_value) ? $msg : NULL;
+    case 'regex':
+      $pattern = '/' . addcslashes($rule_value, '/') . '/u';
+      return (@preg_match($pattern, $value) === 0) ? $msg : NULL;
+  }
+  return NULL;
+}
 
 /**
  * Returns a stable 64-char hex guest token for the current anonymous visitor.

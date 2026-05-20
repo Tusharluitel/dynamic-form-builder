@@ -12,6 +12,8 @@
 function dynamic_form_edit_question_form($form, &$form_state, $question_id) {
   global $user;
 
+  module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.builder');
+
   // Tell Drupal where to find this function and the shared AJAX handlers
   // during AJAX rebuilds (options/validations add-more).
   $form_state['build_info']['files'][] = array(
@@ -512,6 +514,7 @@ function dynamic_form_edit_question_form_submit($form, &$form_state) {
     ->condition('id', $qid)
     ->execute();
 
+  dynamic_form_invalidate_questions_cache((int) $record->form_id);
   _dynamic_form_audit_log('question', $qid, 'updated', (array) $record, $new_q_fields);
 
   // --- Options: soft-delete old, re-insert ---
@@ -613,7 +616,7 @@ function dynamic_form_delete_question_confirm($form, &$form_state, $question_id)
   global $user;
 
   $record = db_select('dynamic_form_questions', 'q')
-    ->fields('q', array('id', 'label', 'created_by'))
+    ->fields('q', array('id', 'form_id', 'label', 'created_by'))
     ->condition('id', $question_id)
     ->condition('deleted_at', NULL, 'IS NULL')
     ->execute()->fetchObject();
@@ -648,6 +651,7 @@ function dynamic_form_delete_question_confirm_submit($form, &$form_state) {
     ->condition('id', $record->id)
     ->execute();
 
+  dynamic_form_invalidate_questions_cache((int) $record->form_id);
   _dynamic_form_audit_log('question', $record->id, 'deleted', (array) $record, NULL);
 
   drupal_set_message(t('Question "@label" has been deleted.', array('@label' => $record->label)));

@@ -295,22 +295,64 @@
       }
 
       // ----------------------------------------------------------------
-      // Client-side required-field validation
+      // Client-side required-field + custom-rule validation
       // ----------------------------------------------------------------
+      function applyRule(ruleType, ruleValue, errorMessage, val) {
+        var defaults = {
+          min_length: 'Must be at least ' + ruleValue + ' characters.',
+          max_length: 'Must be at most '  + ruleValue + ' characters.',
+          min_value:  'Must be at least ' + ruleValue + '.',
+          max_value:  'Must be at most '  + ruleValue + '.',
+          regex:      'Invalid format.'
+        };
+        var msg = errorMessage || defaults[ruleType] || 'Invalid value.';
+        switch (ruleType) {
+          case 'min_length': return (String(val).length < parseInt(ruleValue, 10)) ? msg : null;
+          case 'max_length': return (String(val).length > parseInt(ruleValue, 10)) ? msg : null;
+          case 'min_value':  return (parseFloat(val) < parseFloat(ruleValue))      ? msg : null;
+          case 'max_value':  return (parseFloat(val) > parseFloat(ruleValue))      ? msg : null;
+          case 'regex': {
+            try { return (new RegExp(ruleValue).test(String(val))) ? null : msg; }
+            catch (e) { return null; }
+          }
+        }
+        return null;
+      }
+
       function validateStep($step) {
         var valid   = true;
         var answers = collectStepAnswers($step);
 
-        $step.find('.dfp-question[data-required="1"]').each(function () {
-          var $q   = $(this);
-          var qid  = $q.data('question-id');
-          var val  = answers[qid];
-          var empty = (val === '' || val === null || val === undefined)
+        $step.find('.dfp-question').each(function () {
+          var $q      = $(this);
+          var qid     = $q.data('question-id');
+          var isReq   = $q.data('required') == 1;
+          var val     = answers[qid];
+          var isEmpty = (val === '' || val === null || val === undefined)
             || (Array.isArray(val) && val.length === 0);
 
           var $err = $q.find('.dfr-field-error');
-          if (empty) {
-            $err.text('This field is required.').show();
+          var errorMsg = null;
+
+          if (isReq && isEmpty) {
+            errorMsg = 'This field is required.';
+          } else if (!isEmpty) {
+            var rawRules = $q.attr('data-validations');
+            if (rawRules) {
+              try {
+                var rules = JSON.parse(rawRules);
+                var strVal = Array.isArray(val) ? val.join(',') : String(val);
+                for (var i = 0; i < rules.length; i++) {
+                  var r = rules[i];
+                  var rErr = applyRule(r.rule_type, r.rule_value, r.error_message, strVal);
+                  if (rErr) { errorMsg = rErr; break; }
+                }
+              } catch (e) {}
+            }
+          }
+
+          if (errorMsg) {
+            $err.text(errorMsg).show();
             $q.addClass('dfp-question-error');
             if (valid) {
               $('html, body').animate({ scrollTop: $q.offset().top - 20 }, 200);

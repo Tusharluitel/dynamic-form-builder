@@ -91,20 +91,27 @@ function dynamic_form_response_list_page($form_id) {
       }
     }
     if (!empty($raw_rows)) {
-      $q_meta = db_select('dynamic_form_questions', 'q')
-        ->fields('q', array('id', 'type', 'label'))
-        ->condition('id', $raw_qids, 'IN')
-        ->condition('form_id', $form_id)
-        ->isNull('deleted_at')
-        ->execute()
-        ->fetchAllAssoc('id');
+      $raw_qid_set = array_flip($raw_qids);
+      $q_meta = array();
+      foreach (dynamic_form_get_questions($form_id) as $q) {
+        if (isset($raw_qid_set[(int) $q->id])) {
+          $q_meta[(int) $q->id] = $q;
+        }
+      }
       foreach ($raw_rows as $row) {
         if (isset($q_meta[$row['qid']])) {
+          $type = $q_meta[$row['qid']]->type;
+          $rval = $row['val'];
+          // Tags Select2 hidden input stores multi-values comma-separated;
+          // normalise to pipe so the rest of the pipeline treats it uniformly.
+          if ($type === 'tags' && strpos($rval, ',') !== FALSE) {
+            $rval = implode('|', array_filter(array_map('trim', explode(',', $rval))));
+          }
           $filter_rows[] = array(
             'qid'   => $row['qid'],
-            'val'   => $row['val'],
+            'val'   => $rval,
             'op'    => $row['op'],
-            'type'  => $q_meta[$row['qid']]->type,
+            'type'  => $type,
             'label' => $q_meta[$row['qid']]->label,
           );
         }
@@ -116,14 +123,12 @@ function dynamic_form_response_list_page($form_id) {
                || $filter_date_from || $filter_date_to || $filter_respondent;
 
   // Load only questions marked allow_filter=1 for the filter UI and JS settings.
-  $filter_questions = db_select('dynamic_form_questions', 'q')
-    ->fields('q', array('id', 'label', 'type'))
-    ->condition('form_id', $form_id)
-    ->condition('allow_filter', 1)
-    ->isNull('deleted_at')
-    ->orderBy('position', 'ASC')
-    ->execute()
-    ->fetchAll();
+  $filter_questions = array();
+  foreach (dynamic_form_get_questions($form_id) as $q) {
+    if ($q->allow_filter) {
+      $filter_questions[] = $q;
+    }
+  }
 
   $questions_for_js = array();
   foreach ($filter_questions as $fq) {
@@ -372,7 +377,8 @@ function _dynamic_form_response_render_filter_bar($form_id, array $filter_rows, 
   }
 
   // Batch-load options for option-type questions (single query).
-  $option_types = array('radio', 'checkbox', 'select', 'tags');
+  // Tags questions use live Solr AJAX autocomplete instead of static options.
+  $option_types = array('radio', 'checkbox', 'select');
   $option_qids  = array();
   foreach ($filter_questions as $fq) {
     if (in_array($fq->type, $option_types)) {
@@ -392,6 +398,9 @@ function _dynamic_form_response_render_filter_bar($form_id, array $filter_rows, 
       $options_by_qid[(int) $or->question_id][] = $or->option_label;
     }
   }
+
+  // URL for the tags AJAX autocomplete (Solr-backed when the Solr module is enabled).
+  $ac_url = url('dynamic-form/ajax/tags/autocomplete');
 
   $out  = '<div class="dfr-filter-bar">';
   $out .= '<form method="get" action="' . $action . '" id="dfr-filter-form">';
@@ -419,14 +428,23 @@ function _dynamic_form_response_render_filter_bar($form_id, array $filter_rows, 
       $input_id = 'dfr-qf-' . $qid;
 
       $out .= '<div class="dfr-qfilter-field" data-qid="' . $qid . '">';
-      $out .= '<label for="' . $input_id . '" title="' . check_plain($fq->label) . '">'
-            . check_plain(truncate_utf8($fq->label, 24, TRUE, TRUE)) . '</label>';
+      $out .= '<label for="' . $input_id . '">' . check_plain($fq->label) . '</label>';
 
       // Hidden fields carry qid and operator; the visible input carries val.
       $out .= '<input type="hidden" class="dfr-qfilter-qid" name="f[' . $idx . '][qid]" value="' . $qid . '">';
       $out .= '<input type="hidden" class="dfr-qfilter-op"  name="f[' . $idx . '][op]"  value="AND">';
 
-      if (in_array($fq->type, $option_types) && !empty($options_by_qid[$qid])) {
+      if ($fq->type === 'tags') {
+        // Tags use live Solr AJAX autocomplete. Convert pipe-sep (internal) back
+        // to comma-sep so Select2's hidden input can pre-fill existing filters.
+        $tags_val = str_replace('|', ',', $val);
+        $out .= '<input type="hidden" name="f[' . $idx . '][val]" id="' . $input_id . '"'
+              . ' class="dfr-qfilter-tags dfr-qfilter-val"'
+              . ' value="' . check_plain($tags_val) . '"'
+              . ' data-autocomplete-url="' . check_url($ac_url) . '"'
+              . ' data-placeholder="' . t('Type to search tags…') . '">';
+      }
+      elseif (in_array($fq->type, $option_types) && !empty($options_by_qid[$qid])) {
         $active_arr = ($val !== '') ? explode('|', $val) : array();
         $out .= '<select name="f[' . $idx . '][val][]" id="' . $input_id
               . '" class="dfr-qfilter-select dfr-qfilter-val" multiple="multiple"'
@@ -695,13 +713,7 @@ function dynamic_form_response_view_page($form_id, $response_id) {
     ->execute()
     ->fetchAll();
 
-  $questions = db_select('dynamic_form_questions', 'q')
-    ->fields('q')
-    ->condition('form_id', $form_id)
-    ->isNull('deleted_at')
-    ->orderBy('position', 'ASC')
-    ->execute()
-    ->fetchAll();
+  $questions = dynamic_form_get_questions($form_id);
 
   $q_by_section = array();
   foreach ($questions as $q) {
