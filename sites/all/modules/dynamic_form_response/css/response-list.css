@@ -602,10 +602,10 @@
   margin-bottom: 10px;
 }
 
-/* Responsive auto-fill grid: 2-4 columns depending on width */
+/* 3 equal columns per row; questions 4+ wrap to the next row */
 .dfr-qfilter-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 10px 14px;
 }
 
@@ -620,9 +620,8 @@
   font-size: 0.72rem;
   font-weight: 600;
   color: #5555aa;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  word-break: break-word;
+  line-height: 1.4;
   cursor: default;
 }
 
@@ -666,21 +665,20 @@
   background: #fff;
 }
 
-/* Clear (×) button — top-right of input area, works for both fixed and
-   variable-height Select2 multi containers */
+/* Clear (×) button — inside the right edge of single-line inputs */
 .dfr-qfilter-clear {
   position: absolute;
-  right: 4px;
+  right: 6px;
   top: 24px;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   padding: 0;
   border: none;
   background: #e0e0f0;
   color: #7777aa;
   border-radius: 50%;
-  font-size: 0.7rem;
-  line-height: 20px;
+  font-size: 0.65rem;
+  line-height: 18px;
   text-align: center;
   cursor: pointer;
   font-family: inherit;
@@ -692,6 +690,20 @@
   color: #fff;
 }
 
+/* For multi-select fields: float the × alongside the label, above the container */
+.dfr-qfilter-field--multi .dfr-qfilter-clear {
+  top: 1px;
+  right: 0;
+  width: 16px;
+  height: 16px;
+  font-size: 0.6rem;
+  line-height: 16px;
+}
+
+.dfr-qfilter-field--multi label {
+  padding-right: 20px; /* keep label text from sliding under the × */
+}
+
 /* ----------------------------------------------------------------
    Select2 v3 overrides for multi-select question filters
    ---------------------------------------------------------------- */
@@ -699,10 +711,13 @@
   width: 100% !important;
 }
 
-/* Leave room on the right for the clear (×) button */
+/* Cap height so many selections don't break the grid layout */
 .dfr-qfilter-field .select2-container-multi .select2-choices {
   min-height: 34px;
-  padding: 3px 28px 3px 6px;
+  max-height: 68px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 2px 6px 2px 6px;
   border: 1px solid #d8d8ee;
   border-radius: 6px;
   background: #fafafe;
@@ -717,27 +732,27 @@
   outline: none;
 }
 
-/* Selected value chips */
+/* Compact chips so multiple fit per row */
 .dfr-qfilter-field .select2-container-multi .select2-search-choice {
   background: #eeeef8;
   border: 1px solid #d0d0ee;
   border-radius: 4px;
   color: #4444aa;
-  font-size: 0.78rem;
-  padding: 2px 22px 2px 6px;
-  margin: 2px 4px 2px 0;
+  font-size: 0.72rem;
+  padding: 1px 18px 1px 5px;
+  margin: 1px 3px 1px 0;
   box-shadow: none;
-  line-height: 1.45;
+  line-height: 1.4;
 }
 
 .dfr-qfilter-field .select2-container-multi .select2-search-choice-close {
-  top: 4px;
+  top: 3px;
 }
 
 /* Search input inside the choices box */
 .dfr-qfilter-field .select2-container-multi .select2-search-field input {
-  height: 26px;
-  font-size: 0.82rem;
+  height: 22px;
+  font-size: 0.8rem;
   font-family: inherit;
   color: #2c2c3e;
   background: transparent;

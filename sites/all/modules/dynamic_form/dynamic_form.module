@@ -449,9 +449,60 @@ function dynamic_form_theme($existing, $type, $theme, $path)
   );
 }
 
+
 /* =====================================================================
-   AUDIT LOG HELPER
+   QUESTION CACHE
    ===================================================================== */
+
+/**
+ * Returns all non-deleted questions for a form, ordered by position.
+
+ * @param int $form_id
+ * @return object[]
+ */
+function dynamic_form_get_questions($form_id) {
+  $form_id = (int) $form_id;
+  $static  = &drupal_static(__FUNCTION__, array()); //holds cached questions for all forms keyed by form_id
+
+  if (isset($static[$form_id])) {
+    return $static[$form_id];
+  }
+
+  $cid    = 'dynamic_form:questions:' . $form_id;
+  $cached = cache_get($cid);
+  if ($cached !== FALSE) {
+    $static[$form_id] = $cached->data;
+    return $static[$form_id];
+  }
+
+  $questions = db_select('dynamic_form_questions', 'q')
+    ->fields('q')
+    ->condition('form_id', $form_id)
+    ->isNull('deleted_at')
+    ->orderBy('position', 'ASC')
+    ->execute()
+    ->fetchAll();
+
+  cache_set($cid, $questions);
+  $static[$form_id] = $questions;
+  return $static[$form_id];
+}
+
+/**
+ * Clears the question cache for one form.
+ *
+ * Call after any insert, update, delete, or reorder on
+ * dynamic_form_questions rows belonging to $form_id.
+ *
+ * @param int $form_id
+ */
+function dynamic_form_invalidate_questions_cache($form_id) {
+  $form_id = (int) $form_id;
+  cache_clear_all('dynamic_form:questions:' . $form_id, 'cache', FALSE);
+  drupal_static_reset('dynamic_form_get_questions');
+}
+
+/* ===================================================================== */
 
 /**
  * Appends one row to dynamic_form_audit_log.

@@ -1033,6 +1033,7 @@ function dynamic_form_builder_question_form_submit($form, &$form_state) {
 
   $question_id = db_insert('dynamic_form_questions')->fields($q_fields)->execute();
 
+  dynamic_form_invalidate_questions_cache($form_id);
   _dynamic_form_audit_log('question', $question_id, 'created', NULL, $q_fields);
 
   // Options for choice types.
@@ -1178,6 +1179,17 @@ function dynamic_form_ajax_reorder() {
         ->fields($fields)
         ->condition('id', $id)
         ->execute();
+    }
+    if ($type === 'question' && !empty($order)) {
+      $first_id = (int) $order[0]['id'];
+      $fid = db_select('dynamic_form_questions', 'q')
+        ->fields('q', array('form_id'))
+        ->condition('id', $first_id)
+        ->execute()
+        ->fetchField();
+      if ($fid) {
+        dynamic_form_invalidate_questions_cache((int) $fid);
+      }
     }
     drupal_json_output(array('status' => 'success'));
   }
@@ -1786,6 +1798,7 @@ function dynamic_form_builder_question_edit_form_submit($form, &$form_state) {
     ->condition('id', $question_id)
     ->execute();
 
+  dynamic_form_invalidate_questions_cache((int) $form_state['dfb_eq_question']->form_id);
   _dynamic_form_audit_log('question', $question_id, 'updated', (array) $form_state['dfb_eq_question'], $new_q_fields);
 
   // Soft-delete existing options then re-insert survivors.
