@@ -376,8 +376,22 @@ function dynamic_form_trash_delete_permanent_confirm_submit($form, &$form_state)
 
 /**
  * Permanently deletes a form and all cascading data.
+ *
+ * Invokes hook_dynamic_form_form_predelete($form_id, $record) before any rows
+ * are removed so other modules can clean up their own data while the record
+ * still exists.
  */
 function _dynamic_form_trash_hard_delete_form($form_id) {
+  $form_id = (int) $form_id;
+
+  $record = db_select('dynamic_form_forms', 'f')
+    ->fields('f')
+    ->condition('id', $form_id)
+    ->execute()
+    ->fetchObject();
+
+  module_invoke_all('dynamic_form_form_predelete', $form_id, $record);
+
   $question_ids = db_select('dynamic_form_questions', 'q')
     ->fields('q', array('id'))
     ->condition('form_id', $form_id)
@@ -410,16 +424,25 @@ function _dynamic_form_trash_hard_delete_form($form_id) {
   db_delete('dynamic_form_sections')->condition('form_id', $form_id)->execute();
   db_delete('dynamic_form_members')->condition('form_id', $form_id)->execute();
   db_delete('dynamic_form_forms')->condition('id', $form_id)->execute();
-
-  if (module_exists('dynamic_form_solr')) {
-    dynamic_form_solr_delete_form_responses($form_id);
-  }
 }
 
 /**
  * Permanently deletes a section and all its questions.
+ *
+ * Invokes hook_dynamic_form_section_predelete($section_id, $record) before
+ * any rows are removed.
  */
 function _dynamic_form_trash_hard_delete_section($section_id) {
+  $section_id = (int) $section_id;
+
+  $record = db_select('dynamic_form_sections', 's')
+    ->fields('s')
+    ->condition('id', $section_id)
+    ->execute()
+    ->fetchObject();
+
+  module_invoke_all('dynamic_form_section_predelete', $section_id, $record);
+
   $question_ids = db_select('dynamic_form_questions', 'q')
     ->fields('q', array('id'))
     ->condition('section_id', $section_id)
@@ -444,8 +467,21 @@ function _dynamic_form_trash_hard_delete_section($section_id) {
 
 /**
  * Permanently deletes a single response and its answers.
+ *
+ * Invokes hook_dynamic_form_response_predelete($response_id, $record) before
+ * any rows are removed.
  */
 function _dynamic_form_trash_hard_delete_response($response_id) {
+  $response_id = (int) $response_id;
+
+  $record = db_select('dynamic_form_responses', 'r')
+    ->fields('r')
+    ->condition('id', $response_id)
+    ->execute()
+    ->fetchObject();
+
+  module_invoke_all('dynamic_form_response_predelete', $response_id, $record);
+
   $answer_ids = db_select('dynamic_form_answers', 'a')
     ->fields('a', array('id'))
     ->condition('response_id', $response_id)
@@ -458,16 +494,25 @@ function _dynamic_form_trash_hard_delete_response($response_id) {
 
   db_delete('dynamic_form_response_sessions')->condition('response_id', $response_id)->execute();
   db_delete('dynamic_form_responses')->condition('id', $response_id)->execute();
-
-  if (module_exists('dynamic_form_solr')) {
-    dynamic_form_solr_delete_response($response_id);
-  }
 }
 
 /**
  * Permanently deletes a question and its options, validations, and answers.
+ *
+ * Invokes hook_dynamic_form_question_predelete($question_id, $record) before
+ * any rows are removed.
  */
 function _dynamic_form_trash_hard_delete_question($question_id) {
+  $question_id = (int) $question_id;
+
+  $record = db_select('dynamic_form_questions', 'q')
+    ->fields('q')
+    ->condition('id', $question_id)
+    ->execute()
+    ->fetchObject();
+
+  module_invoke_all('dynamic_form_question_predelete', $question_id, $record);
+
   $answer_ids = db_select('dynamic_form_answers', 'a')
     ->fields('a', array('id'))
     ->condition('question_id', $question_id)
