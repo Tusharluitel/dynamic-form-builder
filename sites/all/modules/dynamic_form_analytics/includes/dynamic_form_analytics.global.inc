@@ -12,6 +12,7 @@ function dynamic_form_analytics_global_page() {
   drupal_set_title(t('Analytics'));
 
   module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.dashboard');
+  module_load_include('inc', 'dynamic_form_analytics', 'includes/dynamic_form_analytics.wordcloud');
 
   $module_path   = drupal_get_path('module', 'dynamic_form_analytics');
   $d3_path       = libraries_get_path('d3');
@@ -21,13 +22,21 @@ function dynamic_form_analytics_global_page() {
   else {
     drupal_add_js('sites/all/libraries/d3/d3.min.js', array('type' => 'file', 'weight' => -10, 'group' => JS_LIBRARY));
   }
+  drupal_add_js('sites/all/libraries/d3-cloud/build/d3.layout.cloud.js', array('type' => 'file', 'weight' => -9, 'group' => JS_LIBRARY));
 
   drupal_add_css($module_path . '/css/analytics.css');
   drupal_add_js($module_path . '/js/analytics.js');
 
   $data = _dynamic_form_analytics_global_data();
 
-  drupal_add_js(array('dfAnalytics' => array('global' => $data)), 'setting');
+  $wordcloud = array(
+    'words'          => _dynamic_form_analytics_wordcloud_query(),
+    'forms'          => _dynamic_form_analytics_wordcloud_forms(),
+    'ajaxData'       => url('dashboard/analytics/wordcloud-data'),
+    'ajaxQuestions'  => url('dashboard/analytics/wordcloud-questions'),
+  );
+
+  drupal_add_js(array('dfAnalytics' => array('global' => $data, 'wordcloud' => $wordcloud)), 'setting');
 
   $sidebar_html = _dynamic_form_dashboard_sidebar('analytics');
   $content_html = _dynamic_form_analytics_global_html($data);
@@ -176,6 +185,23 @@ function _dynamic_form_analytics_global_html($data) {
   $output .= '</div>';
 
   $output .= '</div>'; // .dfb-analytics-grid
+
+  // Tag word cloud card.
+  $output .= '<div class="dfb-chart-card dfb-chart-card--wide dfb-wc-card">';
+  $output .= '<div class="dfb-wc-header">';
+  $output .= '<h3 class="dfb-chart-title">' . t('Tag Word Cloud') . '</h3>';
+  $output .= '<div class="dfb-wc-filters">';
+  $output .= '<select id="dfa-wc-form" class="dfb-wc-select" aria-label="' . t('Filter by form') . '">';
+  $output .= '<option value="">' . t('All Forms') . '</option>';
+  $output .= '</select>';
+  $output .= '<select id="dfa-wc-question" class="dfb-wc-select" disabled aria-label="' . t('Filter by question') . '">';
+  $output .= '<option value="">' . t('All Tag Questions') . '</option>';
+  $output .= '</select>';
+  $output .= '</div>'; // .dfb-wc-filters
+  $output .= '</div>'; // .dfb-wc-header
+  $output .= '<div id="dfa-chart-wordcloud" class="dfb-chart-container dfb-chart-container--wordcloud"></div>';
+  $output .= '</div>'; // .dfb-wc-card
+
   $output .= '</div>'; // .dfb-analytics-page
 
   return $output;
