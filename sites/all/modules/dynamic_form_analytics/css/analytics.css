@@ -222,6 +222,95 @@
   line-height: 1.4;
 }
 
+/* ── Word cloud card header ───────────────────────────────── */
+.dfb-wc-card {}
+
+.dfb-wc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.dfb-wc-header .dfb-chart-title {
+  margin: 0;
+}
+
+.dfb-wc-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dfb-wc-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--color-surface-alt, #f8fafc)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E")
+    no-repeat right 10px center;
+  background-size: 10px 6px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-full, 9999px);
+  padding: 6px 30px 6px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text, #1e293b);
+  cursor: pointer;
+  min-width: 150px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.dfb-wc-select:focus {
+  outline: none;
+  border-color: var(--color-primary, #4f6ef7);
+  box-shadow: 0 0 0 3px rgba(79, 110, 247, 0.12);
+}
+
+.dfb-wc-select:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── Word cloud SVG container ─────────────────────────────── */
+.dfb-chart-container--wordcloud {
+  height: 340px;
+  position: relative;
+  overflow: hidden;
+}
+
+.dfb-chart-container--wordcloud svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Individual word tokens ───────────────────────────────── */
+.dfa-word {
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.12s;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.dfa-word:hover {
+  opacity: 0.72 !important;
+}
+
+/* ── Loading spinner text ─────────────────────────────────── */
+.dfb-wc-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 0.875rem;
+  color: var(--color-text-muted, #94a3b8);
+  font-style: italic;
+}
+
 /* ── D3 axis and tick styling ─────────────────────────────── */
 .dfa-axis path,
 .dfa-axis line {

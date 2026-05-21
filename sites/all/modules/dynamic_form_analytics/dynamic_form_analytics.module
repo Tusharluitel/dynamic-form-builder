@@ -45,6 +45,21 @@ function dynamic_form_analytics_menu() {
     'type'            => MENU_CALLBACK,
   );
 
+  $items['dashboard/analytics/wordcloud-data'] = array(
+    'page callback'    => 'dynamic_form_analytics_wordcloud_data',
+    'access arguments' => array('view form analytics'),
+    'type'             => MENU_CALLBACK,
+    'file'             => 'includes/dynamic_form_analytics.wordcloud.inc',
+  );
+
+  $items['dashboard/analytics/wordcloud-questions/%'] = array(
+    'page callback'    => 'dynamic_form_analytics_wordcloud_questions',
+    'page arguments'   => array(3),
+    'access arguments' => array('view form analytics'),
+    'type'             => MENU_CALLBACK,
+    'file'             => 'includes/dynamic_form_analytics.wordcloud.inc',
+  );
+
   return $items;
 }
 

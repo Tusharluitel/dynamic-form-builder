@@ -387,12 +387,193 @@
   }
 
   /* ================================================================
+     WORD CLOUD — d3-cloud (Jason Davies) layout
+     el: DOM element
+     words: [{text:'...', count:N}, ...] sorted by count DESC
+     ================================================================ */
+
+  function renderWordCloud(el, words) {
+    var W = el.clientWidth || 700;
+    var H = 340;
+
+    d3.select(el).selectAll('*').remove();
+
+    if (!words || !words.length) {
+      d3.select(el)
+        .append('div')
+        .attr('class', 'dfb-analytics-empty')
+        .text('No tag data available for the selected filter.');
+      return;
+    }
+
+    var maxCount = d3.max(words, function (d) { return d.count; }) || 1;
+    var minCount = d3.min(words, function (d) { return d.count; }) || 1;
+
+    var fontScale = (maxCount === minCount)
+      ? function () { return 26; }
+      : d3.scaleSqrt().domain([minCount, maxCount]).range([13, 56]).clamp(true);
+
+    var wordData = words.map(function (d, i) {
+      return {
+        text:  d.text,
+        count: d.count,
+        size:  fontScale(d.count),
+        color: COLORS[i % COLORS.length],
+      };
+    });
+
+    d3.layout.cloud()
+      .size([W, H])
+      .words(wordData)
+      .padding(6)
+      .rotate(0)
+      .font('sans-serif')
+      .fontWeight('bold')
+      .fontSize(function (d) { return d.size; })
+      .on('end', function (placed) {
+        var svg = d3.select(el)
+          .append('svg')
+          .attr('width',  W)
+          .attr('height', H)
+          .attr('class',  'dfa-wordcloud-svg')
+          .append('g')
+          .attr('transform', 'translate(' + W / 2 + ',' + H / 2 + ')');
+
+        svg.selectAll('.dfa-word')
+          .data(placed)
+          .enter()
+          .append('text')
+          .attr('class',       'dfa-word')
+          .attr('text-anchor', 'middle')
+          .attr('transform',   function (d) {
+            return 'translate(' + d.x + ',' + d.y + ') rotate(' + d.rotate + ')';
+          })
+          .attr('font-size',   function (d) { return d.size + 'px'; })
+          .attr('font-weight', 'bold')
+          .attr('fill',        function (d) { return d.color; })
+          .attr('opacity',     0)
+          .text(function (d) { return d.text; })
+          .on('mouseover', function (d) {
+            d3.select(this).attr('opacity', 0.7);
+            showTooltip(
+              '<strong>' + d.text + '</strong>: ' + d.count + (d.count === 1 ? ' use' : ' uses'),
+              d3.event
+            );
+          })
+          .on('mouseout', function () {
+            d3.select(this).attr('opacity', 1);
+            hideTooltip();
+          })
+          .transition()
+          .duration(450)
+          .delay(function (d, i) { return Math.min(i * 25, 700); })
+          .attr('opacity', 1);
+      })
+      .start();
+  }
+
+  /* ================================================================
+     WORD CLOUD AJAX helpers
+     ================================================================ */
+
+  function _wcSetLoading(el, loading) {
+    d3.select(el).selectAll('*').remove();
+    if (loading) {
+      d3.select(el)
+        .append('div')
+        .attr('class', 'dfb-wc-loading')
+        .text('Loading…');
+    }
+  }
+
+  function wcFetch(ajaxUrl, formId, questionId, mountEl) {
+    _wcSetLoading(mountEl, true);
+    var url = ajaxUrl + '?form_id=' + (formId || 0) + '&question_id=' + (questionId || 0);
+    // D3 v5 uses Promises — no callback argument.
+    d3.json(url)
+      .then(function (data) {
+        renderWordCloud(mountEl, data.words);
+      })
+      .catch(function () {
+        d3.select(mountEl).selectAll('*').remove();
+        d3.select(mountEl)
+          .append('div')
+          .attr('class', 'dfb-analytics-empty')
+          .text('Could not load word cloud data.');
+      });
+  }
+
+  /* ================================================================
      DRUPAL BEHAVIOR — wires chart functions to DOM elements
      ================================================================ */
 
   Drupal.behaviors.dfAnalytics = {
     attach: function (context, settings) {
       if (!settings.dfAnalytics) { return; }
+
+      /* ---------- GLOBAL WORD CLOUD ---------- */
+      if (settings.dfAnalytics.wordcloud) {
+        var wc      = settings.dfAnalytics.wordcloud;
+        var wcEl    = document.getElementById('dfa-chart-wordcloud');
+        var wcForm  = document.getElementById('dfa-wc-form');
+        var wcQ     = document.getElementById('dfa-wc-question');
+
+        if (wcEl) {
+          // Populate form dropdown.
+          if (wcForm && wc.forms && wc.forms.length) {
+            wc.forms.forEach(function (f) {
+              var opt = document.createElement('option');
+              opt.value       = f.id;
+              opt.textContent = f.title;
+              wcForm.appendChild(opt);
+            });
+          }
+
+          // Render initial cloud (all forms).
+          renderWordCloud(wcEl, wc.words);
+
+          // Form filter change.
+          if (wcForm) {
+            $(wcForm).on('change', function () {
+              var fid = parseInt(this.value, 10) || 0;
+
+              // Reset and disable question dropdown.
+              $(wcQ).empty().append('<option value="">All Tag Questions</option>').prop('disabled', true);
+
+              if (!fid) {
+                // Back to global view.
+                renderWordCloud(wcEl, wc.words);
+                return;
+              }
+
+              // Load tag questions for this form via AJAX.
+              $.getJSON(wc.ajaxQuestions + '/' + fid, function (resp) {
+                if (resp && resp.questions && resp.questions.length) {
+                  resp.questions.forEach(function (q) {
+                    var opt = document.createElement('option');
+                    opt.value       = q.id;
+                    opt.textContent = q.label;
+                    wcQ.appendChild(opt);
+                  });
+                  $(wcQ).prop('disabled', false);
+                }
+              });
+
+              // Fetch word cloud for this form.
+              wcFetch(wc.ajaxData, fid, 0, wcEl);
+            });
+          }
+
+          // Question filter change.
+          if (wcQ) {
+            $(wcQ).on('change', function () {
+              var fid = parseInt($(wcForm).val(), 10) || 0;
+              var qid = parseInt(this.value, 10) || 0;
+              wcFetch(wc.ajaxData, fid, qid, wcEl);
+            });
+          }
+        }
+      }
 
       /* ---------- GLOBAL PAGE ---------- */
       if (settings.dfAnalytics.global) {
@@ -414,6 +595,36 @@
         var topEl = document.getElementById('dfa-chart-top-forms');
         if (topEl && g.top_forms && g.top_forms.length) {
           renderHBarChart(topEl, g.top_forms);
+        }
+      }
+
+      /* ---------- PER-FORM WORD CLOUD ---------- */
+      if (settings.dfAnalytics.wordcloudForm) {
+        var wcf   = settings.dfAnalytics.wordcloudForm;
+        var wcfEl = document.getElementById('dfa-chart-wordcloud-form');
+        var wcfQ  = document.getElementById('dfa-wc-question-form');
+
+        if (wcfEl) {
+          // Populate question dropdown.
+          if (wcfQ && wcf.questions && wcf.questions.length) {
+            wcf.questions.forEach(function (q) {
+              var opt = document.createElement('option');
+              opt.value       = q.id;
+              opt.textContent = q.label;
+              wcfQ.appendChild(opt);
+            });
+          }
+
+          // Render initial cloud for this form.
+          renderWordCloud(wcfEl, wcf.words);
+
+          // Question filter change.
+          if (wcfQ) {
+            $(wcfQ).on('change', function () {
+              var qid = parseInt(this.value, 10) || 0;
+              wcFetch(wcf.ajaxData, wcf.formId, qid, wcfEl);
+            });
+          }
         }
       }
 

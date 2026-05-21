@@ -16,6 +16,7 @@ function dynamic_form_analytics_form_page($form_id) {
   $form_id = (int) $form_id;
 
   module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.dashboard');
+  module_load_include('inc', 'dynamic_form_analytics', 'includes/dynamic_form_analytics.wordcloud');
 
   $form = db_select('dynamic_form_forms', 'f')
     ->fields('f')
@@ -38,13 +39,21 @@ function dynamic_form_analytics_form_page($form_id) {
   else {
     drupal_add_js('sites/all/libraries/d3/d3.min.js', array('type' => 'file', 'weight' => -10, 'group' => JS_LIBRARY));
   }
+  drupal_add_js('sites/all/libraries/d3-cloud/build/d3.layout.cloud.js', array('type' => 'file', 'weight' => -9, 'group' => JS_LIBRARY));
 
   drupal_add_css($module_path . '/css/analytics.css');
   drupal_add_js($module_path . '/js/analytics.js');
 
   $data = _dynamic_form_analytics_form_data($form_id);
 
-  drupal_add_js(array('dfAnalytics' => array('form' => $data)), 'setting');
+  $wordcloud_form = array(
+    'words'     => _dynamic_form_analytics_wordcloud_query($form_id),
+    'formId'    => $form_id,
+    'questions' => _dynamic_form_analytics_wordcloud_tag_questions($form_id),
+    'ajaxData'  => url('dashboard/analytics/wordcloud-data'),
+  );
+
+  drupal_add_js(array('dfAnalytics' => array('form' => $data, 'wordcloudForm' => $wordcloud_form)), 'setting');
 
   $sidebar_html = _dynamic_form_dashboard_sidebar('analytics');
   $content_html = _dynamic_form_analytics_form_html($form, $data);
@@ -385,6 +394,19 @@ function _dynamic_form_analytics_form_html($form, $data) {
   $output .= '</div>';
 
   $output .= '</div>'; // .dfb-analytics-grid
+
+  // Tag word cloud for this form.
+  $output .= '<div class="dfb-chart-card dfb-chart-card--wide dfb-wc-card">';
+  $output .= '<div class="dfb-wc-header">';
+  $output .= '<h3 class="dfb-chart-title">' . t('Tag Word Cloud') . '</h3>';
+  $output .= '<div class="dfb-wc-filters">';
+  $output .= '<select id="dfa-wc-question-form" class="dfb-wc-select" aria-label="' . t('Filter by question') . '">';
+  $output .= '<option value="">' . t('All Tag Questions') . '</option>';
+  $output .= '</select>';
+  $output .= '</div>'; // .dfb-wc-filters
+  $output .= '</div>'; // .dfb-wc-header
+  $output .= '<div id="dfa-chart-wordcloud-form" class="dfb-chart-container dfb-chart-container--wordcloud"></div>';
+  $output .= '</div>'; // .dfb-wc-card
 
   // Per-question sections.
   if (!empty($data['questions'])) {
