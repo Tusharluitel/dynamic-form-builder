@@ -85,11 +85,6 @@ function dynamic_form_dashboard_page($section = 'overview')
 function _dynamic_form_dashboard_sidebar($active = 'overview')
 {
   $items = array(
-    'overview' => array(
-      'label' => t('Overview'),
-      'path' => 'dashboard',
-      'icon' => '&#9783;',
-    ),
     'forms' => array(
       'label' => t('Forms'),
       'path' => 'dashboard/forms',
@@ -1134,6 +1129,8 @@ function dynamic_form_ajax_toggle_allow_filter($question_id) {
     ))
     ->condition('id', $question_id)
     ->execute();
+
+  dynamic_form_invalidate_questions_cache($question->form_id);
 
   $msg = $allow_filter
     ? t('Question added to response filters.')

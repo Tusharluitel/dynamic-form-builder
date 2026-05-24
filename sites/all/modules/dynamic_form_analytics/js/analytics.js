@@ -394,7 +394,8 @@
 
   function renderWordCloud(el, words) {
     var W = el.clientWidth || 700;
-    var H = 340;
+    var H = 300;
+    var pad = 30; // keeps words away from the SVG edge
 
     d3.select(el).selectAll('*').remove();
 
@@ -410,64 +411,43 @@
     var minCount = d3.min(words, function (d) { return d.count; }) || 1;
 
     var fontScale = (maxCount === minCount)
-      ? function () { return 26; }
-      : d3.scaleSqrt().domain([minCount, maxCount]).range([13, 56]).clamp(true);
+      ? function () { return 24; }
+      : d3.scaleSqrt().domain([minCount, maxCount]).range([12, 48]).clamp(true);
 
     var wordData = words.map(function (d, i) {
-      return {
-        text:  d.text,
-        count: d.count,
-        size:  fontScale(d.count),
-        color: COLORS[i % COLORS.length],
-      };
+      return { text: d.text, count: d.count, size: fontScale(d.count), color: COLORS[i % COLORS.length] };
     });
 
     d3.layout.cloud()
-      .size([W, H])
+      .size([W - pad * 2, H - pad * 2])
       .words(wordData)
-      .padding(6)
+      .padding(5)
       .rotate(0)
       .font('sans-serif')
-      .fontWeight('bold')
       .fontSize(function (d) { return d.size; })
       .on('end', function (placed) {
         var svg = d3.select(el)
           .append('svg')
           .attr('width',  W)
           .attr('height', H)
-          .attr('class',  'dfa-wordcloud-svg')
           .append('g')
-          .attr('transform', 'translate(' + W / 2 + ',' + H / 2 + ')');
+          .attr('transform', 'translate(' + (W / 2) + ',' + (H / 2) + ')');
 
-        svg.selectAll('.dfa-word')
+        svg.selectAll('text')
           .data(placed)
           .enter()
           .append('text')
-          .attr('class',       'dfa-word')
           .attr('text-anchor', 'middle')
-          .attr('transform',   function (d) {
-            return 'translate(' + d.x + ',' + d.y + ') rotate(' + d.rotate + ')';
+          .attr('transform', function (d) {
+            return 'translate(' + [d.x, d.y] + ')rotate(' + d.rotate + ')';
           })
-          .attr('font-size',   function (d) { return d.size + 'px'; })
-          .attr('font-weight', 'bold')
-          .attr('fill',        function (d) { return d.color; })
-          .attr('opacity',     0)
+          .attr('font-size', function (d) { return d.size + 'px'; })
+          .attr('fill',      function (d) { return d.color; })
           .text(function (d) { return d.text; })
           .on('mouseover', function (d) {
-            d3.select(this).attr('opacity', 0.7);
-            showTooltip(
-              '<strong>' + d.text + '</strong>: ' + d.count + (d.count === 1 ? ' use' : ' uses'),
-              d3.event
-            );
+            showTooltip('<strong>' + d.text + '</strong>: ' + d.count + (d.count === 1 ? ' use' : ' uses'), d3.event);
           })
-          .on('mouseout', function () {
-            d3.select(this).attr('opacity', 1);
-            hideTooltip();
-          })
-          .transition()
-          .duration(450)
-          .delay(function (d, i) { return Math.min(i * 25, 700); })
-          .attr('opacity', 1);
+          .on('mouseout', hideTooltip);
       })
       .start();
   }

@@ -70,10 +70,10 @@ function dynamic_form_analytics_menu() {
  */
 function dynamic_form_analytics_dynamic_form_dashboard_sidebar_items_alter(&$items) {
   if (user_access('view form analytics')) {
-    $items['analytics'] = array(
+    $items = array('analytics' => array(
       'label' => t('Analytics'),
       'path'  => 'dashboard/analytics',
       'icon'  => '&#128200;',
-    );
+    )) + $items;
   }
 }

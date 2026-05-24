@@ -690,8 +690,9 @@
   color: #fff;
 }
 
-/* For multi-select fields: float the × alongside the label, above the container */
-.dfr-qfilter-field--multi .dfr-qfilter-clear {
+/* For multi-select and range fields: float the × alongside the label */
+.dfr-qfilter-field--multi .dfr-qfilter-clear,
+.dfr-qfilter-field--range .dfr-qfilter-clear {
   top: 1px;
   right: 0;
   width: 16px;
@@ -700,8 +701,57 @@
   line-height: 16px;
 }
 
-.dfr-qfilter-field--multi label {
+.dfr-qfilter-field--multi label,
+.dfr-qfilter-field--range label {
   padding-right: 20px; /* keep label text from sliding under the × */
+}
+
+/* ----------------------------------------------------------------
+   Date / time range filter pair
+   ---------------------------------------------------------------- */
+.dfr-qfilter-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dfr-qfilter-range .dfr-qfilter-input {
+  flex: 1 1 0;
+  min-width: 0;
+  padding-right: 8px; /* no × button inside range inputs */
+}
+
+.dfr-qfilter-range-sep {
+  color: #9999bb;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+/* ----------------------------------------------------------------
+   "Select all" button for choice-type question filters
+   ---------------------------------------------------------------- */
+.dfr-qfilter-select-all {
+  display: inline-block;
+  margin-bottom: 4px;
+  padding: 2px 9px;
+  background: transparent;
+  color: #5b6af7;
+  border: 1px solid #c8cdfb;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1.6;
+  align-self: flex-start;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.dfr-qfilter-select-all:hover {
+  background: #5b6af7;
+  color: #fff;
+  border-color: #5b6af7;
 }
 
 /* ----------------------------------------------------------------
@@ -711,18 +761,51 @@
   width: 100% !important;
 }
 
-/* Cap height so many selections don't break the grid layout */
+/* Base choices styling */
 .dfr-qfilter-field .select2-container-multi .select2-choices {
   min-height: 34px;
-  max-height: 68px;
-  overflow-y: auto;
-  overflow-x: hidden;
   padding: 2px 6px 2px 6px;
   border: 1px solid #d8d8ee;
   border-radius: 6px;
   background: #fafafe;
   box-shadow: none;
   cursor: text;
+}
+
+/* Collapsed (not active): single-row, clip overflow */
+.dfr-qfilter-field .select2-container-multi:not(.select2-container-active) .select2-choices {
+  max-height: 34px;
+  overflow: hidden;
+}
+
+/* Expanded (active): scrollable */
+.dfr-qfilter-field .select2-container-multi.select2-container-active .select2-choices {
+  max-height: 140px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Summary overlay — shown when collapsed and items are selected */
+.dfr-s2-summary {
+  display: none; /* JS controls visibility */
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 34px;
+  padding: 0 10px;
+  line-height: 34px;
+  font-size: 0.82rem;
+  color: #2c2c3e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  background: #fafafe;
+  border: 1px solid #d8d8ee;
+  border-radius: 6px;
+  box-sizing: border-box;
+  z-index: 2;
 }
 
 .dfr-qfilter-field .select2-container-multi.select2-container-active .select2-choices {

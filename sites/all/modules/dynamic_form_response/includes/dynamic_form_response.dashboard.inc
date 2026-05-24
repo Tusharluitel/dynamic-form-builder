@@ -78,10 +78,17 @@ function dynamic_form_response_list_page($form_id) {
     foreach ($_GET['f'] as $row) {
       $qid = isset($row['qid']) ? (int) $row['qid'] : 0;
       $raw = isset($row['val']) ? $row['val'] : '';
+      // Range fields (date/time) submit val_from and val_to instead of val.
+      if (isset($row['val_from']) || isset($row['val_to'])) {
+        $rf  = trim(isset($row['val_from']) ? $row['val_from'] : '');
+        $rt  = trim(isset($row['val_to'])   ? $row['val_to']   : '');
+        $val = ($rf !== '' || $rt !== '') ? ($rf . '|' . $rt) : '';
+      }
       // Multi-select submits val as an array (f[i][val][]); join with | for storage.
-      if (is_array($raw)) {
+      elseif (is_array($raw)) {
         $val = implode('|', array_filter(array_map('trim', $raw)));
-      } else {
+      }
+      else {
         $val = trim($raw);
       }
       $op  = (isset($row['op']) && strtoupper($row['op']) === 'OR') ? 'OR' : 'AND';
@@ -427,7 +434,9 @@ function _dynamic_form_response_render_filter_bar($form_id, array $filter_rows, 
       $val      = isset($active_vals[$qid]) ? $active_vals[$qid] : '';
       $input_id = 'dfr-qf-' . $qid;
 
-      $out .= '<div class="dfr-qfilter-field" data-qid="' . $qid . '">';
+      $is_range  = in_array($fq->type, array('date', 'time'));
+      $field_cls = 'dfr-qfilter-field' . ($is_range ? ' dfr-qfilter-field--range' : '');
+      $out .= '<div class="' . $field_cls . '" data-qid="' . $qid . '">';
       $out .= '<label for="' . $input_id . '">' . check_plain($fq->label) . '</label>';
 
       // Hidden fields carry qid and operator; the visible input carries val.
@@ -445,7 +454,11 @@ function _dynamic_form_response_render_filter_bar($form_id, array $filter_rows, 
               . ' data-placeholder="' . t('Type to search tags…') . '">';
       }
       elseif (in_array($fq->type, $option_types) && !empty($options_by_qid[$qid])) {
-        $active_arr = ($val !== '') ? explode('|', $val) : array();
+        $active_arr  = ($val !== '') ? explode('|', $val) : array();
+        $all_count   = count($options_by_qid[$qid]);
+        $all_sel_lbl = (count($active_arr) === $all_count && $all_count > 0)
+          ? t('Deselect all') : t('Select all');
+        $out .= '<button type="button" class="dfr-qfilter-select-all">' . $all_sel_lbl . '</button>';
         $out .= '<select name="f[' . $idx . '][val][]" id="' . $input_id
               . '" class="dfr-qfilter-select dfr-qfilter-val" multiple="multiple"'
               . ' data-placeholder="' . t('— Any —') . '">';
@@ -456,12 +469,28 @@ function _dynamic_form_response_render_filter_bar($form_id, array $filter_rows, 
         $out .= '</select>';
       }
       elseif ($fq->type === 'date') {
-        $out .= '<input type="date" name="f[' . $idx . '][val]" id="' . $input_id . '"'
-          . ' value="' . check_plain($val) . '" class="dfr-qfilter-input dfr-qfilter-val">';
+        $dp = array_pad(explode('|', $val, 2), 2, '');
+        $out .= '<div class="dfr-qfilter-range">';
+        $out .= '<input type="date" name="f[' . $idx . '][val_from]" id="' . $input_id . '-from"'
+          . ' value="' . check_plain(trim($dp[0])) . '"'
+          . ' class="dfr-qfilter-input dfr-qfilter-range-from dfr-qfilter-val">';
+        $out .= '<span class="dfr-qfilter-range-sep">&rarr;</span>';
+        $out .= '<input type="date" name="f[' . $idx . '][val_to]" id="' . $input_id . '-to"'
+          . ' value="' . check_plain(trim($dp[1])) . '"'
+          . ' class="dfr-qfilter-input dfr-qfilter-range-to dfr-qfilter-val">';
+        $out .= '</div>';
       }
       elseif ($fq->type === 'time') {
-        $out .= '<input type="time" name="f[' . $idx . '][val]" id="' . $input_id . '"'
-          . ' value="' . check_plain($val) . '" class="dfr-qfilter-input dfr-qfilter-val">';
+        $tp = array_pad(explode('|', $val, 2), 2, '');
+        $out .= '<div class="dfr-qfilter-range">';
+        $out .= '<input type="time" name="f[' . $idx . '][val_from]" id="' . $input_id . '-from"'
+          . ' value="' . check_plain(trim($tp[0])) . '"'
+          . ' class="dfr-qfilter-input dfr-qfilter-range-from dfr-qfilter-val">';
+        $out .= '<span class="dfr-qfilter-range-sep">&rarr;</span>';
+        $out .= '<input type="time" name="f[' . $idx . '][val_to]" id="' . $input_id . '-to"'
+          . ' value="' . check_plain(trim($tp[1])) . '"'
+          . ' class="dfr-qfilter-input dfr-qfilter-range-to dfr-qfilter-val">';
+        $out .= '</div>';
       }
       elseif (in_array($fq->type, array('number', 'rating', 'linear_scale'))) {
         $out .= '<input type="number" name="f[' . $idx . '][val]" id="' . $input_id . '"'
@@ -544,10 +573,26 @@ function _dynamic_form_response_render_active_filters($form_id, array $filter_ro
       continue;
     }
     $prefix = ($i > 0) ? '<em class="dfr-chip-op">' . check_plain($row['op']) . '</em> ' : '';
-    $display_val = str_replace('|', ', ', $row['val']);
+    if (in_array($row['type'], array('date', 'time'))) {
+      $rp   = array_pad(explode('|', $row['val'], 2), 2, '');
+      $rfrom = trim($rp[0]);
+      $rto   = trim($rp[1]);
+      if ($rfrom !== '' && $rto !== '') {
+        $display_val = check_plain($rfrom) . ' &rarr; ' . check_plain($rto);
+      }
+      elseif ($rfrom !== '') {
+        $display_val = t('From') . ' ' . check_plain($rfrom);
+      }
+      else {
+        $display_val = t('Until') . ' ' . check_plain($rto);
+      }
+    }
+    else {
+      $display_val = check_plain(truncate_utf8(str_replace('|', ', ', $row['val']), 40, TRUE, TRUE));
+    }
     $chips[] = '<span class="dfr-filter-chip">'
       . $prefix
-      . check_plain($row['label']) . ': <strong>' . check_plain(truncate_utf8($display_val, 40, TRUE, TRUE)) . '</strong>'
+      . check_plain($row['label']) . ': <strong>' . $display_val . '</strong>'
       . '</span>';
   }
 
