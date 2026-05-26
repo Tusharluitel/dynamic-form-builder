@@ -34,6 +34,7 @@ function dynamic_form_analytics_global_page() {
     'forms'          => _dynamic_form_analytics_wordcloud_forms(),
     'ajaxData'       => url('dashboard/analytics/wordcloud-data'),
     'ajaxQuestions'  => url('dashboard/analytics/wordcloud-questions'),
+    'ajaxTagForms'   => url('dashboard/analytics/wordcloud-tag-forms'),
   );
 
   drupal_add_js(array('dfAnalytics' => array('global' => $data, 'wordcloud' => $wordcloud)), 'setting');
@@ -51,7 +52,6 @@ function dynamic_form_analytics_global_page() {
  * Fetches all data needed for the global analytics page.
  */
 function _dynamic_form_analytics_global_data() {
-  // --- KPI counts ---
   $total_started = (int) db_query(
     'SELECT COUNT(*) FROM {dynamic_form_responses} WHERE deleted_at IS NULL'
   )->fetchField();
@@ -86,7 +86,6 @@ function _dynamic_form_analytics_global_data() {
     $trend[] = array('day' => $row->day, 'cnt' => (int) $row->cnt);
   }
 
-  // --- Status breakdown (submitted vs draft) ---
   $status_rows = db_query(
     'SELECT status, COUNT(*) AS cnt FROM {dynamic_form_responses}
      WHERE deleted_at IS NULL GROUP BY status'
@@ -105,7 +104,6 @@ function _dynamic_form_analytics_global_data() {
     }
   }
 
-  // --- Top 10 forms by submitted response count ---
   $top_rows = db_query(
     "SELECT f.title, COUNT(r.id) AS cnt
      FROM {dynamic_form_responses} r
@@ -197,12 +195,12 @@ function _dynamic_form_analytics_global_html($data) {
   $output .= '<select id="dfa-wc-question" class="dfb-wc-select" disabled aria-label="' . t('Filter by question') . '">';
   $output .= '<option value="">' . t('All Tag Questions') . '</option>';
   $output .= '</select>';
-  $output .= '</div>'; // .dfb-wc-filters
-  $output .= '</div>'; // .dfb-wc-header
+  $output .= '</div>'; 
+  $output .= '</div>'; 
   $output .= '<div id="dfa-chart-wordcloud" class="dfb-chart-container dfb-chart-container--wordcloud"></div>';
-  $output .= '</div>'; // .dfb-wc-card
+  $output .= '</div>'; 
 
-  $output .= '</div>'; // .dfb-analytics-page
+  $output .= '</div>'; 
 
   return $output;
 }

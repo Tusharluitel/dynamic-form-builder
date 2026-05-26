@@ -22,18 +22,24 @@
      TOOLTIP helper — single shared DOM element
      ================================================================ */
 
-  var tooltip = null;
+  var tooltip     = null;
+  var _hideTimer  = null;
+  var _activeTag  = null;
+  var _tagFormsCache = {};
 
   function getTooltip() {
     if (!tooltip) {
       tooltip = d3.select('body')
         .append('div')
-        .attr('class', 'dfa-tooltip');
+        .attr('class', 'dfa-tooltip')
+        .on('mouseenter', cancelHideTooltip)
+        .on('mouseleave', hideTooltip);
     }
     return tooltip;
   }
 
   function showTooltip(html, event) {
+    cancelHideTooltip();
     getTooltip()
       .html(html)
       .style('opacity', 1)
@@ -42,9 +48,71 @@
   }
 
   function hideTooltip() {
+    cancelHideTooltip();
+    _activeTag = null;
     if (tooltip) {
-      tooltip.style('opacity', 0);
+      tooltip
+        .classed('dfa-tooltip--interactive', false)
+        .style('opacity', 0);
     }
+  }
+
+  function scheduleHideTooltip() {
+    cancelHideTooltip();
+    _hideTimer = setTimeout(hideTooltip, 250);
+  }
+
+  function cancelHideTooltip() {
+    if (_hideTimer) { clearTimeout(_hideTimer); _hideTimer = null; }
+  }
+
+  /* ================================================================
+     WORD CLOUD — per-form tag drilldown tooltip
+     ================================================================ */
+
+  function _wcShowTagForms(ajaxTagForms, tag) {
+    if (_tagFormsCache.hasOwnProperty(tag)) {
+      _wcRenderTagForms(_tagFormsCache[tag], tag);
+      return;
+    }
+    d3.json(ajaxTagForms + '?tag=' + encodeURIComponent(tag))
+      .then(function (data) {
+        _tagFormsCache[tag] = data.forms || [];
+        if (_activeTag === tag) {
+          _wcRenderTagForms(_tagFormsCache[tag], tag);
+        }
+      })
+      .catch(function () {
+        if (_activeTag === tag) {
+          _wcRenderTagForms([], tag);
+        }
+      });
+  }
+
+  function _wcRenderTagForms(forms, tag) {
+    if (_activeTag !== tag || !tooltip) { return; }
+    var base = (Drupal.settings && Drupal.settings.basePath) ? Drupal.settings.basePath : '/';
+    var html = '<strong>' + tag + '</strong>';
+    if (!forms || !forms.length) {
+      html += '<span class="dfa-wc-no-forms"> &mdash; no data</span>';
+      getTooltip().html(html).style('opacity', 1);
+      return;
+    }
+    html += '<ul class="dfa-wc-forms-list">';
+    forms.forEach(function (f) {
+      var href = base + 'dashboard/forms/' + f.form_id + '/responses'
+        + '?f%5B0%5D%5Bqid%5D=' + f.question_id
+        + '&f%5B0%5D%5Bval%5D=' + encodeURIComponent(tag);
+      html += '<li class="dfa-wc-form-item">'
+        + '<a href="' + href + '" class="dfa-wc-form-link">' + f.title + '</a>'
+        + '<span class="dfa-wc-form-count">' + f.count + '</span>'
+        + '</li>';
+    });
+    html += '</ul>';
+    getTooltip()
+      .classed('dfa-tooltip--interactive', true)
+      .html(html)
+      .style('opacity', 1);
   }
 
   /* ================================================================
@@ -392,10 +460,14 @@
      words: [{text:'...', count:N}, ...] sorted by count DESC
      ================================================================ */
 
-  function renderWordCloud(el, words) {
+  function renderWordCloud(el, words, options) {
+    options = options || {};
+    var ajaxTagForms  = options.ajaxTagForms  || null;
+    var responsesBase = options.responsesBase || null;
+
     var W = el.clientWidth || 700;
     var H = 300;
-    var pad = 30; // keeps words away from the SVG edge
+    var pad = 30;
 
     d3.select(el).selectAll('*').remove();
 
@@ -415,7 +487,13 @@
       : d3.scaleSqrt().domain([minCount, maxCount]).range([12, 48]).clamp(true);
 
     var wordData = words.map(function (d, i) {
-      return { text: d.text, count: d.count, size: fontScale(d.count), color: COLORS[i % COLORS.length] };
+      return {
+        text:        d.text,
+        count:       d.count,
+        question_id: d.question_id || 0,
+        size:        fontScale(d.count),
+        color:       COLORS[i % COLORS.length]
+      };
     });
 
     d3.layout.cloud()
@@ -443,11 +521,43 @@
           })
           .attr('font-size', function (d) { return d.size + 'px'; })
           .attr('fill',      function (d) { return d.color; })
+          .style('cursor', (ajaxTagForms || responsesBase) ? 'pointer' : 'default')
           .text(function (d) { return d.text; })
           .on('mouseover', function (d) {
-            showTooltip('<strong>' + d.text + '</strong>: ' + d.count + (d.count === 1 ? ' use' : ' uses'), d3.event);
+            var ev = d3.event;
+            cancelHideTooltip();
+            _activeTag = d.text;
+
+            if (ajaxTagForms) {
+              showTooltip(
+                '<strong>' + d.text + '</strong>: ' + d.count + (d.count === 1 ? ' use' : ' uses')
+                + '<div class="dfa-wc-loading-mini">Loading…</div>',
+                ev
+              );
+              _wcShowTagForms(ajaxTagForms, d.text);
+            } else if (responsesBase) {
+              showTooltip(
+                '<strong>' + d.text + '</strong>: ' + d.count + (d.count === 1 ? ' use' : ' uses')
+                + '<div class="dfa-wc-click-hint">Click to filter responses</div>',
+                ev
+              );
+            } else {
+              showTooltip(
+                '<strong>' + d.text + '</strong>: ' + d.count + (d.count === 1 ? ' use' : ' uses'),
+                ev
+              );
+            }
           })
-          .on('mouseout', hideTooltip);
+          .on('mouseout', function () { scheduleHideTooltip(); })
+          .on('click', function (d) {
+            if (responsesBase) {
+              var qid = d.question_id || 0;
+              var url = responsesBase
+                + '?f%5B0%5D%5Bqid%5D=' + qid
+                + '&f%5B0%5D%5Bval%5D=' + encodeURIComponent(d.text);
+              window.location.href = url;
+            }
+          });
       })
       .start();
   }
@@ -466,13 +576,12 @@
     }
   }
 
-  function wcFetch(ajaxUrl, formId, questionId, mountEl) {
+  function wcFetch(ajaxUrl, formId, questionId, mountEl, options) {
     _wcSetLoading(mountEl, true);
     var url = ajaxUrl + '?form_id=' + (formId || 0) + '&question_id=' + (questionId || 0);
-    // D3 v5 uses Promises — no callback argument.
     d3.json(url)
       .then(function (data) {
-        renderWordCloud(mountEl, data.words);
+        renderWordCloud(mountEl, data.words, options);
       })
       .catch(function () {
         d3.select(mountEl).selectAll('*').remove();
@@ -497,6 +606,7 @@
         var wcEl    = document.getElementById('dfa-chart-wordcloud');
         var wcForm  = document.getElementById('dfa-wc-form');
         var wcQ     = document.getElementById('dfa-wc-question');
+        var wcOpts  = { ajaxTagForms: wc.ajaxTagForms };
 
         if (wcEl) {
           // Populate form dropdown.
@@ -510,7 +620,7 @@
           }
 
           // Render initial cloud (all forms).
-          renderWordCloud(wcEl, wc.words);
+          renderWordCloud(wcEl, wc.words, wcOpts);
 
           // Form filter change.
           if (wcForm) {
@@ -522,7 +632,7 @@
 
               if (!fid) {
                 // Back to global view.
-                renderWordCloud(wcEl, wc.words);
+                renderWordCloud(wcEl, wc.words, wcOpts);
                 return;
               }
 
@@ -540,7 +650,7 @@
               });
 
               // Fetch word cloud for this form.
-              wcFetch(wc.ajaxData, fid, 0, wcEl);
+              wcFetch(wc.ajaxData, fid, 0, wcEl, wcOpts);
             });
           }
 
@@ -549,7 +659,7 @@
             $(wcQ).on('change', function () {
               var fid = parseInt($(wcForm).val(), 10) || 0;
               var qid = parseInt(this.value, 10) || 0;
-              wcFetch(wc.ajaxData, fid, qid, wcEl);
+              wcFetch(wc.ajaxData, fid, qid, wcEl, wcOpts);
             });
           }
         }
@@ -580,9 +690,10 @@
 
       /* ---------- PER-FORM WORD CLOUD ---------- */
       if (settings.dfAnalytics.wordcloudForm) {
-        var wcf   = settings.dfAnalytics.wordcloudForm;
-        var wcfEl = document.getElementById('dfa-chart-wordcloud-form');
-        var wcfQ  = document.getElementById('dfa-wc-question-form');
+        var wcf    = settings.dfAnalytics.wordcloudForm;
+        var wcfEl  = document.getElementById('dfa-chart-wordcloud-form');
+        var wcfQ   = document.getElementById('dfa-wc-question-form');
+        var wcfOpts = { responsesBase: wcf.responsesBase };
 
         if (wcfEl) {
           // Populate question dropdown.
@@ -596,13 +707,13 @@
           }
 
           // Render initial cloud for this form.
-          renderWordCloud(wcfEl, wcf.words);
+          renderWordCloud(wcfEl, wcf.words, wcfOpts);
 
           // Question filter change.
           if (wcfQ) {
             $(wcfQ).on('change', function () {
               var qid = parseInt(this.value, 10) || 0;
-              wcFetch(wcf.ajaxData, wcf.formId, qid, wcfEl);
+              wcFetch(wcf.ajaxData, wcf.formId, qid, wcfEl, wcfOpts);
             });
           }
         }

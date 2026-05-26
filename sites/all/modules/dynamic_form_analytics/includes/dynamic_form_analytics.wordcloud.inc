@@ -68,9 +68,12 @@ function dynamic_form_analytics_wordcloud_questions($form_id) {
 /**
  * Query tag frequency counts from the dedicated tag-answer tables.
  *
+ * When $form_id > 0, also returns question_id (first tag question for that tag
+ * in the form) so the JS can build a pre-filtered responses URL on click.
+ *
  * @param int $form_id      0 = all forms.
  * @param int $question_id  0 = all tag questions.
- * @return array  [['text' => string, 'count' => int], ...]  sorted by count DESC.
+ * @return array  [['text' => string, 'count' => int, ('question_id' => int)], ...]
  */
 function _dynamic_form_analytics_wordcloud_query($form_id = 0, $question_id = 0) {
   $query = db_select('dynamic_form_tag_answers', 'ta');
@@ -78,12 +81,11 @@ function _dynamic_form_analytics_wordcloud_query($form_id = 0, $question_id = 0)
   $query->join('dynamic_form_responses', 'r', 'r.id = ta.response_id');
   $query->addField('t', 'standardized_value', 'text');
   $query->addExpression('COUNT(*)', 'count');
-  // Include submitted responses regardless of soft-deletion: the word cloud
-  // shows all-time tag usage, not just responses currently active in the system.
   $query->condition('r.status', 1);
 
   if ($form_id > 0) {
     $query->condition('r.form_id', $form_id);
+    $query->addExpression('MIN(ta.question_id)', 'question_id');
   }
   if ($question_id > 0) {
     $query->condition('ta.question_id', $question_id);
@@ -95,9 +97,67 @@ function _dynamic_form_analytics_wordcloud_query($form_id = 0, $question_id = 0)
 
   $words = array();
   foreach ($query->execute()->fetchAll() as $row) {
-    $words[] = array('text' => check_plain($row->text), 'count' => (int) $row->count);
+    $word = array('text' => check_plain($row->text), 'count' => (int) $row->count);
+    if ($form_id > 0) {
+      $word['question_id'] = (int) $row->question_id;
+    }
+    $words[] = $word;
   }
   return $words;
+}
+
+/**
+ * AJAX callback: returns per-form usage counts for a single tag word.
+ *
+ * GET params:
+ *   tag (string, required) — the tag's standardized value.
+ *
+ * Response: {"tag":"python","forms":[{"form_id":3,"title":"Job App","count":7,"question_id":12},...]}
+ */
+function dynamic_form_analytics_wordcloud_tag_forms() {
+  $tag = isset($_GET['tag']) ? trim($_GET['tag']) : '';
+  if ($tag === '') {
+    drupal_json_output(array('tag' => '', 'forms' => array()));
+    drupal_exit();
+  }
+
+  $forms = _dynamic_form_analytics_wordcloud_per_form_query($tag);
+  drupal_json_output(array('tag' => check_plain($tag), 'forms' => $forms));
+  drupal_exit();
+}
+
+/**
+ * Returns per-form breakdown for a given tag text.
+ *
+ * @param string $tag_text  Exact standardized_value to look up.
+ * @return array  [['form_id'=>int,'title'=>string,'count'=>int,'question_id'=>int], ...]
+ */
+function _dynamic_form_analytics_wordcloud_per_form_query($tag_text) {
+  $query = db_select('dynamic_form_tag_answers', 'ta');
+  $query->join('dynamic_form_tags',      't', 't.id = ta.tag_id');
+  $query->join('dynamic_form_responses', 'r', 'r.id = ta.response_id');
+  $query->join('dynamic_form_forms',     'f', 'f.id = r.form_id');
+  $query->addField('r', 'form_id');
+  $query->addField('f', 'title');
+  $query->addExpression('COUNT(*)',            'count');
+  $query->addExpression('MIN(ta.question_id)', 'question_id');
+  $query->condition('t.standardized_value', $tag_text);
+  $query->condition('r.status', 1);
+  $query->isNull('r.deleted_at');
+  $query->isNull('f.deleted_at');
+  $query->groupBy('r.form_id');
+  $query->orderBy('count', 'DESC');
+
+  $forms = array();
+  foreach ($query->execute()->fetchAll() as $row) {
+    $forms[] = array(
+      'form_id'     => (int) $row->form_id,
+      'title'       => check_plain($row->title),
+      'count'       => (int) $row->count,
+      'question_id' => (int) $row->question_id,
+    );
+  }
+  return $forms;
 }
 
 /**

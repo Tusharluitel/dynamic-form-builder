@@ -202,9 +202,16 @@ function _dynamic_form_solr_build_response_doc($response, array $answers, array 
     }
     elseif ($type === 'tags') {
       $decoded = @json_decode($raw, TRUE);
-      $tags = is_array($decoded)
-        ? array_values(array_filter(array_map('strval', $decoded), 'strlen'))
-        : (strlen($raw) ? array($raw) : array());
+      if (is_array($decoded)) {
+        $tags = array_values(array_filter(array_map('strval', $decoded), 'strlen'));
+      }
+      elseif (strlen(trim($raw))) {
+        // _dynamic_form_save_tag_answers stores tags as comma-separated plain text.
+        $tags = array_values(array_filter(array_map('trim', explode(',', $raw)), 'strlen'));
+      }
+      else {
+        $tags = array();
+      }
       if (!empty($tags)) {
         $tm_answers = array_merge($tm_answers, $tags);
         $doc['tm_' . $field_key] = $tags;
@@ -335,10 +342,67 @@ function dynamic_form_solr_index_response($response_id) {
       ->fetchAllKeyed(0, 1);
   }
 
+  // Override tag answers using dynamic_form_tag_answers (canonical source).
+  $answers = _dynamic_form_solr_inject_tag_answers($answers, $question_types, $response_id);
+
   _dynamic_form_solr_delete_documents(array('id' => 'response-' . $response_id), TRUE);
 
   $doc = _dynamic_form_solr_build_response_doc($response, $answers, $question_types);
   return _dynamic_form_solr_send_documents(array($doc));
+}
+
+/**
+ * Inject canonical tag values from dynamic_form_tag_answers into an answers array.
+ *
+ * Replaces any existing tag answer value with a JSON-encoded array of
+ * standardized tag values, and appends entries for tag questions that have
+ * no row in dynamic_form_answers at all. This ensures the Solr document
+ * always reflects the authoritative tag data regardless of what is stored
+ * in the display-fallback column.
+ *
+ * @param array $answers         Rows from dynamic_form_answers (objects with question_id, value).
+ * @param array &$question_types Map of question_id → type (extended in-place for new qids).
+ * @param int   $response_id
+ * @return array  Updated answers array.
+ */
+function _dynamic_form_solr_inject_tag_answers(array $answers, array &$question_types, $response_id) {
+  $tag_rows = db_query(
+    'SELECT ta.question_id, t.standardized_value
+     FROM {dynamic_form_tag_answers} ta
+     JOIN {dynamic_form_tags} t ON t.id = ta.tag_id
+     WHERE ta.response_id = :rid',
+    array(':rid' => (int) $response_id)
+  )->fetchAll();
+
+  if (empty($tag_rows)) {
+    return $answers;
+  }
+
+  $tags_by_question = array();
+  foreach ($tag_rows as $tr) {
+    $tags_by_question[(int) $tr->question_id][] = $tr->standardized_value;
+    $question_types[(int) $tr->question_id] = 'tags';
+  }
+
+  $covered = array();
+  foreach ($answers as $a) {
+    $qid = (int) $a->question_id;
+    if (isset($tags_by_question[$qid])) {
+      $a->value  = json_encode($tags_by_question[$qid]);
+      $covered[$qid] = TRUE;
+    }
+  }
+
+  foreach ($tags_by_question as $qid => $tag_vals) {
+    if (!isset($covered[$qid])) {
+      $fake              = new stdClass();
+      $fake->question_id = $qid;
+      $fake->value       = json_encode($tag_vals);
+      $answers[]         = $fake;
+    }
+  }
+
+  return $answers;
 }
 
 /**
@@ -412,6 +476,22 @@ function dynamic_form_solr_index_all_responses() {
       $all_qids[(int) $row->question_id] = TRUE;
     }
 
+    // Pull canonical tag values from dynamic_form_tag_answers for this batch.
+    $tag_rows = db_query(
+      'SELECT ta.response_id, ta.question_id, t.standardized_value
+       FROM {dynamic_form_tag_answers} ta
+       JOIN {dynamic_form_tags} t ON t.id = ta.tag_id
+       WHERE ta.response_id IN (:rids)',
+      array(':rids' => $batch_ids)
+    )->fetchAll();
+
+    // Group tag values by response_id → question_id.
+    $tags_by_resp_q = array();
+    foreach ($tag_rows as $tr) {
+      $tags_by_resp_q[(int) $tr->response_id][(int) $tr->question_id][] = $tr->standardized_value;
+      $all_qids[(int) $tr->question_id] = TRUE;
+    }
+
     $question_types = array();
     if (!empty($all_qids)) {
       $question_types = db_select('dynamic_form_questions', 'q')
@@ -419,6 +499,32 @@ function dynamic_form_solr_index_all_responses() {
         ->condition('id', array_keys($all_qids), 'IN')
         ->execute()
         ->fetchAllKeyed(0, 1);
+    }
+
+    // Inject canonical tag values into each response's answer list.
+    foreach ($batch_ids as $rid) {
+      if (empty($tags_by_resp_q[$rid])) {
+        continue;
+      }
+      $covered = array();
+      if (!empty($answers_by_response[$rid])) {
+        foreach ($answers_by_response[$rid] as $a) {
+          $qid = (int) $a->question_id;
+          if (isset($tags_by_resp_q[$rid][$qid])) {
+            $a->value = json_encode($tags_by_resp_q[$rid][$qid]);
+            $covered[$qid] = TRUE;
+          }
+        }
+      }
+      foreach ($tags_by_resp_q[$rid] as $qid => $tag_vals) {
+        if (!isset($covered[$qid])) {
+          $fake               = new stdClass();
+          $fake->response_id  = $rid;
+          $fake->question_id  = $qid;
+          $fake->value        = json_encode($tag_vals);
+          $answers_by_response[$rid][] = $fake;
+        }
+      }
     }
 
     $docs = array();

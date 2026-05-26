@@ -3,7 +3,7 @@
     attach: function (context, settings) {
       var $typeSelect   = $('#dfb-export-type', context);
       var $formPicker   = $('#dfb-export-form-picker', context);
-      var $formSelect   = $('#dfb-export-form-id', context);
+      var $formSelect   = $('#dfb-export-form-ids', context);
       var select2Inited = false;
 
       function toggle(val) {
@@ -11,7 +11,7 @@
           $formPicker.slideDown(150);
           if (!select2Inited) {
             $formSelect.select2({
-              placeholder: Drupal.t('— Select a form —'),
+              placeholder: Drupal.t('— Select one or more forms —'),
               allowClear: true,
               width: '100%'
             });

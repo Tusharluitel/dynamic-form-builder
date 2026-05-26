@@ -47,10 +47,11 @@ function dynamic_form_analytics_form_page($form_id) {
   $data = _dynamic_form_analytics_form_data($form_id);
 
   $wordcloud_form = array(
-    'words'     => _dynamic_form_analytics_wordcloud_query($form_id),
-    'formId'    => $form_id,
-    'questions' => _dynamic_form_analytics_wordcloud_tag_questions($form_id),
-    'ajaxData'  => url('dashboard/analytics/wordcloud-data'),
+    'words'         => _dynamic_form_analytics_wordcloud_query($form_id),
+    'formId'        => $form_id,
+    'questions'     => _dynamic_form_analytics_wordcloud_tag_questions($form_id),
+    'ajaxData'      => url('dashboard/analytics/wordcloud-data'),
+    'responsesBase' => url('dashboard/forms/' . $form_id . '/responses'),
   );
 
   drupal_add_js(array('dfAnalytics' => array('form' => $data, 'wordcloudForm' => $wordcloud_form)), 'setting');
