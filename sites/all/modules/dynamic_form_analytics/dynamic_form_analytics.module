@@ -60,13 +60,18 @@ function dynamic_form_analytics_menu() {
     'file'             => 'includes/dynamic_form_analytics.wordcloud.inc',
   );
 
+  $items['dashboard/analytics/wordcloud-tag-forms'] = array(
+    'page callback'    => 'dynamic_form_analytics_wordcloud_tag_forms',
+    'access arguments' => array('view form analytics'),
+    'type'             => MENU_CALLBACK,
+    'file'             => 'includes/dynamic_form_analytics.wordcloud.inc',
+  );
+
   return $items;
 }
 
 /**
  * Implements hook_dynamic_form_dashboard_sidebar_items_alter().
- *
- * Injects the Analytics entry into the dashboard sidebar, gated by permission.
  */
 function dynamic_form_analytics_dynamic_form_dashboard_sidebar_items_alter(&$items) {
   if (user_access('view form analytics')) {

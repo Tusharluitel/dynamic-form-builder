@@ -1130,7 +1130,7 @@ function dynamic_form_ajax_toggle_allow_filter($question_id) {
     ->condition('id', $question_id)
     ->execute();
 
-  dynamic_form_invalidate_questions_cache($question->form_id);
+  // dynamic_form_invalidate_questions_cache($question->form_id);
 
   $msg = $allow_filter
     ? t('Question added to response filters.')

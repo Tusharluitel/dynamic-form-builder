@@ -1,5 +1,5 @@
 name        = Dynamic Form REST WS
-description = Read-only REST API (v1) for fetching form responses and answers with HTTP Basic Auth.
+description = Read-only REST API (v1) for fetching form responses and answers. Supports Bearer token auth (preferred) and HTTP Basic Auth (fallback).
 core        = 7.x
 package     = Dynamic Form
 dependencies[] = dynamic_form

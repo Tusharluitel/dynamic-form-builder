@@ -88,20 +88,20 @@ function dynamic_form_export_hub_form($form, &$form_state) {
     ->execute()
     ->fetchAllKeyed(0, 1);
 
-  $form_options = array('' => t('— Select a form —')) + $forms;
-
   $form['form_id_wrapper'] = array(
     '#type'       => 'container',
     '#attributes' => array('class' => array('dfb-export-form-picker'), 'id' => 'dfb-export-form-picker'),
   );
 
-  $form['form_id_wrapper']['export_form_id'] = array(
+  $form['form_id_wrapper']['export_form_ids'] = array(
     '#type'       => 'select',
-    '#title'      => t('Form'),
-    '#options'    => $form_options,
+    '#title'      => t('Forms'),
+    '#options'    => $forms,
+    '#multiple'   => TRUE,
+    '#size'       => min(count($forms), 8),
     '#attributes' => array(
       'class' => array('dfb-export-form-select'),
-      'id'    => 'dfb-export-form-id',
+      'id'    => 'dfb-export-form-ids',
     ),
   );
 
@@ -148,8 +148,9 @@ function dynamic_form_export_hub_form_validate($form, &$form_state) {
   }
 
   if ($type === 'responses') {
-    if (empty($form_state['values']['export_form_id'])) {
-      form_set_error('export_form_id', t('Please select a form to export responses for.'));
+    $selected = array_filter(array_map('intval', (array) $form_state['values']['export_form_ids']));
+    if (empty($selected)) {
+      form_set_error('export_form_ids', t('Please select at least one form to export responses for.'));
     }
   }
 
@@ -162,10 +163,10 @@ function dynamic_form_export_hub_form_validate($form, &$form_state) {
  * Submit — start the appropriate batch.
  */
 function dynamic_form_export_hub_form_submit($form, &$form_state) {
-  $type    = $form_state['values']['export_type'];
-  $from    = $form_state['values']['from'];
-  $to      = $form_state['values']['to'];
-  $form_id = isset($form_state['values']['export_form_id']) ? (int) $form_state['values']['export_form_id'] : 0;
+  $type     = $form_state['values']['export_type'];
+  $from     = $form_state['values']['from'];
+  $to       = $form_state['values']['to'];
+  $form_ids = array_values(array_filter(array_map('intval', (array) $form_state['values']['export_form_ids'])));
 
   $form_state['redirect'] = FALSE;
 
@@ -176,7 +177,7 @@ function dynamic_form_export_hub_form_submit($form, &$form_state) {
   }
   elseif ($type === 'responses') {
     module_load_include('inc', 'dynamic_form_export', 'includes/dynamic_form_export.responses');
-    _dynamic_form_export_responses_start_batch($form_id, $from, $to);
+    _dynamic_form_export_responses_start_batch($form_ids, $from, $to);
     batch_process('dashboard/export');
   }
 }

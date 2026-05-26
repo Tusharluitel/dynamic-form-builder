@@ -306,6 +306,7 @@ function dynamic_form_response_list_page($form_id) {
     $out .= '</tr></thead><tbody>';
 
     $i = 1;
+    
     foreach ($responses as $r) {
       $uid = (int) $r->user_id;
       if ($uid && isset($users[$uid])) {
