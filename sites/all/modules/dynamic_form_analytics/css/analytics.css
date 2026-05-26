@@ -14,6 +14,51 @@
   margin-bottom: 4px;
 }
 
+.dfb-analytics-header--split {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* ── Animated Radar entry button ──────────────────────────── */
+@keyframes dfa-radar-breathe {
+  0%, 100% { opacity: 0.2; transform: scale(0.96); }
+  50%       { opacity: 1;   transform: scale(1);    }
+}
+
+.dfb-radar-entry-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  text-decoration: none;
+  color: var(--color-primary, #4f6ef7);
+  animation: dfa-radar-breathe 2.8s ease-in-out infinite;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.dfb-radar-entry-btn:hover {
+  animation: none;
+  opacity: 1;
+  transform: scale(1);
+  color: var(--color-primary, #4f6ef7);
+  text-decoration: none;
+}
+
+.dfb-radar-entry-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.dfb-radar-entry-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
 .dfb-analytics-header-top {
   display: flex;
   align-items: flex-start;
@@ -309,6 +354,19 @@
   font-size: 0.875rem;
   color: var(--color-text-muted, #94a3b8);
   font-style: italic;
+}
+
+/* ── Radar full-page container ────────────────────────────── */
+.dfb-chart-container--radar {
+  height: calc(100vh - 220px);
+  min-height: 420px;
+}
+
+.dfb-chart-container--radar svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
 
 /* ── D3 axis and tick styling ─────────────────────────────── */

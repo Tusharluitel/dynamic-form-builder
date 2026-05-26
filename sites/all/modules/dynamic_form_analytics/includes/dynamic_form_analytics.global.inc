@@ -141,9 +141,15 @@ function _dynamic_form_analytics_global_html($data) {
   $kpi = $data['kpi'];
 
   $output  = '<div class="dfb-analytics-page">';
-  $output .= '<div class="dfb-analytics-header">';
+  $output .= '<div class="dfb-analytics-header dfb-analytics-header--split">';
+  $output .= '<div class="dfb-analytics-header-text">';
   $output .= '<h2>' . t('Analytics Overview') . '</h2>';
   $output .= '<p class="dfb-dashboard-subtitle">' . t('Aggregated data across all forms') . '</p>';
+  $output .= '</div>';
+  $output .= '<a href="' . url('dashboard/analytics/radar') . '" class="dfb-radar-entry-btn" title="' . t('Open Form Radar') . '">';
+  $output .= '<span class="dfb-radar-entry-icon">&#128225;</span>';
+  $output .= '<span class="dfb-radar-entry-label">Radar</span>';
+  $output .= '</a>';
   $output .= '</div>';
 
   // KPI stat cards.

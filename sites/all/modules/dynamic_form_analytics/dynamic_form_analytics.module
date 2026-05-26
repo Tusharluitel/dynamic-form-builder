@@ -67,6 +67,14 @@ function dynamic_form_analytics_menu() {
     'file'             => 'includes/dynamic_form_analytics.wordcloud.inc',
   );
 
+  $items['dashboard/analytics/radar'] = array(
+    'title'            => 'Form Radar',
+    'page callback'    => 'dynamic_form_analytics_radar_page',
+    'access arguments' => array('view form analytics'),
+    'file'             => 'includes/dynamic_form_analytics.radar.inc',
+    'type'             => MENU_CALLBACK,
+  );
+
   return $items;
 }
 
