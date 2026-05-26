@@ -613,33 +613,13 @@
           .on('mouseout', function () {
             d3.select(this).attr('r', 6);
             hideTooltip();
+          })
+          .on('click', function (d) {
+            window.location.href = '/dynamic-form-builder/dashboard/forms/' + d.id + '/responses';
           });
       });
     });
 
-    // Color-scale legend (completion rate).
-    var defs = svg.append('defs');
-    var gId  = 'rdr-' + Math.random().toString(36).slice(2, 6);
-    var grad = defs.append('linearGradient').attr('id', gId);
-    [0, 0.25, 0.5, 0.75, 1].forEach(function (t) {
-      grad.append('stop')
-        .attr('offset',     (t * 100) + '%')
-        .attr('stop-color', colorScale(t));
-    });
-
-    var legW = 120, legH = 8;
-    var leg  = svg.append('g')
-      .attr('transform', 'translate(' + (cx - legW / 2) + ',' + (cy + outerR + 42) + ')');
-    leg.append('rect')
-      .attr('width', legW).attr('height', legH).attr('rx', 2)
-      .attr('fill', 'url(#' + gId + ')');
-    leg.append('text')
-      .attr('y', legH + 12).attr('font-size', 9).attr('fill', '#94a3b8')
-      .text('Low completion');
-    leg.append('text')
-      .attr('x', legW).attr('y', legH + 12)
-      .attr('text-anchor', 'end').attr('font-size', 9).attr('fill', '#94a3b8')
-      .text('High');
   }
 
   /* ================================================================
