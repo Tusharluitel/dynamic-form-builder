@@ -455,6 +455,174 @@
   }
 
   /* ================================================================
+     RADAR CHART — 3-segment (visibility) × 4-ring (submission vol)
+     el:    DOM element (height must be set via CSS before calling)
+     forms: [{id, title, visibility, total_started, total_submitted,
+              completion_rate}, ...]
+     ================================================================ */
+
+  function renderRadarChart(el, forms) {
+    var W      = el.clientWidth  || 700;
+    var H      = el.clientHeight || 520;
+    var cx     = W / 2;
+    var cy     = H / 2 + 10;
+    var outerR = Math.min(W * 0.38, (H - 130) / 2);
+    var innerR = outerR * 0.12;
+
+    d3.select(el).selectAll('*').remove();
+
+    if (!forms || !forms.length) {
+      d3.select(el)
+        .append('div')
+        .attr('class', 'dfb-analytics-empty')
+        .text('No form data available.');
+      return;
+    }
+
+    var segments = [
+      { key: 'p', label: 'Public',       color: '#4f6ef7' },
+      { key: 'r', label: 'Restricted',   color: '#f59e0b' },
+      { key: 'm', label: 'Members Only', color: '#8b5cf6' },
+    ];
+    var numSeg   = segments.length;
+    var segAngle = (2 * Math.PI) / numSeg;
+
+    var ringBands = [
+      { label: 'Emerging', min: 0,   max: 5   },
+      { label: 'Growing',  min: 6,   max: 25  },
+      { label: 'Active',   min: 26,  max: 100 },
+      { label: 'Popular',  min: 101, max: Infinity },
+    ];
+    var numRings = ringBands.length;
+
+    function getRadius(submitted) {
+      for (var i = 0; i < ringBands.length; i++) {
+        var b = ringBands[i];
+        if (submitted <= b.max || i === numRings - 1) {
+          var rStart = innerR + (outerR - innerR) * i / numRings;
+          var rEnd   = innerR + (outerR - innerR) * (i + 1) / numRings;
+          var t = (b.max === Infinity || b.max === b.min)
+            ? 0.5
+            : Math.min((submitted - b.min) / (b.max - b.min), 1);
+          return rStart + t * (rEnd - rStart);
+        }
+      }
+      return outerR;
+    }
+
+    var colorScale = d3.scaleSequential(d3.interpolateRdYlGn).domain([0, 1]);
+
+    var svg = d3.select(el).append('svg').attr('width', W).attr('height', H);
+    var g   = svg.append('g').attr('transform', 'translate(' + cx + ',' + cy + ')');
+
+    // Alternating ring fills, outermost first.
+    for (var ri = numRings; ri >= 1; ri--) {
+      var rr = innerR + (outerR - innerR) * ri / numRings;
+      g.append('circle')
+        .attr('r', rr)
+        .attr('fill',         ri % 2 === 0 ? '#f8fafc' : '#f1f5f9')
+        .attr('stroke',       '#e2e8f0')
+        .attr('stroke-width', 1);
+    }
+
+    // Segment arc fills + divider borders.
+    segments.forEach(function (seg, si) {
+      var a0  = si * segAngle;
+      var a1  = a0 + segAngle;
+      var arc = d3.arc()
+        .innerRadius(innerR).outerRadius(outerR)
+        .startAngle(a0).endAngle(a1);
+
+      g.append('path')
+        .attr('d',            arc)
+        .attr('fill',         seg.color)
+        .attr('fill-opacity', 0.05)
+        .attr('stroke',       '#cbd5e1')
+        .attr('stroke-width', 1);
+
+      var midA   = a0 + segAngle / 2;
+      var labelR = outerR + 30;
+      g.append('text')
+        .attr('x',           labelR * Math.sin(midA))
+        .attr('y',           -labelR * Math.cos(midA))
+        .attr('text-anchor', 'middle')
+        .attr('dy',          '0.35em')
+        .attr('font-size',   12)
+        .attr('font-weight', 600)
+        .attr('fill',        seg.color)
+        .text(seg.label);
+    });
+
+    // Ring labels near the top of each ring.
+    ringBands.forEach(function (band, ri) {
+      var r = innerR + (outerR - innerR) * (ri + 1) / numRings;
+      g.append('text')
+        .attr('x',         5)
+        .attr('y',         -r - 3)
+        .attr('font-size', 9)
+        .attr('fill',      '#94a3b8')
+        .text(band.label);
+    });
+
+    // Center hub.
+    g.append('circle')
+      .attr('r',            innerR)
+      .attr('fill',         '#fff')
+      .attr('stroke',       '#e2e8f0')
+      .attr('stroke-width', 1);
+
+    // Group forms by segment.
+    var segMap = { p: [], r: [], m: [] };
+    forms.forEach(function (f) {
+      var key = segMap[f.visibility] ? f.visibility : 'p';
+      segMap[key].push(f);
+    });
+
+    // Plot dots.
+    segments.forEach(function (seg, si) {
+      var segForms = segMap[seg.key];
+      var a0       = si * segAngle;
+      var margin   = 0.18;
+      var usable   = segAngle - margin * 2;
+
+      segForms.forEach(function (f, fi) {
+        var t      = segForms.length === 1 ? 0.5 : fi / (segForms.length - 1);
+        var angle  = a0 + margin + t * usable;
+        var radius = f.total_submitted === 0 ? innerR * 0.6 : getRadius(f.total_submitted);
+        var x      = radius * Math.sin(angle);
+        var y      = -radius * Math.cos(angle);
+
+        g.append('circle')
+          .datum(f)
+          .attr('cx',           x)
+          .attr('cy',           y)
+          .attr('r',            6)
+          .attr('fill',         colorScale(f.completion_rate || 0))
+          .attr('stroke',       '#fff')
+          .attr('stroke-width', 1.5)
+          .attr('cursor',       'pointer')
+          .on('mouseover', function (d) {
+            d3.select(this).attr('r', 9);
+            showTooltip(
+              '<strong>' + d.title + '</strong><br>' +
+              'Submitted: ' + d.total_submitted + ' / ' + d.total_started + '<br>' +
+              'Completion: ' + Math.round((d.completion_rate || 0) * 100) + '%',
+              d3.event
+            );
+          })
+          .on('mouseout', function () {
+            d3.select(this).attr('r', 6);
+            hideTooltip();
+          })
+          .on('click', function (d) {
+            window.location.href = '/dynamic-form-builder/dashboard/forms/' + d.id + '/responses';
+          });
+      });
+    });
+
+  }
+
+  /* ================================================================
      WORD CLOUD — d3-cloud (Jason Davies) layout
      el: DOM element
      words: [{text:'...', count:N}, ...] sorted by count DESC
@@ -599,6 +767,14 @@
   Drupal.behaviors.dfAnalytics = {
     attach: function (context, settings) {
       if (!settings.dfAnalytics) { return; }
+
+      /* ---------- RADAR PAGE ---------- */
+      if (settings.dfAnalytics.radar) {
+        var radarEl = document.getElementById('dfa-chart-radar');
+        if (radarEl) {
+          renderRadarChart(radarEl, settings.dfAnalytics.radar);
+        }
+      }
 
       /* ---------- GLOBAL WORD CLOUD ---------- */
       if (settings.dfAnalytics.wordcloud) {
