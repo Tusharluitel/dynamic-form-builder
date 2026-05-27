@@ -35,6 +35,29 @@ function dynamic_form_restws_menu() {
     'file'            => 'includes/dynamic_form_restws.v1.inc',
   );
 
+  // GET api/v1/forms
+  $items['api/v1/forms'] = $base + array(
+    'page callback' => 'dynamic_form_restws_v1_forms_list',
+  );
+
+  // GET api/v1/responses/{response_id}
+  $items['api/v1/responses/%'] = $base + array(
+    'page callback'  => 'dynamic_form_restws_v1_response_standalone',
+    'page arguments' => array(3),
+  );
+
+  // GET api/v1/forms/questions/{question_id}
+  $items['api/v1/forms/questions/%'] = $base + array(
+    'page callback'  => 'dynamic_form_restws_v1_question_answers',
+    'page arguments' => array(4),
+  );
+
+  // GET api/v1/forms/{form_id}
+  $items['api/v1/forms/%'] = $base + array(
+    'page callback'  => 'dynamic_form_restws_v1_form_detail',
+    'page arguments' => array(3),
+  );
+
   // GET api/v1/forms/{form_id}/responses
   $items['api/v1/forms/%/responses'] = $base + array(
     'page callback'  => 'dynamic_form_restws_v1_responses_list',
