@@ -28,6 +28,274 @@ function ajax_command_dfb_toast($type, $message) {
 }
 
 /**
+ * Implements hook_entity_info().
+ *
+ * Registers four read-only entity types exposed by restws:
+ *   - dynamic_form_form           → /dynamic_form_form/{id}.json
+ *   - dynamic_form_section        → /dynamic_form_section/{id}.json
+ *   - dynamic_form_question       → /dynamic_form_question/{id}.json
+ *   - dynamic_form_question_option → /dynamic_form_question_option/{id}.json
+ *
+ * All four use DynamicFormSoftDeleteEntityController so deleted_at rows are
+ * hidden from entity_load() and therefore from the API.
+ */
+function dynamic_form_entity_info() {
+  $controller = 'DynamicFormSoftDeleteEntityController';
+
+  $info['dynamic_form_form'] = array(
+    'label'             => t('Dynamic Form'),
+    'plural label'      => t('Dynamic Forms'),
+    'base table'        => 'dynamic_form_forms',
+    'entity keys'       => array('id' => 'id', 'label' => 'title'),
+    'module'            => 'dynamic_form',
+    'controller class'  => $controller,
+    'access callback'   => '_dynamic_form_form_entity_access',
+  );
+
+  $info['dynamic_form_section'] = array(
+    'label'             => t('Dynamic Form Section'),
+    'plural label'      => t('Dynamic Form Sections'),
+    'base table'        => 'dynamic_form_sections',
+    'entity keys'       => array('id' => 'id', 'label' => 'name'),
+    'module'            => 'dynamic_form',
+    'controller class'  => $controller,
+    'access callback'   => '_dynamic_form_section_entity_access',
+  );
+
+  $info['dynamic_form_question'] = array(
+    'label'             => t('Dynamic Form Question'),
+    'plural label'      => t('Dynamic Form Questions'),
+    'base table'        => 'dynamic_form_questions',
+    'entity keys'       => array('id' => 'id', 'label' => 'label'),
+    'module'            => 'dynamic_form',
+    'controller class'  => $controller,
+    'access callback'   => '_dynamic_form_question_entity_access',
+  );
+
+  $info['dynamic_form_question_option'] = array(
+    'label'             => t('Dynamic Form Question Option'),
+    'plural label'      => t('Dynamic Form Question Options'),
+    'base table'        => 'dynamic_form_question_options',
+    'entity keys'       => array('id' => 'id', 'label' => 'option_label'),
+    'module'            => 'dynamic_form',
+    'controller class'  => $controller,
+    'access callback'   => '_dynamic_form_question_option_entity_access',
+  );
+
+  return $info;
+}
+
+/**
+ * Implements hook_entity_property_info().
+ *
+ * Declares typed properties so restws can serialise each entity. Soft-delete
+ * columns (deleted_at, deleted_by) are intentionally omitted — the controller
+ * filters those rows out before they ever reach the formatter.
+ */
+function dynamic_form_entity_property_info() {
+  $info = array();
+
+  // ---- dynamic_form_form ----
+  $p = &$info['dynamic_form_form']['properties'];
+  $p['id']                = array('label' => t('Form ID'), 'type' => 'integer', 'schema field' => 'id');
+  $p['title']             = array('label' => t('Title'), 'type' => 'text', 'schema field' => 'title');
+  $p['description']       = array('label' => t('Description'), 'type' => 'text', 'schema field' => 'description');
+  $p['status']            = array('label' => t('Status'), 'type' => 'integer', 'schema field' => 'status');
+  $p['slug']              = array('label' => t('Slug'), 'type' => 'text', 'schema field' => 'slug');
+  $p['question_per_page'] = array('label' => t('Questions per page'), 'type' => 'integer', 'schema field' => 'question_per_page');
+  $p['visibility']        = array('label' => t('Visibility'), 'type' => 'text', 'schema field' => 'visibility');
+  $p['opens_at']          = array('label' => t('Opens at'), 'type' => 'date', 'schema field' => 'opens_at');
+  $p['closes_at']         = array('label' => t('Closes at'), 'type' => 'date', 'schema field' => 'closes_at');
+  $p['published_at']               = array('label' => t('Published at'), 'type' => 'date', 'schema field' => 'published_at');
+  $p['published_by']               = array('label' => t('Published by'), 'type' => 'integer', 'schema field' => 'published_by');
+  $p['allow_multiple_submissions'] = array('label' => t('Allow multiple submissions'), 'type' => 'integer', 'schema field' => 'allow_multiple_submissions');
+  $p['created_by']                 = array('label' => t('Created by'), 'type' => 'integer', 'schema field' => 'created_by');
+  $p['created_at']                 = array('label' => t('Created at'), 'type' => 'date', 'schema field' => 'created_at');
+  $p['updated_at']                 = array('label' => t('Updated at'), 'type' => 'date', 'schema field' => 'updated_at');
+
+  // ---- dynamic_form_section ----
+  $p = &$info['dynamic_form_section']['properties'];
+  $p['id']          = array('label' => t('Section ID'), 'type' => 'integer', 'schema field' => 'id');
+  $p['form_id']     = array('label' => t('Form ID'), 'type' => 'integer', 'schema field' => 'form_id');
+  $p['name']        = array('label' => t('Name'), 'type' => 'text', 'schema field' => 'name');
+  $p['description'] = array('label' => t('Description'), 'type' => 'text', 'schema field' => 'description');
+  $p['position']    = array('label' => t('Position'), 'type' => 'integer', 'schema field' => 'position');
+  $p['created_by']  = array('label' => t('Created by'), 'type' => 'integer', 'schema field' => 'created_by');
+  $p['created_at']  = array('label' => t('Created at'), 'type' => 'date', 'schema field' => 'created_at');
+  $p['updated_at']  = array('label' => t('Updated at'), 'type' => 'date', 'schema field' => 'updated_at');
+
+  // ---- dynamic_form_question ----
+  $p = &$info['dynamic_form_question']['properties'];
+  $p['id']               = array('label' => t('Question ID'), 'type' => 'integer', 'schema field' => 'id');
+  $p['form_id']          = array('label' => t('Form ID'), 'type' => 'integer', 'schema field' => 'form_id');
+  $p['section_id']       = array('label' => t('Section ID'), 'type' => 'integer', 'schema field' => 'section_id');
+  $p['label']            = array('label' => t('Label'), 'type' => 'text', 'schema field' => 'label');
+  $p['description']      = array('label' => t('Description'), 'type' => 'text', 'schema field' => 'description');
+  $p['placeholder']      = array('label' => t('Placeholder'), 'type' => 'text', 'schema field' => 'placeholder');
+  $p['type']             = array('label' => t('Type'), 'type' => 'text', 'schema field' => 'type');
+  $p['is_readonly']      = array('label' => t('Read-only'), 'type' => 'integer', 'schema field' => 'is_readonly');
+  $p['is_required']      = array('label' => t('Required'), 'type' => 'integer', 'schema field' => 'is_required');
+  $p['allow_file_types'] = array('label' => t('Allowed file types'), 'type' => 'text', 'schema field' => 'allow_file_types');
+  $p['max_file_size']    = array('label' => t('Max file size'), 'type' => 'integer', 'schema field' => 'max_file_size');
+  $p['max_files']        = array('label' => t('Max files'), 'type' => 'integer', 'schema field' => 'max_files');
+  $p['position']         = array('label' => t('Position'), 'type' => 'integer', 'schema field' => 'position');
+  $p['allow_filter']     = array('label' => t('Allow filter'), 'type' => 'integer', 'schema field' => 'allow_filter');
+  $p['width']            = array('label' => t('Width'), 'type' => 'text', 'schema field' => 'width');
+  $p['created_by']       = array('label' => t('Created by'), 'type' => 'integer', 'schema field' => 'created_by');
+  $p['created_at']       = array('label' => t('Created at'), 'type' => 'date', 'schema field' => 'created_at');
+  $p['updated_at']       = array('label' => t('Updated at'), 'type' => 'date', 'schema field' => 'updated_at');
+
+  // ---- dynamic_form_question_option ----
+  $p = &$info['dynamic_form_question_option']['properties'];
+  $p['id']           = array('label' => t('Option ID'), 'type' => 'integer', 'schema field' => 'id');
+  $p['question_id']  = array('label' => t('Question ID'), 'type' => 'integer', 'schema field' => 'question_id');
+  $p['option_label'] = array('label' => t('Option label'), 'type' => 'text', 'schema field' => 'option_label');
+  $p['position']     = array('label' => t('Position'), 'type' => 'integer', 'schema field' => 'position');
+  $p['created_by']   = array('label' => t('Created by'), 'type' => 'integer', 'schema field' => 'created_by');
+  $p['created_at']   = array('label' => t('Created at'), 'type' => 'date', 'schema field' => 'created_at');
+  $p['updated_at']   = array('label' => t('Updated at'), 'type' => 'date', 'schema field' => 'updated_at');
+
+  return $info;
+}
+
+/**
+ * Implements hook_restws_resource_info_alter().
+ *
+ * Replaces restws's default RestWSEntityResourceController with
+ * DynamicFormRestWSEntityResourceController for all six Dynamic Form entity
+ * types so that soft-deleted rows (deleted_at IS NOT NULL) are excluded from
+ * list/count queries as well as single-entity loads.
+ */
+function dynamic_form_restws_resource_info_alter(array &$resource_info) {
+  $types = array(
+    'dynamic_form_form',
+    'dynamic_form_section',
+    'dynamic_form_question',
+    'dynamic_form_question_option',
+    'dynamic_form_response',
+    'dynamic_form_answer',
+  );
+  foreach ($types as $type) {
+    if (isset($resource_info[$type])) {
+      $resource_info[$type]['class'] = 'DynamicFormRestWSEntityResourceController';
+    }
+  }
+}
+
+/* =====================================================================
+   ENTITY ACCESS CALLBACKS (REST API — read-only)
+   ===================================================================== */
+
+/**
+ * Returns FALSE for any non-view op so restws cannot create/update/delete
+ * via the API. Returns NULL to let the per-entity callback decide on view.
+ */
+function _dynamic_form_entity_readonly_guard($op) {
+  return ($op === 'view') ? NULL : FALSE;
+}
+
+/**
+ * Shared form-level access rule used by every entity callback below.
+ *
+ * Mirrors the legacy /api/v1 _can_view_responses() check:
+ *   - 'view any form responses', OR
+ *   - the form's creator, OR
+ *   - a member with role owner|editor (and 'view own form responses').
+ *
+ * Soft-deleted forms always fail.
+ */
+function _dynamic_form_api_can_view_form($form_id, $account) {
+  if (user_access('view any form responses', $account)) {
+    return TRUE;
+  }
+  if (!user_access('view own form responses', $account)) {
+    return FALSE;
+  }
+
+  $created_by = db_select('dynamic_form_forms', 'f')
+    ->fields('f', array('created_by'))
+    ->condition('id', $form_id)
+    ->isNull('deleted_at')
+    ->execute()
+    ->fetchField();
+
+  if ($created_by === FALSE) {
+    return FALSE;
+  }
+  if ((int) $created_by === (int) $account->uid) {
+    return TRUE;
+  }
+
+  return (bool) db_select('dynamic_form_members', 'm')
+    ->condition('form_id', $form_id)
+    ->condition('user_id', $account->uid)
+    ->condition('role', array('owner', 'editor'), 'IN')
+    ->isNull('deleted_at')
+    ->countQuery()->execute()->fetchField();
+}
+
+/**
+ * Access callback: dynamic_form_form entity.
+ */
+function _dynamic_form_form_entity_access($op, $entity = NULL, $account = NULL, $entity_type = NULL) {
+  if (_dynamic_form_entity_readonly_guard($op) === FALSE) {
+    return FALSE;
+  }
+  $account = $account ?: $GLOBALS['user'];
+  if ($entity === NULL) {
+    return user_access('view any form responses', $account) || user_access('view own form responses', $account);
+  }
+  return _dynamic_form_api_can_view_form((int) $entity->id, $account);
+}
+
+/**
+ * Access callback: dynamic_form_section entity (inherits parent form access).
+ */
+function _dynamic_form_section_entity_access($op, $entity = NULL, $account = NULL, $entity_type = NULL) {
+  if (_dynamic_form_entity_readonly_guard($op) === FALSE) {
+    return FALSE;
+  }
+  $account = $account ?: $GLOBALS['user'];
+  if ($entity === NULL) {
+    return user_access('view any form responses', $account) || user_access('view own form responses', $account);
+  }
+  return _dynamic_form_api_can_view_form((int) $entity->form_id, $account);
+}
+
+/**
+ * Access callback: dynamic_form_question entity (inherits parent form access).
+ */
+function _dynamic_form_question_entity_access($op, $entity = NULL, $account = NULL, $entity_type = NULL) {
+  if (_dynamic_form_entity_readonly_guard($op) === FALSE) {
+    return FALSE;
+  }
+  $account = $account ?: $GLOBALS['user'];
+  if ($entity === NULL) {
+    return user_access('view any form responses', $account) || user_access('view own form responses', $account);
+  }
+  return _dynamic_form_api_can_view_form((int) $entity->form_id, $account);
+}
+
+/**
+ * Access callback: dynamic_form_question_option entity (resolves via question).
+ */
+function _dynamic_form_question_option_entity_access($op, $entity = NULL, $account = NULL, $entity_type = NULL) {
+  if (_dynamic_form_entity_readonly_guard($op) === FALSE) {
+    return FALSE;
+  }
+  $account = $account ?: $GLOBALS['user'];
+  if ($entity === NULL) {
+    return user_access('view any form responses', $account) || user_access('view own form responses', $account);
+  }
+  $form_id = db_select('dynamic_form_questions', 'q')
+    ->fields('q', array('form_id'))
+    ->condition('q.id', (int) $entity->question_id)
+    ->execute()
+    ->fetchField();
+  return $form_id ? _dynamic_form_api_can_view_form((int) $form_id, $account) : FALSE;
+}
+
+/**
  * Implements hook_permission().
  */
 function dynamic_form_permission()

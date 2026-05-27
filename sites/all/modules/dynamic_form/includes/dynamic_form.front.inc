@@ -103,17 +103,34 @@ function dynamic_form_public_form_view_page($slug) {
       drupal_set_message(t('You must be logged in to access this form.'), 'warning');
       drupal_goto('login', array('query' => drupal_get_destination()));
     }
-    $ok = db_select('dynamic_form_invitations', 'inv')
-      ->condition('inv.form_id', $record->id)
-      ->condition('inv.user_id', $user->uid)
-      ->condition('inv.status', 'accepted')
+    // Allow if user is an active member (covers direct-add and accepted invites).
+    $ok = db_select('dynamic_form_members', 'm')
+      ->condition('m.form_id', $record->id)
+      ->condition('m.user_id', $user->uid)
+      ->isNull('m.deleted_at')
       ->countQuery()->execute()->fetchField();
+    // Allow if user has a pending or accepted invitation by user_id.
     if (!$ok) {
-      $ok = db_select('dynamic_form_members', 'm')
-        ->condition('m.form_id', $record->id)
-        ->condition('m.user_id', $user->uid)
-        ->isNull('m.deleted_at')
+      $ok = db_select('dynamic_form_invitations', 'inv')
+        ->condition('inv.form_id', $record->id)
+        ->condition('inv.user_id', $user->uid)
+        ->condition('inv.status', array('pending', 'accepted'), 'IN')
         ->countQuery()->execute()->fetchField();
+    }
+    // Allow if user's registered email matches a pending or accepted invitation.
+    if (!$ok) {
+      $user_mail = db_select('users', 'u')
+        ->fields('u', array('mail'))
+        ->condition('u.uid', $user->uid)
+        ->execute()
+        ->fetchField();
+      if ($user_mail) {
+        $ok = db_select('dynamic_form_invitations', 'inv')
+          ->condition('inv.form_id', $record->id)
+          ->condition('inv.status', array('pending', 'accepted'), 'IN')
+          ->where('LOWER(inv.email) = LOWER(:mail)', array(':mail' => $user_mail))
+          ->countQuery()->execute()->fetchField();
+      }
     }
     if (!$ok && (int) $record->created_by !== (int) $user->uid) {
       return drupal_access_denied();

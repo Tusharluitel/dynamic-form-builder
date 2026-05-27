@@ -6,4 +6,8 @@ package = Dynamic Form
 dependencies[] = file
 dependencies[] = field
 dependencies[] = field_ui
+dependencies[] = entity
+dependencies[] = restws
+
+files[] = includes/dynamic_form.entity.inc
 

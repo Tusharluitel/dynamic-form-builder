@@ -25,31 +25,33 @@ function dynamic_form_response_render_form($record) {
   // Issue/read a persistent guest token cookie for anonymous visitors.
   $guest_token = $user->uid ? NULL : _dynamic_form_response_get_guest_token();
 
-  // Already-submitted check for both authenticated and anonymous users.
-  if ($user->uid) {
-    $already = db_select('dynamic_form_responses', 'r')
-      ->condition('form_id', $record->id)
-      ->condition('user_id', $user->uid)
-      ->condition('status', 1)
-      ->isNull('deleted_at')
-      ->countQuery()->execute()->fetchField();
-  }
-  else {
-    $already_q = db_select('dynamic_form_responses', 'r');
-    $already_q->join('dynamic_form_response_sessions', 's', 's.response_id = r.id');
-    $already = $already_q
-      ->condition('r.form_id', $record->id)
-      ->condition('r.status', 1)
-      ->condition('s.guest_token', $guest_token)
-      ->isNull('r.deleted_at')
-      ->countQuery()->execute()->fetchField();
-  }
+  // Already-submitted check — skipped when the form allows multiple submissions.
+  if (empty($record->allow_multiple_submissions)) {
+    if ($user->uid) {
+      $already = db_select('dynamic_form_responses', 'r')
+        ->condition('form_id', $record->id)
+        ->condition('user_id', $user->uid)
+        ->condition('status', 1)
+        ->isNull('deleted_at')
+        ->countQuery()->execute()->fetchField();
+    }
+    else {
+      $already_q = db_select('dynamic_form_responses', 'r');
+      $already_q->join('dynamic_form_response_sessions', 's', 's.response_id = r.id');
+      $already = $already_q
+        ->condition('r.form_id', $record->id)
+        ->condition('r.status', 1)
+        ->condition('s.guest_token', $guest_token)
+        ->isNull('r.deleted_at')
+        ->countQuery()->execute()->fetchField();
+    }
 
-  if ($already) {
-    return '<div class="dfp-form-card"><div class="dfr-already-submitted">'
-      . '<div class="dfr-check-icon">&#10003;</div>'
-      . '<p>' . t('You have already submitted a response to this form.') . '</p>'
-      . '</div></div>';
+    if ($already) {
+      return '<div class="dfp-form-card"><div class="dfr-already-submitted">'
+        . '<div class="dfr-check-icon">&#10003;</div>'
+        . '<p>' . t('You have already submitted a response to this form.') . '</p>'
+        . '</div></div>';
+    }
   }
 
   // Draft recovery — pre-fill answers from any existing draft.

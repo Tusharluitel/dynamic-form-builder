@@ -106,6 +106,13 @@ function dynamic_form_create_form($form, &$form_state)
     '#description' => t('Number of questions shown per page when filling out the form.'),
   );
 
+  $form['settings']['allow_multiple_submissions'] = array(
+    '#type'          => 'checkbox',
+    '#title'         => t('Allow multiple submissions'),
+    '#default_value' => 0,
+    '#description'   => t('When enabled, respondents can submit this form more than once. By default each user or guest may only submit once.'),
+  );
+
   // -- Schedule section --
   $form['schedule'] = array(
     '#type' => 'fieldset',
@@ -226,6 +233,7 @@ function dynamic_form_create_form_submit($form, &$form_state)
     'visibility' => $values['visibility'],
     'closes_at' => $closes_at,
     'opens_at' => $opens_at,
+    'allow_multiple_submissions' => empty($values['allow_multiple_submissions']) ? 0 : 1,
     'created_by' => $user->uid,
     'created_at' => $now,
     'updated_at' => $now,
@@ -441,6 +449,13 @@ function dynamic_form_edit_form($form, &$form_state, $form_id)
     '#description' => t('Number of questions shown per page when filling out the form.'),
   );
 
+  $form['settings']['allow_multiple_submissions'] = array(
+    '#type'          => 'checkbox',
+    '#title'         => t('Allow multiple submissions'),
+    '#default_value' => !empty($record->allow_multiple_submissions) ? 1 : 0,
+    '#description'   => t('When enabled, respondents can submit this form more than once. By default each user or guest may only submit once.'),
+  );
+
   // -- Schedule section --
   $form['schedule'] = array(
     '#type' => 'fieldset',
@@ -563,6 +578,7 @@ function dynamic_form_edit_form_submit($form, &$form_state)
     'visibility' => $values['visibility'],
     'closes_at' => _dynamic_form_parse_date($values['closes_at']),
     'opens_at' => _dynamic_form_parse_date($values['opens_at']),
+    'allow_multiple_submissions' => empty($values['allow_multiple_submissions']) ? 0 : 1,
     'updated_at' => $now,
   );
 
