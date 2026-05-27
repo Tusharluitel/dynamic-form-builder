@@ -85,11 +85,6 @@ function dynamic_form_dashboard_page($section = 'overview')
 function _dynamic_form_dashboard_sidebar($active = 'overview')
 {
   $items = array(
-    'overview' => array(
-      'label' => t('Overview'),
-      'path' => 'dashboard',
-      'icon' => '&#9783;',
-    ),
     'forms' => array(
       'label' => t('Forms'),
       'path' => 'dashboard/forms',
@@ -105,7 +100,19 @@ function _dynamic_form_dashboard_sidebar($active = 'overview')
       'path' => 'dashboard/sections',
       'icon' => '&#128193;',
     ),
+    'browse' => array(
+      'label' => t('Browse Forms'),
+      'path' => 'dashboard/browse',
+      'icon' => '&#128269;',
+    ),
+    'submissions' => array(
+      'label' => t('My Submissions'),
+      'path' => 'dashboard/submissions',
+      'icon' => '&#128221;',
+    ),
   );
+
+  drupal_alter('dynamic_form_dashboard_sidebar_items', $items);
 
   $output = '<nav class="dfb-sidebar-nav">';
   $output .= '<div class="dfb-sidebar-header">';
@@ -369,6 +376,22 @@ function _dynamic_form_dashboard_forms()
   // Sort merged list by created_at DESC.
   uasort($forms_by_id, '_dfb_sort_by_created_desc');
 
+  // Batch-load submitted response counts for all displayed forms in one query.
+  $response_counts = array();
+  $form_ids = array_keys($forms_by_id);
+  if (!empty($form_ids)) {
+    $cq = db_select('dynamic_form_responses', 'r')
+      ->fields('r', array('form_id'))
+      ->condition('r.form_id', $form_ids, 'IN')
+      ->condition('r.status', 1)
+      ->isNull('r.deleted_at')
+      ->groupBy('r.form_id');
+    $cq->addExpression('COUNT(*)', 'cnt');
+    foreach ($cq->execute()->fetchAll() as $row) {
+      $response_counts[(int) $row->form_id] = (int) $row->cnt;
+    }
+  }
+
   $output = '<div class="dfb-dashboard-header">';
   $output .= '<div class="dfb-dashboard-header-row">';
   $output .= '<div>';
@@ -400,7 +423,7 @@ function _dynamic_form_dashboard_forms()
     'm' => t('Members Only'),
   );
 
-  $header = array(t('Title'), t('Status'), t('Visibility'), t('Created'), t('Actions'));
+  $header = array(t('Title'), t('Status'), t('Visibility'), t('Created'), t('Responses'), t('Actions'));
   $rows = array();
 
   foreach ($forms_by_id as $record) {
@@ -437,11 +460,26 @@ function _dynamic_form_dashboard_forms()
       ));
     }
 
+    $count     = isset($response_counts[$record->id]) ? $response_counts[$record->id] : 0;
+    $can_view  = $is_admin || in_array($role, array('owner', 'editor'));
+    if ($count === 0) {
+      $resp_cell = '<span class="dfb-response-zero">—</span>';
+    } elseif ($can_view) {
+      $resp_cell = l(
+        format_plural($count, '1 response', '@count responses'),
+        'dashboard/forms/' . $record->id . '/responses',
+        array('attributes' => array('class' => array('dfb-response-count-link')))
+      );
+    } else {
+      $resp_cell = format_plural($count, '1 response', '@count responses');
+    }
+
     $rows[] = array(
       array('data' => $title_cell),
       array('data' => isset($status_labels[$record->status]) ? $status_labels[$record->status] : t('Unknown'), 'class' => array('status-cell')),
       isset($visibility_labels[$record->visibility]) ? $visibility_labels[$record->visibility] : $record->visibility,
       format_date($record->created_at, 'short'),
+      array('data' => $resp_cell, 'class' => array('dfb-responses-cell')),
       implode(' &middot; ', $actions),
     );
   }
@@ -688,12 +726,20 @@ function dynamic_form_dashboard_form_edit_page($form_id)
 {
   drupal_set_title(t('Edit Form'));
 
-  // Load the forms include so the form builder is available.
   module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.forms');
+
+  $mp = drupal_get_path('module', 'dynamic_form');
+  drupal_add_css($mp . '/css/filter-toggle.css');
+  drupal_add_js($mp . '/js/filter-toggle.js');
+  drupal_add_js(array(
+    'dfbFilterToggle' => array(
+      'toggleUrl' => url('dynamic-form/ajax/question'),
+    ),
+  ), 'setting');
 
   $sidebar_html = _dynamic_form_dashboard_sidebar('forms');
 
-  $content_html = '<div class="dfb-dashboard-header">';
+  $content_html  = '<div class="dfb-dashboard-header">';
   $content_html .= '<div class="dfb-dashboard-header-row">';
   $content_html .= '<div>';
   $content_html .= '<h2>' . t('Edit Form') . '</h2>';
@@ -702,12 +748,70 @@ function dynamic_form_dashboard_form_edit_page($form_id)
   $content_html .= '</div>';
   $content_html .= '</div>';
 
+  // Load questions for the filter toggle panel.
+  $questions = db_select('dynamic_form_questions', 'q')
+    ->fields('q', array('id', 'label', 'type', 'allow_filter'))
+    ->condition('form_id', (int) $form_id)
+    ->isNull('deleted_at')
+    ->orderBy('position', 'ASC')
+    ->execute()
+    ->fetchAll();
+
+  // Two-panel wrapper: left = form fields, right = filter toggles.
+  $content_html .= '<div class="dfb-form-wrapper dfb-form-wrapper--edit">';
   $content_html .= drupal_render(drupal_get_form('dynamic_form_edit_form', $form_id));
+  $content_html .= _dfb_render_filter_toggle_panel((int) $form_id, $questions);
+  $content_html .= '</div>';
 
   return theme('dynamic_form_dashboard', array(
     'sidebar' => $sidebar_html,
     'content' => $content_html,
   ));
+}
+
+/**
+ * Renders the filter-toggle sidebar panel for the form edit page.
+ *
+ * @param int   $form_id    Form primary key.
+ * @param array $questions  Question rows (id, label, type, allow_filter).
+ * @return string HTML.
+ */
+function _dfb_render_filter_toggle_panel($form_id, array $questions) {
+  $out  = '<div class="dfb-filter-questions-panel">';
+  $out .= '<h3>' . t('Response Filters') . '</h3>';
+  $out .= '<p class="dfb-filter-panel-desc">'
+    . t('Toggle which questions appear as filter options on the responses page.')
+    . '</p>';
+
+  if (empty($questions)) {
+    $out .= '<p class="dfb-filter-panel-empty">'
+      . t('No questions yet. Add questions via the Builder.')
+      . '</p>';
+  }
+  else {
+    foreach ($questions as $q) {
+      $qid     = (int) $q->id;
+      $checked = !empty($q->allow_filter) ? ' checked="checked"' : '';
+      $out .= '<div class="dfb-filter-question-item">';
+      $out .= '<div class="dfb-filter-question-info">';
+      $out .= '<div class="dfb-filter-question-type">' . check_plain($q->type) . '</div>';
+      $out .= '<div class="dfb-filter-question-label" title="' . check_plain($q->label) . '">'
+        . check_plain(truncate_utf8($q->label, 50, TRUE, TRUE))
+        . '</div>';
+      $out .= '</div>';
+      $out .= '<div class="dfb-toggle-wrap">';
+      $out .= '<input type="checkbox" class="dfb-filter-toggle-input"'
+        . ' id="dfb-toggle-' . $qid . '"'
+        . ' data-question-id="' . $qid . '"'
+        . $checked . '>';
+      $out .= '<label class="dfb-toggle-label" for="dfb-toggle-' . $qid . '"></label>';
+      $out .= '</div>';
+      $out .= '</div>';
+    }
+  }
+
+  $out .= '</div>';
+  return $out;
 }
 
 /* =====================================================================
@@ -877,7 +981,7 @@ function dynamic_form_ajax_entity_delete($entity_type, $entity_id) {
     drupal_exit();
   }
 
-  if (!in_array($entity_type, array('form', 'section', 'question'))) {
+  if (!in_array($entity_type, array('form', 'section', 'question', 'response'))) {
     drupal_json_output(array('status' => 'error', 'message' => t('Invalid entity type.')));
     drupal_exit();
   }
@@ -897,9 +1001,34 @@ function dynamic_form_ajax_entity_delete($entity_type, $entity_id) {
     drupal_exit();
   }
 
-  // Access: 'delete any form' OR user owns the item and has 'delete own form'.
-  $is_owner   = isset($record->created_by) && (int) $record->created_by === (int) $user->uid;
-  $can_delete = user_access('delete any form') || ($is_owner && user_access('delete own form'));
+  if ($entity_type === 'response') {
+    // Response access: admin OR owner/editor of the form.
+    $can_delete = user_access('edit any form');
+    if (!$can_delete) {
+      $member_role = db_select('dynamic_form_members', 'm')
+        ->fields('m', array('role'))
+        ->condition('form_id', $record->form_id)
+        ->condition('user_id', $user->uid)
+        ->execute()
+        ->fetchField();
+      if (!$member_role) {
+        $form_owner = db_select('dynamic_form_forms', 'f')
+          ->fields('f', array('created_by'))
+          ->condition('id', $record->form_id)
+          ->execute()
+          ->fetchField();
+        if ((int) $form_owner === (int) $user->uid) {
+          $member_role = 'owner';
+        }
+      }
+      $can_delete = in_array($member_role, array('owner', 'editor'));
+    }
+  }
+  else {
+    // Access: 'delete any form' OR user owns the item and has 'delete own form'.
+    $is_owner   = isset($record->created_by) && (int) $record->created_by === (int) $user->uid;
+    $can_delete = user_access('delete any form') || ($is_owner && user_access('delete own form'));
+  }
 
   if (!$can_delete) {
     drupal_json_output(array('status' => 'error', 'message' => t('Access denied.')));
@@ -918,16 +1047,21 @@ function dynamic_form_ajax_entity_delete($entity_type, $entity_id) {
 
   _dynamic_form_audit_log($entity_type, $entity_id, 'deleted', (array) $record, NULL);
 
+  if ($entity_type === 'response' && module_exists('dynamic_form_solr')) {
+    dynamic_form_solr_delete_response($entity_id);
+  }
+
   switch ($entity_type) {
     case 'form':     $label = $record->title; break;
     case 'section':  $label = $record->name;  break;
     case 'question': $label = truncate_utf8($record->label, 60, TRUE, TRUE); break;
+    case 'response': $label = t('Response #@id', array('@id' => $entity_id)); break;
     default:         $label = 'Item';
   }
 
   drupal_json_output(array(
     'status'  => 'ok',
-    'message' => t('"@label" has been moved to Trash.', array('@label' => $label)),
+    'message' => t('"@label" has been deleted.', array('@label' => $label)),
   ));
   drupal_exit();
 }
@@ -940,8 +1074,175 @@ function _dynamic_form_dashboard_entity_table($entity_type) {
     'form'     => 'dynamic_form_forms',
     'section'  => 'dynamic_form_sections',
     'question' => 'dynamic_form_questions',
+    'response' => 'dynamic_form_responses',
   );
   return isset($map[$entity_type]) ? $map[$entity_type] : NULL;
+}
+
+/* =====================================================================
+   AJAX — QUESTION ALLOW_FILTER TOGGLE
+   ===================================================================== */
+
+/**
+ * AJAX callback: toggles allow_filter on a question.
+ *
+ * Route: POST dynamic-form/ajax/question/{question_id}/toggle-filter
+ * POST body: allow_filter=0|1
+ *
+ * @param int $question_id  Question primary key.
+ */
+function dynamic_form_ajax_toggle_allow_filter($question_id) {
+  global $user;
+
+  if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    drupal_json_output(array('status' => 'error', 'message' => t('Invalid request method.')));
+    drupal_exit();
+  }
+
+  $question_id  = (int) $question_id;
+  $allow_filter = isset($_POST['allow_filter']) ? ((int) $_POST['allow_filter'] ? 1 : 0) : 0;
+
+  $question = db_select('dynamic_form_questions', 'q')
+    ->fields('q', array('id', 'form_id', 'label', 'created_by'))
+    ->condition('id', $question_id)
+    ->isNull('deleted_at')
+    ->execute()
+    ->fetchObject();
+
+  if (!$question) {
+    drupal_json_output(array('status' => 'error', 'message' => t('Question not found.')));
+    drupal_exit();
+  }
+
+  $can_edit = user_access('edit any form')
+    || (int) $question->created_by === (int) $user->uid;
+
+  if (!$can_edit) {
+    drupal_json_output(array('status' => 'error', 'message' => t('Access denied.')));
+    drupal_exit();
+  }
+
+  db_update('dynamic_form_questions')
+    ->fields(array(
+      'allow_filter' => $allow_filter,
+      'updated_at'   => REQUEST_TIME,
+    ))
+    ->condition('id', $question_id)
+    ->execute();
+
+  // dynamic_form_invalidate_questions_cache($question->form_id);
+
+  $msg = $allow_filter
+    ? t('Question added to response filters.')
+    : t('Question removed from response filters.');
+
+  drupal_json_output(array('status' => 'ok', 'message' => $msg));
+  drupal_exit();
+}
+
+/* =====================================================================
+   BROWSE FORMS PAGE
+   ===================================================================== */
+
+/**
+ * Page callback: dashboard/browse
+ *
+ * Lists all published, currently-open forms the user is eligible to fill out:
+ * Public forms and Members-Only forms where the user has a membership record.
+ */
+function dynamic_form_dashboard_browse_page() {
+  global $user;
+
+  drupal_set_title(t('Browse Forms'));
+
+  $now = REQUEST_TIME;
+
+  // Sub-query: form IDs where this user is a member.
+  $member_sub = db_select('dynamic_form_members', 'm')
+    ->fields('m', array('form_id'))
+    ->condition('m.user_id', $user->uid);
+
+  // Visibility: public OR (members-only AND user is a member).
+  $members_only = db_and()
+    ->condition('f.visibility', 'm')
+    ->condition('f.id', $member_sub, 'IN');
+
+  $vis_cond = db_or()
+    ->condition('f.visibility', 'p')
+    ->condition($members_only);
+
+  // opens_at window: NULL means no delay.
+  $opens_cond = db_or()
+    ->isNull('f.opens_at')
+    ->condition('f.opens_at', $now, '<=');
+
+  // closes_at window: NULL means never closes.
+  $closes_cond = db_or()
+    ->isNull('f.closes_at')
+    ->condition('f.closes_at', $now, '>=');
+
+  $query = db_select('dynamic_form_forms', 'f')
+    ->fields('f', array('id', 'title', 'slug', 'description', 'visibility', 'closes_at'))
+    ->condition('f.status', 1)
+    ->isNull('f.deleted_at')
+    ->condition($vis_cond)
+    ->condition($opens_cond)
+    ->condition($closes_cond)
+    ->orderBy('f.created_at', 'DESC');
+
+  $forms = $query->execute()->fetchAll();
+
+  $visibility_labels = array(
+    'p' => '<span class="dfb-badge dfb-badge-published">' . t('Public')       . '</span>',
+    'm' => '<span class="dfb-badge dfb-badge-shared">'   . t('Members Only') . '</span>',
+  );
+
+  $out  = '<div class="dfb-dashboard-header">';
+  $out .= '<h2>' . t('Browse Forms') . '</h2>';
+  $out .= '<p class="dfb-dashboard-subtitle">' . t('Published forms you can fill out') . '</p>';
+  $out .= '</div>';
+
+  if (empty($forms)) {
+    $out .= '<div class="dfb-empty-state">';
+    $out .= '<div class="dfb-empty-icon">&#128269;</div>';
+    $out .= '<p>' . t('No forms are currently available for you to fill out.') . '</p>';
+    $out .= '</div>';
+  }
+  else {
+    $header = array(t('Form'), t('Visibility'), t('Closes'), t('Actions'));
+    $rows   = array();
+
+    foreach ($forms as $f) {
+      $vis_badge = isset($visibility_labels[$f->visibility])
+        ? $visibility_labels[$f->visibility]
+        : check_plain($f->visibility);
+
+      $closes = $f->closes_at
+        ? format_date($f->closes_at, 'custom', 'M j, Y')
+        : '<em class="dfb-text-muted">' . t('No deadline') . '</em>';
+
+      $rows[] = array(
+        array('data' => check_plain($f->title)),
+        array('data' => $vis_badge, 'class' => array('status-cell')),
+        $closes,
+        l(t('Fill Out'), 'forms/' . $f->slug),
+      );
+    }
+
+    $out .= theme('table', array(
+      'header'     => $header,
+      'rows'       => $rows,
+      'attributes' => array('class' => array('dfb-dashboard-table')),
+      'empty'      => t('No forms found.'),
+    ));
+  }
+
+  $sidebar_html = _dynamic_form_dashboard_sidebar('browse');
+
+  return theme('dynamic_form_dashboard', array(
+    'sidebar' => $sidebar_html,
+    'content' => $out,
+  ));
 }
 
 /* =====================================================================

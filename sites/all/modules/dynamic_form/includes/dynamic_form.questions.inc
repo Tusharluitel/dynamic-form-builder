@@ -12,6 +12,8 @@
 function dynamic_form_edit_question_form($form, &$form_state, $question_id) {
   global $user;
 
+  module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.builder');
+
   // Tell Drupal where to find this function and the shared AJAX handlers
   // during AJAX rebuilds (options/validations add-more).
   $form_state['build_info']['files'][] = array(
@@ -88,11 +90,18 @@ function dynamic_form_edit_question_form($form, &$form_state, $question_id) {
       'max_file_size_mb'  => $record->max_file_size ? round($record->max_file_size / 1048576) : '',
       'max_files'         => $record->max_files ?: 1,
     );
+    // Lock type picker if the form already has submitted responses.
+    $form_state['dfb_type_locked'] = (bool) db_select('dynamic_form_responses', 'r')
+      ->condition('form_id', (int) $record->form_id)
+      ->condition('status', 1)
+      ->isNull('deleted_at')
+      ->countQuery()->execute()->fetchField();
   }
 
-  $record     = $form_state['dfb_edit_question'];
-  $scale_vals = $form_state['scale_vals'];
-  $fs         = $form_state['file_settings'];
+  $record      = $form_state['dfb_edit_question'];
+  $scale_vals  = $form_state['scale_vals'];
+  $fs          = $form_state['file_settings'];
+  $type_locked = !empty($form_state['dfb_type_locked']);
 
   $form['#prefix'] = '<div id="dfb-question-form-wrapper" class="dfb-edit-question-page">';
   $form['#suffix'] = '</div>';
@@ -121,8 +130,19 @@ function dynamic_form_edit_question_form($form, &$form_state, $question_id) {
       'rating'       => t('Rating'),
       'linear_scale' => t('Scale'),
     ),
-    '#attributes' => array('class' => array('dfb-type-picker')),
+    '#attributes'    => array('class' => array('dfb-type-picker')),
+    '#disabled'      => $type_locked,
   );
+
+  if ($type_locked) {
+    $form['type_section']['type_lock_notice'] = array(
+      '#markup' => '<div class="dfb-type-locked-notice">'
+        . '<span class="dfb-lock-icon">&#128274;</span> '
+        . t('This form already has responses. The question type cannot be changed to preserve data integrity.')
+        . '</div>',
+      '#weight' => 10,
+    );
+  }
 
   $form['sep'] = array('#markup' => '<hr class="dfb-modal-separator">');
 
@@ -453,8 +473,10 @@ function dynamic_form_edit_question_form_submit($form, &$form_state) {
   $now     = REQUEST_TIME;
   $values  = $form_state['values'];
   $record  = $form_state['dfb_edit_question'];
-  $type    = $values['type'];
   $qid     = (int) $record->id;
+
+  // If the form has responses, enforce the original type regardless of input.
+  $type = !empty($form_state['dfb_type_locked']) ? $record->type : $values['type'];
 
   // File settings.
   $allow_file_types = NULL;
@@ -492,6 +514,7 @@ function dynamic_form_edit_question_form_submit($form, &$form_state) {
     ->condition('id', $qid)
     ->execute();
 
+  dynamic_form_invalidate_questions_cache((int) $record->form_id);
   _dynamic_form_audit_log('question', $qid, 'updated', (array) $record, $new_q_fields);
 
   // --- Options: soft-delete old, re-insert ---
@@ -593,7 +616,7 @@ function dynamic_form_delete_question_confirm($form, &$form_state, $question_id)
   global $user;
 
   $record = db_select('dynamic_form_questions', 'q')
-    ->fields('q', array('id', 'label', 'created_by'))
+    ->fields('q', array('id', 'form_id', 'label', 'created_by'))
     ->condition('id', $question_id)
     ->condition('deleted_at', NULL, 'IS NULL')
     ->execute()->fetchObject();
@@ -628,6 +651,7 @@ function dynamic_form_delete_question_confirm_submit($form, &$form_state) {
     ->condition('id', $record->id)
     ->execute();
 
+  dynamic_form_invalidate_questions_cache((int) $record->form_id);
   _dynamic_form_audit_log('question', $record->id, 'deleted', (array) $record, NULL);
 
   drupal_set_message(t('Question "@label" has been deleted.', array('@label' => $record->label)));

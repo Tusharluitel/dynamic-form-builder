@@ -106,9 +106,10 @@
       // attachBehaviors on the newly replaced child element — not the parent form wrapper —
       // so _dfbApplyTypeVisibility never fires automatically after a partial AJAX replace.
       $('body').once('dfb-section-id-reinjector', function () {
-        $(document).ajaxComplete(function () {
+        $(document).ajaxComplete(function (event, xhr, ajaxSettings) {
           var $addModal  = $('#dfb-question-modal');
           var $editModal = $('#dfb-edit-question-modal');
+          var url        = ajaxSettings.url || '';
 
           if ($addModal.is(':visible')) {
             var sid = $addModal.data('active-section-id');
@@ -120,6 +121,14 @@
 
           if ($editModal.is(':visible')) {
             _dfbApplyTypeVisibility($('#dfb-edit-question-form-wrapper'));
+          }
+
+          // Broadcast content_changed after question add/edit save completes.
+          // The save endpoint ends with /system/ajax and replaces the sections wrapper.
+          if (url.indexOf('system/ajax') !== -1 && !$addModal.is(':visible') && !$editModal.is(':visible')) {
+            if ($('#dfb-sections-wrapper').length) {
+              $('body').trigger('dfb:content_changed');
+            }
           }
         });
       });
@@ -311,6 +320,7 @@
                   // Keep the Add Question button's data-section-name in sync.
                   $card.find('[data-section-name]').attr('data-section-name', resp.name);
                   if (window.DFBToast) { DFBToast.success(Drupal.t('Section renamed.')); }
+                  $('body').trigger('dfb:section_renamed', [sectionId, resp.name]);
                 }
                 else {
                   if (window.DFBToast) { DFBToast.error(resp.message || Drupal.t('Could not rename section.')); }
@@ -392,6 +402,7 @@
               if (resp.status === 'ok') {
                 if ($card && $card.length) { $card.remove(); }
                 if (window.DFBToast) { DFBToast.success(resp.message || Drupal.t('Deleted.')); }
+                $('body').trigger('dfb:deleted', [entityType, entityId]);
               }
               else {
                 if (window.DFBToast) { DFBToast.error(resp.message || Drupal.t('Could not delete item.')); }
@@ -476,6 +487,8 @@
           success: function (response) {
             if (response.status !== 'success') {
               if (window.DFBToast) { DFBToast.warning(Drupal.t('Could not save order: ') + response.message); }
+            } else {
+              $('body').trigger('dfb:content_changed');
             }
           },
           error: function () {

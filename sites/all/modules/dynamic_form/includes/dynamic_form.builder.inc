@@ -77,15 +77,22 @@ function dynamic_form_builder_page($form_id) {
 
   drupal_set_title(t('Builder: @title', array('@title' => $form_record->title)));
 
+  global $user;
   $module_path = drupal_get_path('module', 'dynamic_form');
   drupal_add_css($module_path . '/css/builder.css');
   drupal_add_js('https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js', 'external');
   drupal_add_js($module_path . '/js/builder.js');
+  drupal_add_js($module_path . '/js/collaborate.js');
   drupal_add_js(array(
     'dynamicFormBuilder' => array(
       'formId'      => (int) $form_record->id,
       'basePath'    => url('dynamic-form/ajax/builder'),
       'deletePath'  => url('dynamic-form/ajax/delete'),
+      'wsUrl'       => 'ws://localhost:8080',
+      'currentUser' => array(
+        'uid'  => (int) $user->uid,
+        'name' => format_username($user),
+      ),
     ),
   ), 'setting');
 
@@ -1026,6 +1033,7 @@ function dynamic_form_builder_question_form_submit($form, &$form_state) {
 
   $question_id = db_insert('dynamic_form_questions')->fields($q_fields)->execute();
 
+  dynamic_form_invalidate_questions_cache($form_id);
   _dynamic_form_audit_log('question', $question_id, 'created', NULL, $q_fields);
 
   // Options for choice types.
@@ -1097,7 +1105,7 @@ function dynamic_form_builder_question_form_submit($form, &$form_state) {
     ))->execute();
   }
 
-  // Store for AJAX callback, then reset form state for next open.
+  // set form state for next open.
   $q_obj     = (object) $q_fields;
   $q_obj->id = (int) $question_id;
   $form_state['dfb_saved_question']   = $q_obj;
@@ -1171,6 +1179,17 @@ function dynamic_form_ajax_reorder() {
         ->fields($fields)
         ->condition('id', $id)
         ->execute();
+    }
+    if ($type === 'question' && !empty($order)) {
+      $first_id = (int) $order[0]['id'];
+      $fid = db_select('dynamic_form_questions', 'q')
+        ->fields('q', array('form_id'))
+        ->condition('id', $first_id)
+        ->execute()
+        ->fetchField();
+      if ($fid) {
+        dynamic_form_invalidate_questions_cache((int) $fid);
+      }
     }
     drupal_json_output(array('status' => 'success'));
   }
@@ -1298,6 +1317,13 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
       $scale_meta[$meta->rule_type] = $meta->rule_value;
     }
 
+    // Lock type picker if the form already has submitted responses.
+    $form_state['dfb_eq_type_locked'] = (bool) db_select('dynamic_form_responses', 'r')
+      ->condition('form_id', (int) $q->form_id)
+      ->condition('status', 1)
+      ->isNull('deleted_at')
+      ->countQuery()->execute()->fetchField();
+
     $form_state['dfb_eq_loaded']       = TRUE;
     $form_state['dfb_eq_question_id']  = (int) $question_id;
     $form_state['dfb_eq_question']     = $q;
@@ -1308,6 +1334,7 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
   $q            = $form_state['dfb_eq_question'];
   $section_name = $form_state['dfb_eq_section_name'];
   $scale_meta   = $form_state['dfb_eq_scale_meta'];
+  $type_locked  = !empty($form_state['dfb_eq_type_locked']);
 
   // The #prefix includes the modal header so the injected HTML is self-contained.
   $form['#action'] = url('system/ajax');
@@ -1355,7 +1382,18 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
       'linear_scale' => t('Scale'),
     ),
     '#attributes'    => array('class' => array('dfb-type-picker')),
+    '#disabled'      => $type_locked,
   );
+
+  if ($type_locked) {
+    $form['type_section']['type_lock_notice'] = array(
+      '#markup' => '<div class="dfb-type-locked-notice">'
+        . '<span class="dfb-lock-icon">&#128274;</span> '
+        . t('This form already has responses. The question type cannot be changed to preserve data integrity.')
+        . '</div>',
+      '#weight' => 10,
+    );
+  }
 
   $form['sep'] = array('#markup' => '<hr class="dfb-modal-separator">');
 
@@ -1721,7 +1759,11 @@ function dynamic_form_builder_question_edit_form_submit($form, &$form_state) {
   $now         = REQUEST_TIME;
   $values      = $form_state['values'];
   $question_id = (int) $form_state['dfb_eq_question_id'];
-  $type        = $values['type'];
+
+  // If the form has responses, enforce the original type regardless of input.
+  $type = !empty($form_state['dfb_eq_type_locked'])
+    ? $form_state['dfb_eq_question']->type
+    : $values['type'];
 
   $allow_file_types = NULL;
   $max_file_size    = NULL;
@@ -1756,6 +1798,7 @@ function dynamic_form_builder_question_edit_form_submit($form, &$form_state) {
     ->condition('id', $question_id)
     ->execute();
 
+  dynamic_form_invalidate_questions_cache((int) $form_state['dfb_eq_question']->form_id);
   _dynamic_form_audit_log('question', $question_id, 'updated', (array) $form_state['dfb_eq_question'], $new_q_fields);
 
   // Soft-delete existing options then re-insert survivors.
@@ -1925,5 +1968,59 @@ function dynamic_form_ajax_section_rename($section_id) {
   );
 
   drupal_json_output(array('status' => 'success', 'name' => $name));
+  drupal_exit();
+}
+
+/* =====================================================================
+   COLLABORATION — sections reload endpoint
+   ===================================================================== */
+
+/**
+ * AJAX endpoint: returns an ajax_command_replace for #dfb-sections-wrapper.
+ *
+ * Called by collaborate.js when another user's content_changed message
+ * arrives, so the receiving client can refresh its sections in place.
+ */
+function dynamic_form_ajax_sections_reload($form_id) {
+  $form_id = (int) $form_id;
+
+  $sections = db_select('dynamic_form_sections', 's')
+    ->fields('s')
+    ->condition('form_id', $form_id)
+    ->condition('deleted_at', NULL, 'IS NULL')
+    ->orderBy('position', 'ASC')
+    ->execute()
+    ->fetchAll();
+
+  $all_questions = db_select('dynamic_form_questions', 'q')
+    ->fields('q')
+    ->condition('form_id', $form_id)
+    ->condition('deleted_at', NULL, 'IS NULL')
+    ->orderBy('position', 'ASC')
+    ->execute()
+    ->fetchAll();
+
+  $questions_by_section = array();
+  foreach ($all_questions as $q) {
+    $sid = $q->section_id ? (int) $q->section_id : 0;
+    $questions_by_section[$sid][] = $q;
+  }
+
+  $html = '<div id="dfb-sections-wrapper" class="dfb-sections-wrapper">';
+  if (empty($sections)) {
+    $html .= '<div class="dfb-builder-empty"><p>' . t('No sections yet.') . '</p></div>';
+  }
+  else {
+    foreach ($sections as $section) {
+      $q     = isset($questions_by_section[$section->id]) ? $questions_by_section[$section->id] : array();
+      $html .= _dynamic_form_render_builder_section($section, $q);
+    }
+  }
+  $html .= '</div>';
+
+  $commands = array();
+  $commands[] = ajax_command_replace('#dfb-sections-wrapper', $html);
+
+  drupal_json_output($commands);
   drupal_exit();
 }

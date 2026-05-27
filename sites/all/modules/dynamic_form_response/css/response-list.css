@@ -39,6 +39,219 @@
 }
 
 /* ----------------------------------------------------------------
+   Response filter bar
+   ---------------------------------------------------------------- */
+.dfr-filter-bar {
+  background: #fff;
+  border: 1px solid #e0e0ee;
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+}
+
+.dfr-filter-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dfr-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.dfr-filter-field label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #7777aa;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dfr-filter-field--question { flex: 2 1 220px; }
+.dfr-filter-field--value    { flex: 2 1 200px; }
+.dfr-filter-field--date     { flex: 1 1 140px; }
+.dfr-filter-field--respondent { flex: 1 1 130px; }
+
+.dfr-filter-field select,
+.dfr-filter-field input[type="date"],
+.dfr-filter-field input[type="time"] {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #d8d8ee;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #2c2c3e;
+  background: #fafafe;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.dfr-filter-field select:focus,
+.dfr-filter-field input:focus {
+  outline: none;
+  border-color: #5b6af7;
+  background: #fff;
+}
+
+/* Normalize Select2 container height in the filter bar */
+.dfr-filter-field .select2-container {
+  height: 34px;
+}
+
+.dfr-filter-field .select2-container .select2-choice {
+  height: 32px;
+  line-height: 30px;
+  border: 1px solid #d8d8ee;
+  border-radius: 6px;
+  background: #fafafe;
+  font-size: 0.85rem;
+  color: #2c2c3e;
+  padding: 0 8px;
+}
+
+.dfr-filter-field .select2-container.select2-container-active .select2-choice,
+.dfr-filter-field .select2-container-active .select2-choice {
+  border-color: #5b6af7;
+  background: #fff;
+  box-shadow: none;
+  outline: none;
+}
+
+.dfr-filter-value-input {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #d8d8ee;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #2c2c3e;
+  background: #fafafe;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.dfr-filter-value-input:focus {
+  outline: none;
+  border-color: #5b6af7;
+  background: #fff;
+}
+
+.dfr-filter-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding-bottom: 1px;
+}
+
+.dfr-filter-btn-apply {
+  height: 34px;
+  padding: 0 18px;
+  background: #5b6af7;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.dfr-filter-btn-apply:hover { background: #4a58e0; }
+
+/* ----------------------------------------------------------------
+   Active filter chips
+   ---------------------------------------------------------------- */
+.dfr-filter-active {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 0 12px;
+  font-size: 0.82rem;
+}
+
+.dfr-filter-active-label {
+  color: #9999bb;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dfr-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #eeeef8;
+  border: 1px solid #d5d5ee;
+  border-radius: 20px;
+  padding: 3px 12px;
+  font-size: 0.8rem;
+  color: #4444aa;
+}
+
+.dfr-filter-chip strong {
+  color: #2c2c3e;
+  font-weight: 600;
+}
+
+.dfr-filter-clear-all {
+  margin-left: 4px;
+  font-size: 0.8rem;
+  color: #e53e3e;
+  text-decoration: none;
+  font-weight: 500;
+  border: 1px solid #e53e3e;
+  border-radius: 20px;
+  padding: 3px 12px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.dfr-filter-clear-all:hover {
+  background: #e53e3e;
+  color: #fff;
+  text-decoration: none;
+}
+
+/* Filtered count variant */
+.dfr-response-count--filtered {
+  font-weight: 600;
+  color: #5b6af7;
+}
+
+.dfr-response-count-of {
+  color: #aaaacc;
+  font-weight: 400;
+  font-size: 0.8em;
+}
+
+.dfr-empty-filtered {
+  text-align: center;
+  color: #aaa;
+  padding: 40px 0;
+}
+
+/* ----------------------------------------------------------------
+   Horizontal scroll wrapper for wide tables
+   ---------------------------------------------------------------- */
+.dfr-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+/* ----------------------------------------------------------------
    Response table
    ---------------------------------------------------------------- */
 .dfr-response-table {
@@ -49,6 +262,13 @@
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   margin-bottom: 16px;
+}
+
+/* When inside the scroll wrapper, let the wrapper own the shadow/radius */
+.dfr-table-scroll .dfr-response-table {
+  box-shadow: none;
+  border-radius: 0;
+  margin-bottom: 0;
 }
 
 .dfr-response-table th,
@@ -66,6 +286,7 @@
   font-size: 0.74rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  white-space: nowrap;
 }
 
 .dfr-response-table tbody tr:last-child td { border-bottom: none; }
@@ -79,6 +300,7 @@
 }
 .dfr-response-table a:hover { text-decoration: underline; }
 
+
 .dfr-empty-note {
   text-align: center;
   color: #aaa;
@@ -87,10 +309,183 @@
 }
 
 /* ----------------------------------------------------------------
-   Response detail wrapper
+   Row action buttons (View / Delete)
+   ---------------------------------------------------------------- */
+.dfr-resp-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dfr-resp-action-view {
+  font-size: 0.83rem;
+  font-weight: 500;
+}
+
+.dfr-resp-action-delete {
+  padding: 4px 12px;
+  background: transparent;
+  color: #e53e3e;
+  border: 1px solid #e53e3e;
+  border-radius: 5px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.18s, color 0.18s;
+  line-height: 1.5;
+}
+.dfr-resp-action-delete:hover {
+  background: #e53e3e;
+  color: #fff;
+}
+
+/* ----------------------------------------------------------------
+   Response detail wrapper + two-column layout
    ---------------------------------------------------------------- */
 .dfr-response-detail {
-  max-width: 740px;
+  width: 100%;
+}
+
+.dfr-detail-layout {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 24px;
+  align-items: start;
+}
+
+.dfr-detail-main {
+  min-width: 0;
+}
+
+/* ----------------------------------------------------------------
+   Right panel
+   ---------------------------------------------------------------- */
+.dfr-detail-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: sticky;
+  top: 70px;
+  align-self: start;
+}
+
+.dfr-panel-card {
+  background: #fff;
+  border: 1px solid #e0e0ee;
+  border-radius: 10px;
+  padding: 16px 18px;
+}
+
+.dfr-panel-card-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9999bb;
+  margin: 0 0 12px;
+}
+
+.dfr-panel-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.83rem;
+  padding: 5px 0;
+  border-bottom: 1px solid #f0f0f8;
+  color: #555;
+}
+.dfr-panel-row:last-child { border-bottom: none; }
+.dfr-panel-row span { color: #9999bb; font-size: 0.78rem; }
+.dfr-panel-row strong { color: #1a1a2e; font-weight: 500; word-break: break-all; }
+
+/* Completion */
+.dfr-panel-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.dfr-panel-stat-num {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1a1a2e;
+  line-height: 1;
+}
+.dfr-panel-stat-label {
+  font-size: 0.75rem;
+  color: #9999bb;
+  margin-top: 2px;
+}
+.dfr-completion-bar-wrap {
+  background: #eeeef8;
+  border-radius: 99px;
+  height: 6px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.dfr-completion-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #5b6af7, #7c8ff8);
+  border-radius: 99px;
+  transition: width 0.4s ease;
+}
+.dfr-completion-pct {
+  text-align: right;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #5b6af7;
+}
+
+/* Navigation */
+.dfr-panel-nav-btns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dfr-nav-btn {
+  flex: 1;
+  text-align: center;
+  padding: 7px 10px;
+  background: #f4f4fc;
+  color: #5b6af7;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+.dfr-nav-btn:hover { background: #e8e8f8; text-decoration: none; }
+.dfr-nav-position {
+  text-align: center;
+  font-size: 0.75rem;
+  color: #aaa;
+  margin: 8px 0 0;
+}
+
+/* Actions */
+.dfr-panel-actions .dfr-panel-card-title { margin-bottom: 10px; }
+.dfr-action-btn {
+  display: block;
+  text-align: center;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.83rem;
+  font-weight: 500;
+  text-decoration: none;
+  margin-bottom: 8px;
+  transition: background 0.15s, color 0.15s;
+}
+.dfr-action-btn:last-child { margin-bottom: 0; }
+.dfr-action-btn--secondary {
+  background: #f4f4fc;
+  color: #5b6af7;
+  border: 1px solid #e0e0f0;
+}
+.dfr-action-btn--secondary:hover {
+  background: #e8e8f8;
+  text-decoration: none;
 }
 
 /* ----------------------------------------------------------------
@@ -173,3 +568,350 @@
   color: #bbb;
   font-style: italic;
 }
+
+/* ----------------------------------------------------------------
+   File download link in answer detail view
+   ---------------------------------------------------------------- */
+.dfr-file-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #5b6af7;
+  font-weight: 500;
+  font-size: 0.92rem;
+  text-decoration: none;
+  word-break: break-all;
+}
+.dfr-file-link:hover { text-decoration: underline; }
+
+/* ----------------------------------------------------------------
+   Question filter section (static grid, one field per allow_filter q)
+   ---------------------------------------------------------------- */
+.dfr-qfilter-section {
+  margin: 12px 0 4px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f5;
+}
+
+.dfr-qfilter-heading {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #9999bb;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 10px;
+}
+
+/* 3 equal columns per row; questions 4+ wrap to the next row */
+.dfr-qfilter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px 14px;
+}
+
+.dfr-qfilter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+
+.dfr-qfilter-field label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #5555aa;
+  word-break: break-word;
+  line-height: 1.4;
+  cursor: default;
+}
+
+.dfr-qfilter-input,
+.dfr-qfilter-select {
+  width: 100%;
+  height: 34px;
+  padding: 0 30px 0 10px; /* right padding reserves space for the × button */
+  border: 1px solid #d8d8ee;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #2c2c3e;
+  background: #fafafe;
+  font-family: inherit;
+  box-sizing: border-box;
+  transition: border-color 0.15s, background 0.15s;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.dfr-qfilter-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239999bb'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+  cursor: pointer;
+}
+
+.dfr-qfilter-input:focus,
+.dfr-qfilter-select:focus {
+  outline: none;
+  border-color: #5b6af7;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(91,106,247,.1);
+}
+
+/* Active / has-value state: slightly highlighted border */
+.dfr-qfilter-input:not(:placeholder-shown),
+.dfr-qfilter-input[value]:not([value=""]) {
+  border-color: #5b6af7;
+  background: #fff;
+}
+
+/* Clear (×) button — inside the right edge of single-line inputs */
+.dfr-qfilter-clear {
+  position: absolute;
+  right: 6px;
+  top: 24px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: #e0e0f0;
+  color: #7777aa;
+  border-radius: 50%;
+  font-size: 0.65rem;
+  line-height: 18px;
+  text-align: center;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+  z-index: 1;
+}
+.dfr-qfilter-clear:hover {
+  background: #e53e3e;
+  color: #fff;
+}
+
+/* For multi-select and range fields: float the × alongside the label */
+.dfr-qfilter-field--multi .dfr-qfilter-clear,
+.dfr-qfilter-field--range .dfr-qfilter-clear {
+  top: 1px;
+  right: 0;
+  width: 16px;
+  height: 16px;
+  font-size: 0.6rem;
+  line-height: 16px;
+}
+
+.dfr-qfilter-field--multi label,
+.dfr-qfilter-field--range label {
+  padding-right: 20px; /* keep label text from sliding under the × */
+}
+
+/* ----------------------------------------------------------------
+   Date / time range filter pair
+   ---------------------------------------------------------------- */
+.dfr-qfilter-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dfr-qfilter-range .dfr-qfilter-input {
+  flex: 1 1 0;
+  min-width: 0;
+  padding-right: 8px; /* no × button inside range inputs */
+}
+
+.dfr-qfilter-range-sep {
+  color: #9999bb;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+/* ----------------------------------------------------------------
+   "Select all" button for choice-type question filters
+   ---------------------------------------------------------------- */
+.dfr-qfilter-select-all {
+  display: inline-block;
+  margin-bottom: 4px;
+  padding: 2px 9px;
+  background: transparent;
+  color: #5b6af7;
+  border: 1px solid #c8cdfb;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1.6;
+  align-self: flex-start;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.dfr-qfilter-select-all:hover {
+  background: #5b6af7;
+  color: #fff;
+  border-color: #5b6af7;
+}
+
+/* ----------------------------------------------------------------
+   Select2 v3 overrides for multi-select question filters
+   ---------------------------------------------------------------- */
+.dfr-qfilter-field .select2-container {
+  width: 100% !important;
+}
+
+/* Base choices styling */
+.dfr-qfilter-field .select2-container-multi .select2-choices {
+  min-height: 34px;
+  padding: 2px 6px 2px 6px;
+  border: 1px solid #d8d8ee;
+  border-radius: 6px;
+  background: #fafafe;
+  box-shadow: none;
+  cursor: text;
+}
+
+/* Collapsed (not active): single-row, clip overflow */
+.dfr-qfilter-field .select2-container-multi:not(.select2-container-active) .select2-choices {
+  max-height: 34px;
+  overflow: hidden;
+}
+
+/* Expanded (active): scrollable */
+.dfr-qfilter-field .select2-container-multi.select2-container-active .select2-choices {
+  max-height: 140px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Summary overlay — shown when collapsed and items are selected */
+.dfr-s2-summary {
+  display: none; /* JS controls visibility */
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 34px;
+  padding: 0 10px;
+  line-height: 34px;
+  font-size: 0.82rem;
+  color: #2c2c3e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  background: #fafafe;
+  border: 1px solid #d8d8ee;
+  border-radius: 6px;
+  box-sizing: border-box;
+  z-index: 2;
+}
+
+.dfr-qfilter-field .select2-container-multi.select2-container-active .select2-choices {
+  border-color: #5b6af7;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(91, 106, 247, .1);
+  outline: none;
+}
+
+/* Compact chips so multiple fit per row */
+.dfr-qfilter-field .select2-container-multi .select2-search-choice {
+  background: #eeeef8;
+  border: 1px solid #d0d0ee;
+  border-radius: 4px;
+  color: #4444aa;
+  font-size: 0.72rem;
+  padding: 1px 18px 1px 5px;
+  margin: 1px 3px 1px 0;
+  box-shadow: none;
+  line-height: 1.4;
+}
+
+.dfr-qfilter-field .select2-container-multi .select2-search-choice-close {
+  top: 3px;
+}
+
+/* Search input inside the choices box */
+.dfr-qfilter-field .select2-container-multi .select2-search-field input {
+  height: 22px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  color: #2c2c3e;
+  background: transparent;
+}
+
+/* Placeholder */
+.dfr-qfilter-field .select2-container-multi .select2-search-field .select2-input {
+  color: #aaaacc;
+}
+
+/* Dropdown — scoped via the open-state class Select2 adds to <body> */
+.select2-drop-active {
+  border-color: #5b6af7;
+}
+
+.select2-results .select2-highlighted {
+  background: #5b6af7;
+  color: #fff;
+}
+
+/* Meta row: date + respondent + sort */
+.dfr-filter-row--meta {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f0f0f5;
+}
+
+.dfr-filter-field--sort { flex: 1 1 140px; }
+
+/* AND/OR label in active chips */
+.dfr-chip-op {
+  font-style: normal;
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: #5b6af7;
+  text-transform: uppercase;
+  margin-right: 2px;
+}
+
+/* ----------------------------------------------------------------
+   Solr full-text search row
+   ---------------------------------------------------------------- */
+.dfr-filter-row--search {
+  margin-bottom: 10px;
+}
+.dfr-filter-field--search {
+  width: 100%;
+}
+.dfr-filter-search-input {
+  width: 100%;
+  padding: 7px 11px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.92rem;
+  box-sizing: border-box;
+}
+.dfr-filter-search-input:focus {
+  outline: none;
+  border-color: #5b6af7;
+  box-shadow: 0 0 0 3px rgba(91,106,247,.12);
+}
+
+/* ----------------------------------------------------------------
+   Solr unavailable error banner
+   ---------------------------------------------------------------- */
+.dfr-solr-error {
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: #856404;
+}
+

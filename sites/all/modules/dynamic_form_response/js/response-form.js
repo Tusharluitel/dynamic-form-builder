@@ -6,12 +6,15 @@
       var $container = $('.dfr-form-container', context).once('dfr-form-init');
       if (!$container.length) { return; }
 
-      var formId      = parseInt($container.data('form-id'), 10);
-      var token       = $container.data('token');
-      var saveUrl     = $container.data('save-url');
-      var submitUrl   = $container.data('submit-url');
-      var thankyouUrl = $container.data('thankyou-url');
-      var totalSteps  = parseInt($container.data('total-steps'), 10);
+      var formId        = parseInt($container.data('form-id'), 10);
+      var token         = $container.data('token');
+      var saveUrl       = $container.data('save-url');
+      var submitUrl     = $container.data('submit-url');
+      var uploadUrl     = $container.data('upload-url');
+      var thankyouUrl   = $container.data('thankyou-url');
+      var totalSteps    = parseInt($container.data('total-steps'), 10);
+      var isAnon        = $container.data('is-anonymous') === 1;
+      var guestEmailUrl = $container.data('guest-email-url');
 
       var responseId  = parseInt($('#dfr-response-id').val(), 10) || 0;
       var currentStep = 1;
@@ -19,6 +22,98 @@
       var $steps    = $container.find('.dfr-step');
       var $progress = $container.find('.dfr-progress-fill');
       var $progText = $container.find('.dfr-progress-text');
+
+      // ----------------------------------------------------------------
+      // Anonymous email capture popup
+      // ----------------------------------------------------------------
+      var emailCollected = false;
+      var guestEmail     = '';
+      var pendingAction  = null;
+      var $overlay       = null;
+
+      function buildOverlay() {
+        var $el = $(
+          '<div class="dfr-email-overlay dfr-overlay-hidden">' +
+            '<div class="dfr-email-modal">' +
+              '<h3>One quick thing before you start</h3>' +
+              '<p>Please enter your email so we can identify your submission.</p>' +
+              '<input type="email" class="dfr-email-input" placeholder="you@example.com" autocomplete="email" />' +
+              '<div class="dfr-email-modal-error"></div>' +
+              '<button type="button" class="dfr-email-submit">Continue</button>' +
+              '<p class="dfr-email-note">Your email is only used to identify your response.</p>' +
+            '</div>' +
+          '</div>'
+        );
+        $el.on('click', '.dfr-email-submit', doSubmitEmail);
+        $el.on('keydown', '.dfr-email-input', function (e) {
+          if (e.which === 13) { doSubmitEmail(); }
+        });
+        $el.on('input', '.dfr-email-input', function () {
+          $(this).removeClass('dfr-input-error');
+          $el.find('.dfr-email-modal-error').hide();
+        });
+        return $el;
+      }
+
+      function showEmailPopup(cb) {
+        pendingAction = cb || null;
+        // Recreate overlay if user removed it from DOM via DevTools.
+        if (!$overlay || !$.contains(document.documentElement, $overlay[0])) {
+          $overlay = buildOverlay();
+          $('body').append($overlay);
+        }
+        $overlay.removeClass('dfr-overlay-hidden');
+        setTimeout(function () { $overlay.find('.dfr-email-input').focus(); }, 50);
+      }
+
+      function doSubmitEmail() {
+        var email  = $overlay.find('.dfr-email-input').val().trim();
+        var $err   = $overlay.find('.dfr-email-modal-error');
+        var $input = $overlay.find('.dfr-email-input');
+        var $btn   = $overlay.find('.dfr-email-submit');
+
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          $err.text('Please enter a valid email address.').show();
+          $input.addClass('dfr-input-error');
+          return;
+        }
+
+        $err.hide();
+        $input.removeClass('dfr-input-error');
+        $btn.prop('disabled', true).text('Saving…');
+
+        $.ajax({
+          url:      guestEmailUrl,
+          type:     'POST',
+          data:     { email: email, token: token },
+          dataType: 'json',
+          success: function (res) {
+            $btn.prop('disabled', false).text('Continue');
+            if (res && res.status === 'ok') {
+              emailCollected = true;
+              guestEmail     = email;
+              $overlay.addClass('dfr-overlay-hidden');
+              if (typeof pendingAction === 'function') {
+                var cb = pendingAction;
+                pendingAction = null;
+                cb();
+              }
+            } else {
+              $err.text((res && res.message) || 'Something went wrong. Please try again.').show();
+            }
+          },
+          error: function () {
+            $btn.prop('disabled', false).text('Continue');
+            $err.text('Network error. Please try again.').show();
+          }
+        });
+      }
+
+      if (isAnon) {
+        $overlay = buildOverlay();
+        $('body').append($overlay);
+        showEmailPopup(null);
+      }
 
       // ----------------------------------------------------------------
       // Progress bar
@@ -34,35 +129,35 @@
       // ----------------------------------------------------------------
       // Rating stars
       // ----------------------------------------------------------------
-      $container.on('mouseenter', '.dfr-star', function () {
-        var $stars = $(this).closest('.dfr-stars').find('.dfr-star');
+      $container.on('mouseenter', '.dfp-star', function () {
+        var $stars = $(this).closest('.dfp-stars').find('.dfp-star');
         var idx    = $stars.index(this);
         $stars.each(function (i) {
-          $(this)[i <= idx ? 'addClass' : 'removeClass']('dfr-star-hover');
+          $(this)[i <= idx ? 'addClass' : 'removeClass']('dfp-star-hover');
         });
       });
 
-      $container.on('mouseleave', '.dfr-stars', function () {
-        $(this).find('.dfr-star').removeClass('dfr-star-hover');
+      $container.on('mouseleave', '.dfp-stars', function () {
+        $(this).find('.dfp-star').removeClass('dfp-star-hover');
       });
 
-      $container.on('click', '.dfr-star', function () {
-        var $stars = $(this).closest('.dfr-stars').find('.dfr-star');
+      $container.on('click', '.dfp-star', function () {
+        var $stars = $(this).closest('.dfp-stars').find('.dfp-star');
         var idx    = $stars.index(this);
         $stars.each(function (i) {
-          $(this)[i <= idx ? 'addClass' : 'removeClass']('dfr-star-active');
+          $(this)[i <= idx ? 'addClass' : 'removeClass']('dfp-star-active');
         });
-        $(this).closest('.dfr-question').find('.dfr-rating-value').val(idx + 1);
+        $(this).closest('.dfp-question').find('.dfr-rating-value').val(idx + 1);
       });
 
       // ----------------------------------------------------------------
       // Linear scale
       // ----------------------------------------------------------------
-      $container.on('click', '.dfr-scale-btn', function () {
-        var $btns = $(this).closest('.dfr-scale-buttons').find('.dfr-scale-btn');
-        $btns.removeClass('dfr-scale-active');
-        $(this).addClass('dfr-scale-active');
-        $(this).closest('.dfr-question').find('.dfr-scale-value').val($(this).text().trim());
+      $container.on('click', '.dfp-scale-btn', function () {
+        var $btns = $(this).closest('.dfp-scale-buttons').find('.dfp-scale-btn');
+        $btns.removeClass('dfp-scale-active');
+        $(this).addClass('dfp-scale-active');
+        $(this).closest('.dfp-question').find('.dfr-scale-value').val($(this).text().trim());
       });
 
       // ----------------------------------------------------------------
@@ -75,12 +170,49 @@
       });
 
       $container.on('change', '.dfp-file-hidden', function () {
-        var names = [];
-        for (var i = 0; i < this.files.length; i++) {
-          names.push(this.files[i].name);
-        }
-        $(this).closest('.dfp-file-dropzone').find('.dfp-file-name')
-          .text(names.join(', ')).show();
+        if (!this.files || !this.files.length) { return; }
+
+        var $input    = $(this);
+        var $dropzone = $input.closest('.dfp-file-dropzone');
+        var $q        = $input.closest('.dfp-question');
+        var $valInput = $q.find('.dfp-file-value');
+        var $nameEl   = $dropzone.find('.dfp-file-name');
+
+        $nameEl.text('Uploading…').show();
+        $dropzone.addClass('dfp-file-uploading').removeClass('dfp-file-done dfp-file-error');
+        $valInput.val('');
+
+        var fd = new FormData();
+        fd.append('file', this.files[0]);
+        fd.append('form_id', formId);
+        fd.append('question_id', $input.data('question-id'));
+        fd.append('token', token);
+
+        $.ajax({
+          url:         uploadUrl,
+          type:        'POST',
+          data:        fd,
+          contentType: false,
+          processData: false,
+          dataType:    'json',
+          success: function (res) {
+            $dropzone.removeClass('dfp-file-uploading');
+            if (res && res.status === 'ok') {
+              $valInput.val(JSON.stringify({ fid: res.fid, filename: res.filename, url: res.url }));
+              $nameEl.text(res.filename);
+              $dropzone.addClass('dfp-file-done');
+              $q.find('.dfr-field-error').text('').hide();
+              $q.removeClass('dfp-question-error');
+            } else {
+              $dropzone.addClass('dfp-file-error');
+              $nameEl.text((res && res.message) || 'Upload failed.');
+            }
+          },
+          error: function () {
+            $dropzone.removeClass('dfp-file-uploading').addClass('dfp-file-error');
+            $nameEl.text('Upload failed. Please try again.');
+          }
+        });
       });
 
       // ----------------------------------------------------------------
@@ -88,7 +220,7 @@
       // ----------------------------------------------------------------
       function collectStepAnswers($step) {
         var answers = {};
-        $step.find('.dfr-question').each(function () {
+        $step.find('.dfp-question').each(function () {
           var $q   = $(this);
           var qid  = $q.data('question-id');
           var type = $q.data('type');
@@ -100,11 +232,19 @@
             case 'number':
             case 'date':
             case 'time':
-              val = $q.find('.dfr-input').val() || '';
+              val = $q.find('.dfp-input').val() || '';
               break;
             case 'textarea':
+              val = $q.find('.dfp-textarea').val() || '';
+              break;
             case 'text_editor':
-              val = $q.find('.dfr-textarea').val() || '';
+              var $tarea  = $q.find('.dfp-textarea');
+              var tinyId  = $tarea.attr('id');
+              if (typeof tinymce !== 'undefined' && tinymce.get(tinyId)) {
+                val = tinymce.get(tinyId).getContent() || '';
+              } else {
+                val = $tarea.val() || '';
+              }
               break;
             case 'radio':
               val = $q.find('input[type="radio"]:checked').val() || '';
@@ -116,7 +256,13 @@
               });
               break;
             case 'select':
-              val = $q.find('.dfr-select-input').val() || '';
+              var $sel    = $q.find('.dfp-select2');
+              var s2inst  = $sel.data('select2');
+              if (typeof $.fn.select2 !== 'undefined' && s2inst) {
+                val = $sel.select2('val') || '';
+              } else {
+                val = $sel.val() || '';
+              }
               break;
             case 'rating':
               val = $q.find('.dfr-rating-value').val() || '';
@@ -125,8 +271,19 @@
               val = $q.find('.dfr-scale-value').val() || '';
               break;
             case 'tags':
-              var raw = $q.find('.dfr-tags-input').val() || '';
-              val = raw ? raw.split(',') : [];
+              var $tagsEl  = $q.find('.dfp-tags-select2');
+              var s2tags   = $tagsEl.data('select2');
+              if (typeof $.fn.select2 !== 'undefined' && s2tags) {
+                var rawTags = $tagsEl.select2('val');
+                val = Array.isArray(rawTags) ? rawTags
+                    : (rawTags ? String(rawTags).split(',') : []);
+              } else {
+                var rawStr = $tagsEl.val() || '';
+                val = rawStr ? rawStr.split(',') : [];
+              }
+              break;
+            case 'file':
+              val = $q.find('.dfp-file-value').val() || '';
               break;
             default:
               val = $q.find('input, textarea, select').first().val() || '';
@@ -138,30 +295,72 @@
       }
 
       // ----------------------------------------------------------------
-      // Client-side required-field validation
+      // Client-side required-field + custom-rule validation
       // ----------------------------------------------------------------
+      function applyRule(ruleType, ruleValue, errorMessage, val) {
+        var defaults = {
+          min_length: 'Must be at least ' + ruleValue + ' characters.',
+          max_length: 'Must be at most '  + ruleValue + ' characters.',
+          min_value:  'Must be at least ' + ruleValue + '.',
+          max_value:  'Must be at most '  + ruleValue + '.',
+          regex:      'Invalid format.'
+        };
+        var msg = errorMessage || defaults[ruleType] || 'Invalid value.';
+        switch (ruleType) {
+          case 'min_length': return (String(val).length < parseInt(ruleValue, 10)) ? msg : null;
+          case 'max_length': return (String(val).length > parseInt(ruleValue, 10)) ? msg : null;
+          case 'min_value':  return (parseFloat(val) < parseFloat(ruleValue))      ? msg : null;
+          case 'max_value':  return (parseFloat(val) > parseFloat(ruleValue))      ? msg : null;
+          case 'regex': {
+            try { return (new RegExp(ruleValue).test(String(val))) ? null : msg; }
+            catch (e) { return null; }
+          }
+        }
+        return null;
+      }
+
       function validateStep($step) {
         var valid   = true;
         var answers = collectStepAnswers($step);
 
-        $step.find('.dfr-question[data-required="1"]').each(function () {
-          var $q   = $(this);
-          var qid  = $q.data('question-id');
-          var val  = answers[qid];
-          var empty = (val === '' || val === null || val === undefined)
+        $step.find('.dfp-question').each(function () {
+          var $q      = $(this);
+          var qid     = $q.data('question-id');
+          var isReq   = $q.data('required') == 1;
+          var val     = answers[qid];
+          var isEmpty = (val === '' || val === null || val === undefined)
             || (Array.isArray(val) && val.length === 0);
 
           var $err = $q.find('.dfr-field-error');
-          if (empty) {
-            $err.text('This field is required.').show();
-            $q.addClass('dfr-question-error');
+          var errorMsg = null;
+
+          if (isReq && isEmpty) {
+            errorMsg = 'This field is required.';
+          } else if (!isEmpty) {
+            var rawRules = $q.attr('data-validations');
+            if (rawRules) {
+              try {
+                var rules = JSON.parse(rawRules);
+                var strVal = Array.isArray(val) ? val.join(',') : String(val);
+                for (var i = 0; i < rules.length; i++) {
+                  var r = rules[i];
+                  var rErr = applyRule(r.rule_type, r.rule_value, r.error_message, strVal);
+                  if (rErr) { errorMsg = rErr; break; }
+                }
+              } catch (e) {}
+            }
+          }
+
+          if (errorMsg) {
+            $err.text(errorMsg).show();
+            $q.addClass('dfp-question-error');
             if (valid) {
               $('html, body').animate({ scrollTop: $q.offset().top - 20 }, 200);
             }
             valid = false;
           } else {
             $err.text('').hide();
-            $q.removeClass('dfr-question-error');
+            $q.removeClass('dfp-question-error');
           }
         });
         return valid;
@@ -170,11 +369,11 @@
       // Clear error styling as soon as the user starts answering.
       $container.on(
         'input change',
-        '.dfr-input, .dfr-textarea, .dfr-select-input, input[type="radio"], input[type="checkbox"]',
+        '.dfp-input, .dfp-textarea, .dfp-select2, input[type="radio"], input[type="checkbox"]',
         function () {
-          var $q = $(this).closest('.dfr-question');
+          var $q = $(this).closest('.dfp-question');
           $q.find('.dfr-field-error').text('').hide();
-          $q.removeClass('dfr-question-error');
+          $q.removeClass('dfp-question-error');
         }
       );
 
@@ -182,15 +381,19 @@
       // AJAX save
       // ----------------------------------------------------------------
       function saveStep($step, cb) {
+        var payload = {
+          form_id:     formId,
+          response_id: responseId,
+          answers:     collectStepAnswers($step),
+          token:       token
+        };
+        if (isAnon && guestEmail) {
+          payload.guest_email = guestEmail;
+        }
         $.ajax({
           url:      saveUrl,
           type:     'POST',
-          data:     {
-            form_id:     formId,
-            response_id: responseId,
-            answers:     collectStepAnswers($step),
-            token:       token
-          },
+          data:     payload,
           dataType: 'json',
           success: function (data) {
             if (data.status === 'ok') {
@@ -220,6 +423,12 @@
         var $current = $steps.filter('.dfr-step-active');
         if (!validateStep($current)) { return; }
 
+        if (isAnon && !emailCollected) {
+          var $self = $(this);
+          showEmailPopup(function () { $self.trigger('click'); });
+          return;
+        }
+
         var nextStep = parseInt($(this).data('step'), 10);
         var $btn     = $(this).prop('disabled', true).text('Saving…');
 
@@ -243,6 +452,12 @@
       $container.on('click', '.dfr-btn-submit', function () {
         var $current = $steps.filter('.dfr-step-active');
         if (!validateStep($current)) { return; }
+
+        if (isAnon && !emailCollected) {
+          var $self = $(this);
+          showEmailPopup(function () { $self.trigger('click'); });
+          return;
+        }
 
         var $btn = $(this).prop('disabled', true).text('Submitting…');
 
@@ -269,10 +484,10 @@
               if (data.errors) {
                 var firstStep = null;
                 $.each(data.errors, function (qid, msg) {
-                  var $q   = $container.find('.dfr-question[data-question-id="' + qid + '"]');
+                  var $q   = $container.find('.dfp-question[data-question-id="' + qid + '"]');
                   var sNum = parseInt($q.closest('.dfr-step').data('step'), 10);
                   $q.find('.dfr-field-error').text(msg).show();
-                  $q.addClass('dfr-question-error');
+                  $q.addClass('dfp-question-error');
                   if (firstStep === null || sNum < firstStep) { firstStep = sNum; }
                 });
                 if (firstStep !== null) { goToStep(firstStep); }

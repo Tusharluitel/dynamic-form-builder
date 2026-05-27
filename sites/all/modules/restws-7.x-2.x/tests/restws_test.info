@@ -1,0 +1,5 @@
+name = RESTful web services test module
+description = "Support module for the RestWS tests."
+package = Testing
+core = 7.x
+hidden = TRUE

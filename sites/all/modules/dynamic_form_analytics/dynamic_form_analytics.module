@@ -1,0 +1,92 @@
+<?php
+
+/**
+ * @file
+ * Analytics dashboard module for Dynamic Form Builder.
+ *
+ * Provides a global analytics overview and per-form analytics pages
+ * using D3 v5 visualizations. Injects itself into the dashboard sidebar
+ * via hook_dynamic_form_dashboard_sidebar_items_alter().
+ */
+
+/**
+ * Implements hook_permission().
+ */
+function dynamic_form_analytics_permission() {
+  return array(
+    'view form analytics' => array(
+      'title'       => t('View form analytics'),
+      'description' => t('Access the analytics dashboard with aggregated response charts.'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_menu().
+ */
+function dynamic_form_analytics_menu() {
+  $items = array();
+
+  $items['dashboard/analytics'] = array(
+    'title'            => 'Analytics',
+    'page callback'    => 'dynamic_form_analytics_global_page',
+    'access arguments' => array('view form analytics'),
+    'file'             => 'includes/dynamic_form_analytics.global.inc',
+    'type'             => MENU_CALLBACK,
+  );
+
+  $items['dashboard/forms/%/analytics'] = array(
+    'title'           => 'Form Analytics',
+    'page callback'   => 'dynamic_form_analytics_form_page',
+    'page arguments'  => array(2),
+    'access callback' => '_dynamic_form_edit_access',
+    'access arguments'=> array(2),
+    'file'            => 'includes/dynamic_form_analytics.form.inc',
+    'type'            => MENU_CALLBACK,
+  );
+
+  $items['dashboard/analytics/wordcloud-data'] = array(
+    'page callback'    => 'dynamic_form_analytics_wordcloud_data',
+    'access arguments' => array('view form analytics'),
+    'type'             => MENU_CALLBACK,
+    'file'             => 'includes/dynamic_form_analytics.wordcloud.inc',
+  );
+
+  $items['dashboard/analytics/wordcloud-questions/%'] = array(
+    'page callback'    => 'dynamic_form_analytics_wordcloud_questions',
+    'page arguments'   => array(3),
+    'access arguments' => array('view form analytics'),
+    'type'             => MENU_CALLBACK,
+    'file'             => 'includes/dynamic_form_analytics.wordcloud.inc',
+  );
+
+  $items['dashboard/analytics/wordcloud-tag-forms'] = array(
+    'page callback'    => 'dynamic_form_analytics_wordcloud_tag_forms',
+    'access arguments' => array('view form analytics'),
+    'type'             => MENU_CALLBACK,
+    'file'             => 'includes/dynamic_form_analytics.wordcloud.inc',
+  );
+
+  $items['dashboard/analytics/radar'] = array(
+    'title'            => 'Form Radar',
+    'page callback'    => 'dynamic_form_analytics_radar_page',
+    'access arguments' => array('view form analytics'),
+    'file'             => 'includes/dynamic_form_analytics.radar.inc',
+    'type'             => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_dynamic_form_dashboard_sidebar_items_alter().
+ */
+function dynamic_form_analytics_dynamic_form_dashboard_sidebar_items_alter(&$items) {
+  if (user_access('view form analytics')) {
+    $items = array('analytics' => array(
+      'label' => t('Analytics'),
+      'path'  => 'dashboard/analytics',
+      'icon'  => '&#128200;',
+    )) + $items;
+  }
+}
