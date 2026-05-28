@@ -104,35 +104,35 @@ function dynamic_form_public_form_view_page($slug) {
       drupal_goto('login', array('query' => drupal_get_destination()));
     }
     // Allow if user is an active member (covers direct-add and accepted invites).
-    $ok = db_select('dynamic_form_members', 'm')
+    $is_authorized = db_select('dynamic_form_members', 'm')
       ->condition('m.form_id', $record->id)
       ->condition('m.user_id', $user->uid)
       ->isNull('m.deleted_at')
       ->countQuery()->execute()->fetchField();
     // Allow if user has a pending or accepted invitation by user_id.
-    if (!$ok) {
-      $ok = db_select('dynamic_form_invitations', 'inv')
+    if (!$is_authorized) {
+      $is_authorized = db_select('dynamic_form_invitations', 'inv')
         ->condition('inv.form_id', $record->id)
         ->condition('inv.user_id', $user->uid)
         ->condition('inv.status', array('pending', 'accepted'), 'IN')
         ->countQuery()->execute()->fetchField();
     }
     // Allow if user's registered email matches a pending or accepted invitation.
-    if (!$ok) {
+    if (!$is_authorized) {
       $user_mail = db_select('users', 'u')
         ->fields('u', array('mail'))
         ->condition('u.uid', $user->uid)
         ->execute()
         ->fetchField();
       if ($user_mail) {
-        $ok = db_select('dynamic_form_invitations', 'inv')
+        $is_authorized = db_select('dynamic_form_invitations', 'inv')
           ->condition('inv.form_id', $record->id)
           ->condition('inv.status', array('pending', 'accepted'), 'IN')
           ->where('LOWER(inv.email) = LOWER(:mail)', array(':mail' => $user_mail))
           ->countQuery()->execute()->fetchField();
       }
     }
-    if (!$ok && (int) $record->created_by !== (int) $user->uid) {
+    if (!$is_authorized && (int) $record->created_by !== (int) $user->uid) {
       return drupal_access_denied();
     }
   }
@@ -145,12 +145,12 @@ function dynamic_form_public_form_view_page($slug) {
 
   drupal_set_title(check_plain($record->title));
 
-  $q_count = db_select('dynamic_form_questions', 'q')
+  $question_count = db_select('dynamic_form_questions', 'q')
     ->condition('q.form_id', $record->id)
     ->isNull('q.deleted_at')
     ->countQuery()->execute()->fetchField();
 
-  $r_count = db_select('dynamic_form_responses', 'r')
+  $response_count = db_select('dynamic_form_responses', 'r')
     ->condition('r.form_id', $record->id)
     ->condition('r.status', 1)
     ->isNull('r.deleted_at')
@@ -163,9 +163,9 @@ function dynamic_form_public_form_view_page($slug) {
     $output .= '<p class="dfb-form-view-desc">' . nl2br(check_plain($record->description)) . '</p>';
   }
   $output .= '<div class="dfb-form-view-meta">';
-  $output .= '<span>' . format_plural($q_count, '1 question', '@count questions') . '</span>';
+  $output .= '<span>' . format_plural($question_count, '1 question', '@count questions') . '</span>';
   $output .= '<span class="dfb-dot">&middot;</span>';
-  $output .= '<span>' . format_plural($r_count, '1 response', '@count responses') . '</span>';
+  $output .= '<span>' . format_plural($response_count, '1 response', '@count responses') . '</span>';
   $output .= '</div>';
   $output .= '</div>';
   $output .= '<div class="dfb-form-view-body">';

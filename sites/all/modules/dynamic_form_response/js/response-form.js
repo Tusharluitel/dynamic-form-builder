@@ -161,7 +161,8 @@
         autosaveTimer = setTimeout(doAutosave, 2000);
       }
 
-      // Autosave on any input change (file uploads excluded — they save themselves).
+      // Autosave and clear validation errors on any input change.
+      // File uploads are excluded from autosave — they save themselves.
       $container.on(
         'input change',
         '.dfp-input, .dfp-textarea, .dfp-select2, input[type="radio"], input[type="checkbox"]',
@@ -169,6 +170,9 @@
           if (!$(this).closest('.dfp-file-dropzone').length) {
             triggerAutosave();
           }
+          var $q = $(this).closest('.dfp-question');
+          $q.find('.dfr-field-error').text('').hide();
+          $q.removeClass('dfp-question-error');
         }
       );
 
@@ -413,17 +417,6 @@
         });
         return valid;
       }
-
-      // Clear error styling as soon as the user starts answering.
-      $container.on(
-        'input change',
-        '.dfp-input, .dfp-textarea, .dfp-select2, input[type="radio"], input[type="checkbox"]',
-        function () {
-          var $q = $(this).closest('.dfp-question');
-          $q.find('.dfr-field-error').text('').hide();
-          $q.removeClass('dfp-question-error');
-        }
-      );
 
       // ----------------------------------------------------------------
       // AJAX save
