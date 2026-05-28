@@ -186,23 +186,23 @@
     },
 
     _updatePresenceBar: function (users) {
-      var self   = this;
-      var $bar   = $('#dfb-collab-bar');
-      var html   = '';
+      var self      = this;
+      var $bar      = $('#dfb-collab-bar');
+      var $avatars  = $bar.find('.dfb-collab-avatars').empty();
 
       users.forEach(function (u) {
         var initial  = (u.name || '?').charAt(0).toUpperCase();
         var isMe     = (u.uid === self.user.uid);
         var title    = isMe ? u.name + ' (' + Drupal.t('you') + ')' : u.name;
-        var extraCls = isMe ? ' dfb-collab-avatar-me' : '';
-        html += '<span class="dfb-collab-avatar' + extraCls + '"'
-              + ' style="background:' + u.color + '"'
-              + ' title="' + title + '">'
-              + initial
-              + '</span>';
+
+        $('<span>')
+          .addClass('dfb-collab-avatar' + (isMe ? ' dfb-collab-avatar-me' : ''))
+          .css('background', u.color)
+          .attr('title', title)
+          .text(initial)
+          .appendTo($avatars);
       });
 
-      $bar.find('.dfb-collab-avatars').html(html);
       $bar.find('.dfb-collab-status').remove();
     }
   };
