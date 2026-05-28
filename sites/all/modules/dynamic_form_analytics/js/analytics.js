@@ -18,6 +18,10 @@
 
   var COLORS = ['#4f6ef7', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899'];
 
+  function _esc(str) {
+    return $('<div>').text(String(str || '')).html();
+  }
+
   /* ================================================================
      TOOLTIP helper — single shared DOM element
      ================================================================ */
@@ -92,7 +96,7 @@
   function _wcRenderTagForms(forms, tag) {
     if (_activeTag !== tag || !tooltip) { return; }
     var base = (Drupal.settings && Drupal.settings.basePath) ? Drupal.settings.basePath : '/';
-    var html = '<strong>' + tag + '</strong>';
+    var html = '<strong>' + _esc(tag) + '</strong>';
     if (!forms || !forms.length) {
       html += '<span class="dfa-wc-no-forms"> &mdash; no data</span>';
       getTooltip().html(html).style('opacity', 1);
@@ -100,12 +104,12 @@
     }
     html += '<ul class="dfa-wc-forms-list">';
     forms.forEach(function (f) {
-      var href = base + 'dashboard/forms/' + f.form_id + '/responses'
-        + '?f%5B0%5D%5Bqid%5D=' + f.question_id
+      var href = base + 'dashboard/forms/' + parseInt(f.form_id, 10) + '/responses'
+        + '?f%5B0%5D%5Bqid%5D=' + parseInt(f.question_id, 10)
         + '&f%5B0%5D%5Bval%5D=' + encodeURIComponent(tag);
       html += '<li class="dfa-wc-form-item">'
-        + '<a href="' + href + '" class="dfa-wc-form-link">' + f.title + '</a>'
-        + '<span class="dfa-wc-form-count">' + f.count + '</span>'
+        + '<a href="' + href + '" class="dfa-wc-form-link">' + _esc(f.title) + '</a>'
+        + '<span class="dfa-wc-form-count">' + _esc(f.count) + '</span>'
         + '</li>';
     });
     html += '</ul>';

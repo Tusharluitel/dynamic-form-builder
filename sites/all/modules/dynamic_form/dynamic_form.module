@@ -6,11 +6,82 @@
  * Loads toast.js and toast.css on every page through Drupal's asset pipeline
  * so they benefit from aggregation, cache-busting, and proper load ordering.
  * jQuery is guaranteed to be present because Drupal core adds it first.
+ *
+ * Also enforces per-IP / per-user rate limits on restws JSON API requests
+ * before restws's own hook_init() has a chance to produce output.
  */
 function dynamic_form_init() {
   $mp = drupal_get_path('module', 'dynamic_form');
   drupal_add_css($mp . '/css/toast.css');
   drupal_add_js($mp . '/js/toast.js', array('scope' => 'footer', 'weight' => 5));
+
+  _dynamic_form_api_rate_limit();
+}
+
+/**
+ * Enforces per-IP and per-user rate limits on restws JSON API requests.
+ *
+ * Only fires when the request path ends with ".json" (all restws endpoints).
+ * Uses Drupal core's flood API ({flood} table) — no extra dependencies.
+ *
+ * Default limits (override via variable_set in settings.php or the DB):
+ *   dynamic_form_rate_limit_ip_threshold   = 60  (requests)
+ *   dynamic_form_rate_limit_ip_window      = 60  (seconds)
+ *   dynamic_form_rate_limit_user_threshold = 120 (requests, authenticated only)
+ *   dynamic_form_rate_limit_user_window    = 60  (seconds)
+ */
+function _dynamic_form_api_rate_limit() {
+  // Strip the query string and check the path suffix.
+  $path = strtok($_SERVER['REQUEST_URI'], '?');
+  if (substr($path, -5) !== '.json') {
+    return;
+  }
+
+  $ip  = ip_address();
+  $uid = (int) $GLOBALS['user']->uid;
+
+  $ip_threshold   = (int) variable_get('dynamic_form_rate_limit_ip_threshold', 60);
+  $ip_window      = (int) variable_get('dynamic_form_rate_limit_ip_window', 60);
+  $user_threshold = (int) variable_get('dynamic_form_rate_limit_user_threshold', 120);
+  $user_window    = (int) variable_get('dynamic_form_rate_limit_user_window', 60);
+
+  // Per-IP limit — applies to everyone (anonymous + authenticated).
+  if (!flood_is_allowed('dynamic_form_api_ip', $ip_threshold, $ip_window, $ip)) {
+    _dynamic_form_rate_limit_deny($ip_window);
+    // _dynamic_form_rate_limit_deny() calls drupal_exit() — no return.
+  }
+  flood_register_event('dynamic_form_api_ip', $ip_window, $ip);
+
+  // Per-user limit — authenticated users only, keyed by uid so it is
+  // independent of IP (useful behind proxies / shared NAT).
+  if ($uid > 0) {
+    $flood_key = 'uid:' . $uid;
+    if (!flood_is_allowed('dynamic_form_api_uid', $user_threshold, $user_window, $flood_key)) {
+      _dynamic_form_rate_limit_deny($user_window);
+    }
+    flood_register_event('dynamic_form_api_uid', $user_window, $flood_key);
+  }
+}
+
+/**
+ * Sends HTTP 429 Too Many Requests and exits.
+ *
+ * Uses raw header() calls because we are bypassing Drupal's normal page
+ * render pipeline — drupal_add_http_header() queues headers that would
+ * only be flushed by drupal_send_page(), which never runs here.
+ *
+ * @param int $retry_after  Seconds until the current flood window resets.
+ */
+function _dynamic_form_rate_limit_deny($retry_after = 60) {
+  header('HTTP/1.1 429 Too Many Requests');
+  header('Retry-After: ' . (int) $retry_after);
+  header('Content-Type: application/json; charset=utf-8');
+  print drupal_json_encode(array(
+    'error'       => 'rate_limit_exceeded',
+    'message'     => 'Too many requests. Please wait before retrying.',
+    'retry_after' => (int) $retry_after,
+  ));
+  drupal_exit();
 }
 
 /**
