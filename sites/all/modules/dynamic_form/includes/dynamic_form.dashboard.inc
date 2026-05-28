@@ -110,6 +110,11 @@ function _dynamic_form_dashboard_sidebar($active = 'overview')
       'path' => 'dashboard/submissions',
       'icon' => '&#128221;',
     ),
+    'profile' => array(
+      'label' => t('My Profile'),
+      'path' => 'dashboard/profile',
+      'icon' => '&#128100;',
+    ),
   );
 
   drupal_alter('dynamic_form_dashboard_sidebar_items', $items);

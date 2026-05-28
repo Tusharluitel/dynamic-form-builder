@@ -770,6 +770,14 @@ function dynamic_form_menu()
     'type'            => MENU_CALLBACK,
   );
 
+  $items['dashboard/profile'] = array(
+    'title'           => 'My Profile',
+    'page callback'   => 'dynamic_form_profile_page',
+    'access callback' => 'user_is_logged_in',
+    'file'            => 'includes/dynamic_form.profile.inc',
+    'type'            => MENU_CALLBACK,
+  );
+
   return $items;
 }
 
