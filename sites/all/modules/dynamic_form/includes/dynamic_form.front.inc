@@ -141,14 +141,6 @@ function dynamic_form_public_form_view_page($slug) {
       drupal_set_message(t('You must be logged in to access this form.'), 'warning');
       drupal_goto('login', array('query' => drupal_get_destination()));
     }
-    $ok = db_select('dynamic_form_members', 'm')
-      ->condition('m.form_id', $record->id)
-      ->condition('m.user_id', $user->uid)
-      ->isNull('m.deleted_at')
-      ->countQuery()->execute()->fetchField();
-    if (!$ok && (int) $record->created_by !== (int) $user->uid) {
-      return drupal_access_denied();
-    }
   }
 
   drupal_set_title(check_plain($record->title));
