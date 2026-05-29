@@ -75,6 +75,13 @@ function dynamic_form_analytics_menu() {
     'type'             => MENU_CALLBACK,
   );
 
+  $items['dashboard/analytics/radar-data'] = array(
+    'page callback'    => 'dynamic_form_analytics_radar_ajax',
+    'access arguments' => array('view form analytics'),
+    'type'             => MENU_CALLBACK,
+    'file'             => 'includes/dynamic_form_analytics.radar.inc',
+  );
+
   return $items;
 }
 
