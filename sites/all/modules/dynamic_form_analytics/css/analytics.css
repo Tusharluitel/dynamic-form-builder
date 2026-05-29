@@ -498,3 +498,157 @@
   font-size: 0.72rem;
   color: rgba(255, 255, 255, 0.45);
 }
+
+/* ── Radar filter bar ─────────────────────────────────────── */
+.dfa-radar-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  align-items: flex-end;
+  padding: 16px 20px;
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+.dfa-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dfa-filter-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--color-text-muted, #94a3b8);
+}
+
+.dfa-filter-toggles {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.dfa-filter-toggle {
+  padding: 5px 13px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: var(--radius-full, 9999px);
+  border: 1.5px solid var(--toggle-color, #94a3b8);
+  background: transparent;
+  color: var(--toggle-color, #94a3b8);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, opacity 0.15s;
+  line-height: 1.4;
+}
+
+.dfa-filter-toggle.active {
+  background: var(--toggle-color, #94a3b8);
+  color: #fff;
+}
+
+.dfa-filter-toggle:not(.active) {
+  opacity: 0.5;
+}
+
+.dfa-filter-toggle:hover {
+  opacity: 1;
+}
+
+.dfa-filter-toggle[data-filter="ring"] {
+  --toggle-color: #64748b;
+}
+
+/* Completion rate slider */
+.dfa-filter-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dfa-filter-range input[type="range"] {
+  width: 120px;
+  accent-color: var(--color-primary, #4f6ef7);
+  cursor: pointer;
+}
+
+#dfa-completion-val {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text, #1e293b);
+  min-width: 32px;
+}
+
+/* Date range group */
+.dfa-filter-date-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.dfa-date-input {
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 0.8rem;
+  color: var(--color-text, #1e293b);
+  background: var(--color-surface-alt, #f8fafc);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.dfa-date-input:focus {
+  outline: none;
+  border-color: var(--color-primary, #4f6ef7);
+  box-shadow: 0 0 0 3px rgba(79, 110, 247, 0.12);
+}
+
+.dfa-date-sep {
+  font-size: 0.78rem;
+  color: var(--color-text-muted, #94a3b8);
+}
+
+.dfa-filter-apply-btn {
+  padding: 5px 14px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: var(--radius-full, 9999px);
+  border: none;
+  background: var(--color-primary, #4f6ef7);
+  color: #fff;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.dfa-filter-apply-btn:hover {
+  opacity: 0.85;
+}
+
+.dfa-filter-clear-btn {
+  padding: 5px 14px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: var(--radius-full, 9999px);
+  border: 1px solid var(--color-border, #e2e8f0);
+  background: transparent;
+  color: var(--color-text-muted, #64748b);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.dfa-filter-clear-btn:hover {
+  background: var(--color-surface-hover, #f1f5f9);
+  color: var(--color-text, #1e293b);
+}
+
+/* Loading state while AJAX date filter fetches */
+.dfa-radar-loading {
+  position: relative;
+  pointer-events: none;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
