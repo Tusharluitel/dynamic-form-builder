@@ -3,3 +3,5 @@ description = Handles form submissions, response storage, and response managemen
 core        = 7.x
 package     = Dynamic Form
 dependencies[] = dynamic_form
+dependencies[] = entity
+dependencies[] = restws

@@ -6,6 +6,108 @@
  */
 
 /**
+ * Implements hook_entity_info().
+ *
+ * Registers the two response-side entity types exposed by restws:
+ *   - dynamic_form_response → /dynamic_form_response/{id}.json
+ *   - dynamic_form_answer   → /dynamic_form_answer/{id}.json
+ *
+ * Both use DynamicFormSoftDeleteEntityController (declared in dynamic_form).
+ */
+function dynamic_form_response_entity_info() {
+  $controller = 'DynamicFormSoftDeleteEntityController';
+
+  $info['dynamic_form_response'] = array(
+    'label'             => t('Dynamic Form Response'),
+    'plural label'      => t('Dynamic Form Responses'),
+    'base table'        => 'dynamic_form_responses',
+    'entity keys'       => array('id' => 'id'),
+    'module'            => 'dynamic_form_response',
+    'controller class'  => $controller,
+    'access callback'   => '_dynamic_form_response_entity_access',
+  );
+
+  $info['dynamic_form_answer'] = array(
+    'label'             => t('Dynamic Form Answer'),
+    'plural label'      => t('Dynamic Form Answers'),
+    'base table'        => 'dynamic_form_answers',
+    'entity keys'       => array('id' => 'id'),
+    'module'            => 'dynamic_form_response',
+    'controller class'  => $controller,
+    'access callback'   => '_dynamic_form_answer_entity_access',
+  );
+
+  return $info;
+}
+
+/**
+ * Implements hook_entity_property_info().
+ */
+function dynamic_form_response_entity_property_info() {
+  $info = array();
+
+  // ---- dynamic_form_response ----
+  $p = &$info['dynamic_form_response']['properties'];
+  $p['id']           = array('label' => t('Response ID'), 'type' => 'integer', 'schema field' => 'id');
+  $p['form_id']      = array('label' => t('Form ID'), 'type' => 'integer', 'schema field' => 'form_id');
+  $p['user_id']      = array('label' => t('User ID'), 'type' => 'integer', 'schema field' => 'user_id');
+  $p['guest_email']  = array('label' => t('Guest email'), 'type' => 'text', 'schema field' => 'guest_email');
+  $p['status']       = array('label' => t('Status'), 'type' => 'integer', 'schema field' => 'status');
+  $p['submitted_at'] = array('label' => t('Submitted at'), 'type' => 'date', 'schema field' => 'submitted_at');
+  $p['created_at']   = array('label' => t('Created at'), 'type' => 'date', 'schema field' => 'created_at');
+  $p['updated_at']   = array('label' => t('Updated at'), 'type' => 'date', 'schema field' => 'updated_at');
+
+  // ---- dynamic_form_answer ----
+  $p = &$info['dynamic_form_answer']['properties'];
+  $p['id']          = array('label' => t('Answer ID'), 'type' => 'integer', 'schema field' => 'id');
+  $p['response_id'] = array('label' => t('Response ID'), 'type' => 'integer', 'schema field' => 'response_id');
+  $p['question_id'] = array('label' => t('Question ID'), 'type' => 'integer', 'schema field' => 'question_id');
+  $p['value']       = array('label' => t('Value'), 'type' => 'text', 'schema field' => 'value');
+  $p['created_at']  = array('label' => t('Created at'), 'type' => 'date', 'schema field' => 'created_at');
+  $p['updated_at']  = array('label' => t('Updated at'), 'type' => 'date', 'schema field' => 'updated_at');
+
+  return $info;
+}
+
+/**
+ * Access callback: dynamic_form_response entity.
+ *
+ * Submitted, non-deleted responses are visible to:
+ *   - users who can view the parent form (owner / editor / member with role),
+ *   - the respondent themselves (user_id == account uid).
+ *
+ * Read-only: create/update/delete are always refused.
+ */
+function _dynamic_form_response_entity_access($op, $entity = NULL, $account = NULL, $entity_type = NULL) {
+  if (_dynamic_form_entity_readonly_guard($op) === FALSE) {
+    return FALSE;
+  }
+  $account = $account ?: $GLOBALS['user'];
+  if ($entity === NULL) {
+    return user_access('view any form responses', $account) || user_access('view own form responses', $account);
+  }
+  if (_dynamic_form_api_can_view_form((int) $entity->form_id, $account)) {
+    return TRUE;
+  }
+  return (int) $entity->user_id === (int) $account->uid;
+}
+
+/**
+ * Access callback: dynamic_form_answer entity (inherits parent response access).
+ */
+function _dynamic_form_answer_entity_access($op, $entity = NULL, $account = NULL, $entity_type = NULL) {
+  if (_dynamic_form_entity_readonly_guard($op) === FALSE) {
+    return FALSE;
+  }
+  $account = $account ?: $GLOBALS['user'];
+  if ($entity === NULL) {
+    return user_access('view any form responses', $account) || user_access('view own form responses', $account);
+  }
+  $response = entity_load_single('dynamic_form_response', (int) $entity->response_id);
+  return $response ? _dynamic_form_response_entity_access('view', $response, $account) : FALSE;
+}
+
+/**
  * Implements hook_permission().
  */
 function dynamic_form_response_permission() {

@@ -110,6 +110,11 @@ function _dynamic_form_dashboard_sidebar($active = 'overview')
       'path' => 'dashboard/submissions',
       'icon' => '&#128221;',
     ),
+    'profile' => array(
+      'label' => t('My Profile'),
+      'path' => 'dashboard/profile',
+      'icon' => '&#128100;',
+    ),
   );
 
   drupal_alter('dynamic_form_dashboard_sidebar_items', $items);
@@ -1130,7 +1135,7 @@ function dynamic_form_ajax_toggle_allow_filter($question_id) {
     ->condition('id', $question_id)
     ->execute();
 
-  // dynamic_form_invalidate_questions_cache($question->form_id);
+  dynamic_form_invalidate_questions_cache($question->form_id);
 
   $msg = $allow_filter
     ? t('Question added to response filters.')
@@ -1150,6 +1155,26 @@ function dynamic_form_ajax_toggle_allow_filter($question_id) {
  * Lists all published, currently-open forms the user is eligible to fill out:
  * Public forms and Members-Only forms where the user has a membership record.
  */
+
+/**
+ * Returns a fresh subquery selecting form_ids where the given user is an active member.
+ *
+ * A new SelectQuery instance must be created each time this is called because DBTNG
+ * compiles named placeholders when a subquery is embedded in an outer condition — reusing
+ * the same object in two conditions causes placeholder collisions and broken SQL.
+ *
+ * @param int $uid
+ *   The Drupal user ID to check membership for.
+ *
+ * @return SelectQuery
+ */
+function _dynamic_form_active_member_subquery($uid) {
+  return db_select('dynamic_form_members', 'm')
+    ->fields('m', array('form_id'))
+    ->condition('m.user_id', $uid)
+    ->isNull('m.deleted_at');
+}
+
 function dynamic_form_dashboard_browse_page() {
   global $user;
 
@@ -1157,19 +1182,42 @@ function dynamic_form_dashboard_browse_page() {
 
   $now = REQUEST_TIME;
 
-  // Sub-query: form IDs where this user is a member.
-  $member_sub = db_select('dynamic_form_members', 'm')
-    ->fields('m', array('form_id'))
-    ->condition('m.user_id', $user->uid);
+  // Sub-query for the restricted visibility branch only.
+  // Members-only ('m') forms are visible to all authenticated users — no explicit
+  // membership record is needed; being logged in is sufficient.
+  $member_sub_r = _dynamic_form_active_member_subquery($user->uid);
 
-  // Visibility: public OR (members-only AND user is a member).
-  $members_only = db_and()
-    ->condition('f.visibility', 'm')
-    ->condition('f.id', $member_sub, 'IN');
+  // Sub-query: restricted form IDs the user was invited to (by user_id).
+  $invited_uid_sub = db_select('dynamic_form_invitations', 'inv')
+    ->fields('inv', array('form_id'))
+    ->condition('inv.user_id', $user->uid)
+    ->condition('inv.status', array('pending', 'accepted'), 'IN');
+
+  // Sub-query: restricted form IDs where the invitation email matches the user's mail.
+  $invited_email_sub = db_select('dynamic_form_invitations', 'ie')
+    ->fields('ie', array('form_id'));
+  $invited_email_sub->join('users', 'ue', 'LOWER(ue.mail) = LOWER(ie.email)');
+  $invited_email_sub
+    ->condition('ue.uid', $user->uid)
+    ->condition('ie.status', array('pending', 'accepted'), 'IN');
+
+  // Visibility: public OR members-only (any authenticated user) OR (restricted AND invited).
+  // 'm' = visible to all logged-in users, same as public but hidden from anonymous visitors.
+  // 'r' = explicit list only (members added to the form + invitations).
+
+  $restricted_invited = db_and()
+    ->condition('f.visibility', 'r')
+    ->condition(
+      db_or()
+        ->condition('f.id', $member_sub_r, 'IN')
+        ->condition('f.id', $invited_uid_sub, 'IN')
+        ->condition('f.id', $invited_email_sub, 'IN')
+    );
 
   $vis_cond = db_or()
     ->condition('f.visibility', 'p')
-    ->condition($members_only);
+    ->condition('f.visibility', 'm')
+    ->condition($restricted_invited);
 
   // opens_at window: NULL means no delay.
   $opens_cond = db_or()
@@ -1195,6 +1243,7 @@ function dynamic_form_dashboard_browse_page() {
   $visibility_labels = array(
     'p' => '<span class="dfb-badge dfb-badge-published">' . t('Public')       . '</span>',
     'm' => '<span class="dfb-badge dfb-badge-shared">'   . t('Members Only') . '</span>',
+    'r' => '<span class="dfb-badge dfb-badge-restricted">' . t('Restricted')  . '</span>',
   );
 
   $out  = '<div class="dfb-dashboard-header">';

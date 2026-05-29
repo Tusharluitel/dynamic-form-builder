@@ -4,6 +4,53 @@
    provided by preview.css which is loaded alongside this file.
    =================================================================== */
 
+:root {
+  --dfr-color-primary:       #5b6af7;
+  --dfr-color-primary-hover: #4a59e6;
+  --dfr-color-error:         #e53e3e;
+  --dfr-color-success:       #22c55e;
+  --dfr-color-success-bg:    #f0fdf4;
+  --dfr-color-heading:       #1a1a2e;
+  --dfr-color-text-muted:    #5a5a7a;
+  --dfr-color-disabled:      #aaa;
+  --dfr-font-sm:             0.78rem;
+  --dfr-font-error:          0.82rem;
+  --dfr-font-body:           0.95rem;
+  --dfr-z-toast:             9999;
+  --dfr-z-overlay:           9990;
+}
+
+/* ----------------------------------------------------------------
+   Autosave status toast
+   ---------------------------------------------------------------- */
+.dfr-autosave-status {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: var(--dfr-font-sm);
+  font-weight: 500;
+  z-index: var(--dfr-z-toast);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  background: #1e293b;
+  color: #fff;
+}
+.dfr-autosave-status:not(:empty) {
+  opacity: 1;
+}
+.dfr-autosave-status.dfr-as-saving {
+  background: #475569;
+}
+.dfr-autosave-status.dfr-as-saved {
+  background: #16a34a;
+}
+.dfr-autosave-status.dfr-as-error {
+  background: #dc2626;
+}
+
 /* ----------------------------------------------------------------
    Already-submitted notice
    ---------------------------------------------------------------- */
@@ -11,18 +58,18 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  background: #f0fdf4;
+  background: var(--dfr-color-success-bg);
   border: 1px solid #86efac;
   border-radius: 8px;
   padding: 18px 20px;
   color: #166534;
-  font-size: 0.95rem;
+  font-size: var(--dfr-font-body);
 }
 
 .dfr-already-submitted .dfr-check-icon {
   width: 32px;
   height: 32px;
-  background: #22c55e;
+  background: var(--dfr-color-success);
   color: #fff;
   border-radius: 50%;
   display: flex;
@@ -44,7 +91,7 @@
 }
 
 .dfr-progress-fill {
-  background: #5b6af7;
+  background: var(--dfr-color-primary);
   height: 100%;
   border-radius: 4px;
   transition: width 0.35s ease;
@@ -52,7 +99,7 @@
 }
 
 .dfr-progress-text {
-  font-size: 0.78rem;
+  font-size: var(--dfr-font-sm);
   color: #8888aa;
   text-align: right;
   margin-bottom: 16px;
@@ -72,13 +119,13 @@
 /* ----------------------------------------------------------------
    Validation errors
    ---------------------------------------------------------------- */
-.dfr-field-error { color: #e53e3e; font-size: 0.82rem; margin-top: 5px; display: none; }
+.dfr-field-error { color: var(--dfr-color-error); font-size: var(--dfr-font-error); margin-top: 5px; display: none; }
 
 .dfp-question-error .dfp-input,
 .dfp-question-error .dfp-textarea,
-.dfp-question-error .dfp-select2 { border-color: #e53e3e; }
+.dfp-question-error .dfp-select2 { border-color: var(--dfr-color-error); }
 
-.dfp-question-error .dfp-option-label { border-color: #e53e3e; }
+.dfp-question-error .dfp-option-label { border-color: var(--dfr-color-error); }
 
 /* ----------------------------------------------------------------
    Step navigation bar
@@ -108,13 +155,13 @@
 .dfr-btn-prev           { background: #f0f0f8; color: #5555aa; }
 .dfr-btn-prev:hover     { background: #e0e0f0; }
 .dfr-btn-next,
-.dfr-btn-submit         { background: #5b6af7; color: #fff; }
+.dfr-btn-submit         { background: var(--dfr-color-primary); color: #fff; }
 .dfr-btn-next:hover,
-.dfr-btn-submit:hover   { background: #4a59e6; }
+.dfr-btn-submit:hover   { background: var(--dfr-color-primary-hover); }
 .dfr-btn-next:disabled,
 .dfr-btn-submit:disabled { opacity: 0.65; cursor: not-allowed; }
 
-.dfr-empty { color: #aaa; font-style: italic; padding: 16px 0; }
+.dfr-empty { color: var(--dfr-color-disabled); font-style: italic; padding: 16px 0; }
 
 /* ----------------------------------------------------------------
    File dropzone upload states
@@ -125,17 +172,17 @@
 }
 
 .dfp-file-dropzone.dfp-file-done {
-  border-color: #22c55e !important;
-  background: #f0fdf4 !important;
+  border-color: var(--dfr-color-success) !important;
+  background: var(--dfr-color-success-bg) !important;
 }
 
 .dfp-file-dropzone.dfp-file-error {
-  border-color: #e53e3e !important;
+  border-color: var(--dfr-color-error) !important;
   background: #fff5f5 !important;
 }
 
 .dfp-file-dropzone.dfp-file-error .dfp-file-name {
-  color: #e53e3e;
+  color: var(--dfr-color-error);
 }
 
 /* ----------------------------------------------------------------
@@ -145,7 +192,7 @@
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.55);
-  z-index: 9990;
+  z-index: var(--dfr-z-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -165,13 +212,13 @@
 .dfr-email-modal h3 {
   margin: 0 0 8px;
   font-size: 1.15rem;
-  color: #1a1a2e;
+  color: var(--dfr-color-heading);
 }
 
 .dfr-email-modal > p {
   margin: 0 0 20px;
   font-size: 0.9rem;
-  color: #5a5a7a;
+  color: var(--dfr-color-text-muted);
 }
 
 .dfr-email-input {
@@ -180,17 +227,17 @@
   padding: 10px 12px;
   border: 1px solid #d0d0e8;
   border-radius: 6px;
-  font-size: 0.95rem;
+  font-size: var(--dfr-font-body);
   box-sizing: border-box;
   margin-bottom: 6px;
 }
 
-.dfr-email-input:focus    { outline: none; border-color: #5b6af7; }
-.dfr-email-input.dfr-input-error { border-color: #e53e3e; }
+.dfr-email-input:focus    { outline: none; border-color: var(--dfr-color-primary); }
+.dfr-email-input.dfr-input-error { border-color: var(--dfr-color-error); }
 
 .dfr-email-modal-error {
-  color: #e53e3e;
-  font-size: 0.82rem;
+  color: var(--dfr-color-error);
+  font-size: var(--dfr-font-error);
   margin-bottom: 12px;
   display: none;
 }
@@ -199,23 +246,23 @@
   display: block;
   width: 100%;
   padding: 11px;
-  background: #5b6af7;
+  background: var(--dfr-color-primary);
   color: #fff;
   border: none;
   border-radius: 6px;
-  font-size: 0.95rem;
+  font-size: var(--dfr-font-body);
   font-weight: 500;
   cursor: pointer;
   transition: background 0.2s;
 }
 
-.dfr-email-submit:hover    { background: #4a59e6; }
+.dfr-email-submit:hover    { background: var(--dfr-color-primary-hover); }
 .dfr-email-submit:disabled { opacity: 0.65; cursor: not-allowed; }
 
 .dfr-email-note {
   text-align: center;
   font-size: 0.8rem;
-  color: #aaa;
+  color: var(--dfr-color-disabled);
   margin: 12px 0 0;
 }
 
@@ -230,7 +277,7 @@
 .dfr-thankyou .dfr-check-icon {
   width: 64px;
   height: 64px;
-  background: #5b6af7;
+  background: var(--dfr-color-primary);
   color: #fff;
   border-radius: 50%;
   font-size: 1.8rem;
@@ -239,7 +286,7 @@
   justify-content: center;
   margin: 0 auto 24px;
 }
-.dfr-thankyou h2  { font-size: 1.5rem; color: #1a1a2e; margin-bottom: 10px; }
-.dfr-thankyou p   { color: #5a5a7a; margin-bottom: 24px; }
-.dfr-btn-back     { display: inline-block; color: #5b6af7; text-decoration: none; font-weight: 500; font-size: 0.9rem; }
+.dfr-thankyou h2  { font-size: 1.5rem; color: var(--dfr-color-heading); margin-bottom: 10px; }
+.dfr-thankyou p   { color: var(--dfr-color-text-muted); margin-bottom: 24px; }
+.dfr-btn-back     { display: inline-block; color: var(--dfr-color-primary); text-decoration: none; font-weight: 500; font-size: 0.9rem; }
 .dfr-btn-back:hover { text-decoration: underline; }

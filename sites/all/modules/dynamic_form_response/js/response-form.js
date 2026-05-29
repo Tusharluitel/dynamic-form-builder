@@ -127,6 +127,56 @@
       updateProgress();
 
       // ----------------------------------------------------------------
+      // Autosave
+      // ----------------------------------------------------------------
+      var autosaveTimer  = null;
+      var autosaveActive = false;
+      var $autosaveEl    = $('<div class="dfr-autosave-status" aria-live="polite"></div>').appendTo('body');
+
+      function showAutosaveStatus(cls, msg) {
+        $autosaveEl.removeClass('dfr-as-saving dfr-as-saved dfr-as-error')
+          .addClass(cls).text(msg);
+      }
+
+      function doAutosave() {
+        if (autosaveActive) { return; }
+        autosaveActive = true;
+        showAutosaveStatus('dfr-as-saving', 'Saving…');
+        var $current = $steps.filter('.dfr-step-active');
+        saveStep($current, function (data) {
+          autosaveActive = false;
+          if (data.status === 'ok') {
+            showAutosaveStatus('dfr-as-saved', 'Saved');
+            setTimeout(function () { $autosaveEl.text('').removeClass('dfr-as-saved'); }, 2000);
+          } else {
+            showAutosaveStatus('dfr-as-error', 'Save failed');
+            setTimeout(function () { $autosaveEl.text('').removeClass('dfr-as-error'); }, 3000);
+          }
+        });
+      }
+
+      function triggerAutosave() {
+        if (isAnon && !emailCollected) { return; }
+        clearTimeout(autosaveTimer);
+        autosaveTimer = setTimeout(doAutosave, 2000);
+      }
+
+      // Autosave and clear validation errors on any input change.
+      // File uploads are excluded from autosave — they save themselves.
+      $container.on(
+        'input change',
+        '.dfp-input, .dfp-textarea, .dfp-select2, input[type="radio"], input[type="checkbox"]',
+        function () {
+          if (!$(this).closest('.dfp-file-dropzone').length) {
+            triggerAutosave();
+          }
+          var $q = $(this).closest('.dfp-question');
+          $q.find('.dfr-field-error').text('').hide();
+          $q.removeClass('dfp-question-error');
+        }
+      );
+
+      // ----------------------------------------------------------------
       // Rating stars
       // ----------------------------------------------------------------
       $container.on('mouseenter', '.dfp-star', function () {
@@ -148,6 +198,7 @@
           $(this)[i <= idx ? 'addClass' : 'removeClass']('dfp-star-active');
         });
         $(this).closest('.dfp-question').find('.dfr-rating-value').val(idx + 1);
+        triggerAutosave();
       });
 
       // ----------------------------------------------------------------
@@ -158,6 +209,7 @@
         $btns.removeClass('dfp-scale-active');
         $(this).addClass('dfp-scale-active');
         $(this).closest('.dfp-question').find('.dfr-scale-value').val($(this).text().trim());
+        triggerAutosave();
       });
 
       // ----------------------------------------------------------------
@@ -365,17 +417,6 @@
         });
         return valid;
       }
-
-      // Clear error styling as soon as the user starts answering.
-      $container.on(
-        'input change',
-        '.dfp-input, .dfp-textarea, .dfp-select2, input[type="radio"], input[type="checkbox"]',
-        function () {
-          var $q = $(this).closest('.dfp-question');
-          $q.find('.dfr-field-error').text('').hide();
-          $q.removeClass('dfp-question-error');
-        }
-      );
 
       // ----------------------------------------------------------------
       // AJAX save

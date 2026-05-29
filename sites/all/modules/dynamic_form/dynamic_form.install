@@ -116,6 +116,14 @@ function dynamic_form_schema()
         'not null' => FALSE,
         'default' => NULL,
       ),
+      'allow_multiple_submissions' => array(
+        'description' => '1 = respondents may submit this form more than once. 0 = one submission per user/guest (default).',
+        'type' => 'int',
+        'size' => 'tiny',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
     ),
     'primary key' => array('id'),
     'unique keys' => array(
@@ -1409,4 +1417,32 @@ function dynamic_form_update_7006() {
     'default'     => 0,
   ));
   return t('Added allow_filter column to dynamic_form_questions.');
+}
+
+/**
+ * Implements hook_update_N().
+ *
+ * Update 7007 — Allow multiple submissions per respondent.
+ *
+ * Adds allow_multiple_submissions (tinyint, default 0) to dynamic_form_forms.
+ * When 0 (the default), the front-end blocks a respondent who has already
+ * submitted a response from submitting again. When 1, no such check is made
+ * and the form accepts as many submissions as the respondent sends.
+ *
+ * Existing forms default to 0 so current single-submission behaviour is
+ * preserved across the upgrade.
+ */
+function dynamic_form_update_7007() {
+  if (db_field_exists('dynamic_form_forms', 'allow_multiple_submissions')) {
+    return t('allow_multiple_submissions column already exists; skipped.');
+  }
+  db_add_field('dynamic_form_forms', 'allow_multiple_submissions', array(
+    'description' => '1 = respondents may submit this form more than once. 0 = one submission per user/guest (default).',
+    'type'        => 'int',
+    'size'        => 'tiny',
+    'unsigned'    => TRUE,
+    'not null'    => TRUE,
+    'default'     => 0,
+  ));
+  return t('Added allow_multiple_submissions column to dynamic_form_forms.');
 }

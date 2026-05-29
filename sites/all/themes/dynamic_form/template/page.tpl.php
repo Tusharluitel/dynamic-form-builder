@@ -31,7 +31,11 @@
           <a href="<?php print url('register'); ?>" class="dfb-btn-primary">Sign Up</a>
         <?php else: ?>
 
-          <a href="<?php print url('dashboard'); ?>">Dashboard</a>
+          <?php if (user_access('view form analytics')): ?>
+            <a href="<?php print url('dashboard/analytics'); ?>">Dashboard</a>
+          <?php else: ?>
+            <a href="<?php print url('dashboard/forms'); ?>">Dashboard</a>
+          <?php endif; ?>
           <a href="<?php print url('user/logout'); ?>" class="dfb-btn-ghost">Log Out</a>
         <?php endif; ?>
       </div>

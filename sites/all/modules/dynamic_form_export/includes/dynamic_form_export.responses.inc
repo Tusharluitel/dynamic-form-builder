@@ -111,7 +111,7 @@ function _dynamic_form_export_responses_init($form_index, $total, $form_id, $for
   $temp_file = _dynamic_form_export_temp_dir()
     . '/dfexport_resp_' . $form_id . '_' . REQUEST_TIME . '_' . mt_rand(1000, 9999) . '.jsonl';
 
-  $header = array('Timestamp', 'Email', 'Respondent');
+  $header = array('Timestamp', 'Email', 'Respondent', 'Response ID');
   foreach ($questions as $q) {
     $header[] = $q->header;
   }
@@ -191,7 +191,7 @@ function _dynamic_form_export_responses_process($form_index, $offset, $batch_siz
     $name      = $r->user_id ? ($r->username ?: 'uid:' . $r->user_id) : 'Anonymous';
     $timestamp = format_date($r->submitted_at, 'custom', 'Y-m-d H:i:s');
 
-    $row = array($timestamp, $email, $name);
+    $row = array($timestamp, $email, $name, (int) $r->id);
     foreach ($question_ids as $qid) {
       $raw   = isset($answers[(int) $r->id][$qid]) ? $answers[(int) $r->id][$qid] : '';
       $row[] = _dynamic_form_export_format_answer($raw, _dynamic_form_export_question_type_by_id($questions, $qid));

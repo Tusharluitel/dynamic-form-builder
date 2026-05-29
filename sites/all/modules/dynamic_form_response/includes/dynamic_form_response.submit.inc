@@ -25,31 +25,33 @@ function dynamic_form_response_render_form($record) {
   // Issue/read a persistent guest token cookie for anonymous visitors.
   $guest_token = $user->uid ? NULL : _dynamic_form_response_get_guest_token();
 
-  // Already-submitted check for both authenticated and anonymous users.
-  if ($user->uid) {
-    $already = db_select('dynamic_form_responses', 'r')
-      ->condition('form_id', $record->id)
-      ->condition('user_id', $user->uid)
-      ->condition('status', 1)
-      ->isNull('deleted_at')
-      ->countQuery()->execute()->fetchField();
-  }
-  else {
-    $already_q = db_select('dynamic_form_responses', 'r');
-    $already_q->join('dynamic_form_response_sessions', 's', 's.response_id = r.id');
-    $already = $already_q
-      ->condition('r.form_id', $record->id)
-      ->condition('r.status', 1)
-      ->condition('s.guest_token', $guest_token)
-      ->isNull('r.deleted_at')
-      ->countQuery()->execute()->fetchField();
-  }
+  // Already-submitted check — skipped when the form allows multiple submissions.
+  if (empty($record->allow_multiple_submissions)) {
+    if ($user->uid) {
+      $already = db_select('dynamic_form_responses', 'r')
+        ->condition('form_id', $record->id)
+        ->condition('user_id', $user->uid)
+        ->condition('status', 1)
+        ->isNull('deleted_at')
+        ->countQuery()->execute()->fetchField();
+    }
+    else {
+      $already_q = db_select('dynamic_form_responses', 'r');
+      $already_q->join('dynamic_form_response_sessions', 's', 's.response_id = r.id');
+      $already = $already_q
+        ->condition('r.form_id', $record->id)
+        ->condition('r.status', 1)
+        ->condition('s.guest_token', $guest_token)
+        ->isNull('r.deleted_at')
+        ->countQuery()->execute()->fetchField();
+    }
 
-  if ($already) {
-    return '<div class="dfp-form-card"><div class="dfr-already-submitted">'
-      . '<div class="dfr-check-icon">&#10003;</div>'
-      . '<p>' . t('You have already submitted a response to this form.') . '</p>'
-      . '</div></div>';
+    if ($already) {
+      return '<div class="dfp-form-card"><div class="dfr-already-submitted">'
+        . '<div class="dfr-check-icon">&#10003;</div>'
+        . '<p>' . t('You have already submitted a response to this form.') . '</p>'
+        . '</div></div>';
+    }
   }
 
   // Draft recovery — pre-fill answers from any existing draft.
@@ -91,8 +93,8 @@ function dynamic_form_response_render_form($record) {
   }
 
   // Add JS and conditional third-party assets.
-  $mp = drupal_get_path('module', 'dynamic_form_response');
-  drupal_add_js($mp . '/js/response-form.js');
+  $module_path = drupal_get_path('module', 'dynamic_form_response');
+  drupal_add_js($module_path . '/js/response-form.js');
   _dynamic_form_response_maybe_load_select2($record->id);
   _dynamic_form_response_maybe_load_tinymce($record->id);
   drupal_add_css(drupal_get_path('module', 'dynamic_form') . '/css/preview.css');
@@ -161,29 +163,29 @@ function dynamic_form_response_render_form($record) {
   }
 
   // Flatten questions in section order, carrying section context.
-  $flat = array();
+  $ordered_questions = array();
   foreach ($sections as $sec) {
     $sid = (int) $sec->id;
     $qs  = isset($q_by_section[$sid]) ? $q_by_section[$sid] : array();
     foreach ($qs as $q) {
-      $flat[] = array('q' => $q, 'section' => $sec);
+      $ordered_questions[] = array('q' => $q, 'section' => $sec);
     }
   }
   // Unsectioned questions (section_id IS NULL).
   if (!empty($q_by_section[0])) {
     foreach ($q_by_section[0] as $q) {
-      $flat[] = array('q' => $q, 'section' => NULL);
+      $ordered_questions[] = array('q' => $q, 'section' => NULL);
     }
   }
 
-  if (empty($flat)) {
+  if (empty($ordered_questions)) {
     return '<p class="dfr-empty">' . t('This form has no questions yet.') . '</p>';
   }
 
   // Divide into steps. question_per_page = 0 means "show all at once".
-  $qpp   = (int) $record->question_per_page;
-  $qpp   = ($qpp > 0) ? $qpp : count($flat);
-  $steps = array_chunk($flat, $qpp);
+  $questions_per_page = (int) $record->question_per_page;
+  $questions_per_page = ($questions_per_page > 0) ? $questions_per_page : count($ordered_questions);
+  $steps = array_chunk($ordered_questions, $questions_per_page);
   $total = count($steps);
 
   $token           = drupal_get_token('dfr_submit');
@@ -712,12 +714,6 @@ JS;
    ===================================================================== */
 
 /**
- * AJAX callback: POST dynamic-form-response/ajax/save
- *
- * Creates or updates a draft response with the given answers.
- * Returns JSON: { status: 'ok', response_id: N } or { status: 'error', message: '...' }
- */
-/**
  * AJAX callback: POST dynamic-form-response/ajax/guest-email
  *
  * Validates an email address submitted by an anonymous visitor via the
@@ -735,8 +731,7 @@ function _dynamic_form_response_do_guest_email() {
     return array('status' => 'ok');
   }
 
-  $token = isset($_POST['token']) ? $_POST['token'] : '';
-  if (!drupal_valid_token($token, 'dfr_submit', TRUE)) {
+  if (!_dynamic_form_response_request_token_valid()) {
     return array('status' => 'error', 'message' => t('Invalid security token.'));
   }
 
@@ -748,13 +743,18 @@ function _dynamic_form_response_do_guest_email() {
   return array('status' => 'ok');
 }
 
+/**
+ * AJAX callback: POST dynamic-form-response/ajax/save
+ *
+ * Creates or updates a draft response with the given answers.
+ * Returns JSON: { status: 'ok', response_id: N } or { status: 'error', message: '...' }
+ */
 function dynamic_form_response_ajax_save() {
   drupal_json_output(_dynamic_form_response_do_save());
 }
 
 function _dynamic_form_response_do_save() {
-  $token = isset($_POST['token']) ? $_POST['token'] : '';
-  if (!drupal_valid_token($token, 'dfr_submit', TRUE)) {
+  if (!_dynamic_form_response_request_token_valid()) {
     return array('status' => 'error', 'message' => t('Invalid security token.'));
   }
 
@@ -944,8 +944,7 @@ function dynamic_form_response_ajax_submit() {
 }
 
 function _dynamic_form_response_do_submit() {
-  $token = isset($_POST['token']) ? $_POST['token'] : '';
-  if (!drupal_valid_token($token, 'dfr_submit', TRUE)) {
+  if (!_dynamic_form_response_request_token_valid()) {
     return array('status' => 'error', 'message' => t('Invalid security token.'));
   }
 
@@ -1073,6 +1072,14 @@ function _dynamic_form_response_do_submit() {
 /* =====================================================================
    HELPERS
    ===================================================================== */
+
+/**
+ * Returns TRUE when the CSRF token in the current POST request is valid.
+ */
+function _dynamic_form_response_request_token_valid() {
+  $token = isset($_POST['token']) ? $_POST['token'] : '';
+  return drupal_valid_token($token, 'dfr_submit', TRUE);
+}
 
 /**
  * Applies one validation rule to a value. Returns an error string or NULL.
@@ -1220,8 +1227,8 @@ function dynamic_form_response_thankyou_page($slug) {
   }
 
   drupal_set_title(check_plain($record->title));
-  $mp = drupal_get_path('module', 'dynamic_form_response');
-  drupal_add_css($mp . '/css/response-form.css');
+  $module_path = drupal_get_path('module', 'dynamic_form_response');
+  drupal_add_css($module_path . '/css/response-form.css');
 
   $out  = '<div class="dfr-thankyou">';
   $out .= '<div class="dfr-check-icon">&#10003;</div>';
@@ -1251,8 +1258,7 @@ function dynamic_form_response_ajax_upload() {
 }
 
 function _dynamic_form_response_do_upload() {
-  $token = isset($_POST['token']) ? $_POST['token'] : '';
-  if (!drupal_valid_token($token, 'dfr_submit', TRUE)) {
+  if (!_dynamic_form_response_request_token_valid()) {
     return array('status' => 'error', 'message' => t('Invalid security token.'));
   }
 

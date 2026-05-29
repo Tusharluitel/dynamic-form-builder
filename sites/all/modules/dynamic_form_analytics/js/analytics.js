@@ -18,6 +18,35 @@
 
   var COLORS = ['#4f6ef7', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899'];
 
+  var RADAR_RING_BANDS = [
+    { label: 'Emerging', min: 0,   max: 5   },
+    { label: 'Growing',  min: 6,   max: 25  },
+    { label: 'Active',   min: 26,  max: 100 },
+    { label: 'Popular',  min: 101, max: Infinity },
+  ];
+
+  function _radarRingLabel(submitted) {
+    for (var i = 0; i < RADAR_RING_BANDS.length; i++) {
+      if (submitted <= RADAR_RING_BANDS[i].max || i === RADAR_RING_BANDS.length - 1) {
+        return RADAR_RING_BANDS[i].label;
+      }
+    }
+    return RADAR_RING_BANDS[RADAR_RING_BANDS.length - 1].label;
+  }
+
+  function _applyRadarFilters(data, state) {
+    return data.filter(function (f) {
+      if (state.visibilityKeys.indexOf(f.visibility || 'p') === -1) { return false; }
+      if (state.ringLabels.indexOf(_radarRingLabel(f.total_submitted)) === -1) { return false; }
+      if ((f.completion_rate || 0) < state.completionMin) { return false; }
+      return true;
+    });
+  }
+
+  function _esc(str) {
+    return $('<div>').text(String(str || '')).html();
+  }
+
   /* ================================================================
      TOOLTIP helper — single shared DOM element
      ================================================================ */
@@ -92,7 +121,7 @@
   function _wcRenderTagForms(forms, tag) {
     if (_activeTag !== tag || !tooltip) { return; }
     var base = (Drupal.settings && Drupal.settings.basePath) ? Drupal.settings.basePath : '/';
-    var html = '<strong>' + tag + '</strong>';
+    var html = '<strong>' + _esc(tag) + '</strong>';
     if (!forms || !forms.length) {
       html += '<span class="dfa-wc-no-forms"> &mdash; no data</span>';
       getTooltip().html(html).style('opacity', 1);
@@ -100,12 +129,12 @@
     }
     html += '<ul class="dfa-wc-forms-list">';
     forms.forEach(function (f) {
-      var href = base + 'dashboard/forms/' + f.form_id + '/responses'
-        + '?f%5B0%5D%5Bqid%5D=' + f.question_id
+      var href = base + 'dashboard/forms/' + parseInt(f.form_id, 10) + '/responses'
+        + '?f%5B0%5D%5Bqid%5D=' + parseInt(f.question_id, 10)
         + '&f%5B0%5D%5Bval%5D=' + encodeURIComponent(tag);
       html += '<li class="dfa-wc-form-item">'
-        + '<a href="' + href + '" class="dfa-wc-form-link">' + f.title + '</a>'
-        + '<span class="dfa-wc-form-count">' + f.count + '</span>'
+        + '<a href="' + href + '" class="dfa-wc-form-link">' + _esc(f.title) + '</a>'
+        + '<span class="dfa-wc-form-count">' + _esc(f.count) + '</span>'
         + '</li>';
     });
     html += '</ul>';
@@ -461,7 +490,10 @@
               completion_rate}, ...]
      ================================================================ */
 
-  function renderRadarChart(el, forms) {
+  function renderRadarChart(el, forms, options) {
+    options = options || {};
+    var activeVisibility = options.activeVisibility || ['p', 'r', 'm'];
+
     var W      = el.clientWidth  || 700;
     var H      = el.clientHeight || 520;
     var cx     = W / 2;
@@ -475,7 +507,7 @@
       d3.select(el)
         .append('div')
         .attr('class', 'dfb-analytics-empty')
-        .text('No form data available.');
+        .text('No form data available for the current filters.');
       return;
     }
 
@@ -487,13 +519,8 @@
     var numSeg   = segments.length;
     var segAngle = (2 * Math.PI) / numSeg;
 
-    var ringBands = [
-      { label: 'Emerging', min: 0,   max: 5   },
-      { label: 'Growing',  min: 6,   max: 25  },
-      { label: 'Active',   min: 26,  max: 100 },
-      { label: 'Popular',  min: 101, max: Infinity },
-    ];
-    var numRings = ringBands.length;
+    var ringBands = RADAR_RING_BANDS;
+    var numRings  = ringBands.length;
 
     function getRadius(submitted) {
       for (var i = 0; i < ringBands.length; i++) {
@@ -527,18 +554,20 @@
 
     // Segment arc fills + divider borders.
     segments.forEach(function (seg, si) {
-      var a0  = si * segAngle;
-      var a1  = a0 + segAngle;
-      var arc = d3.arc()
+      var a0       = si * segAngle;
+      var a1       = a0 + segAngle;
+      var arc      = d3.arc()
         .innerRadius(innerR).outerRadius(outerR)
         .startAngle(a0).endAngle(a1);
+      var isSegOn  = activeVisibility.indexOf(seg.key) !== -1;
 
       g.append('path')
         .attr('d',            arc)
         .attr('fill',         seg.color)
-        .attr('fill-opacity', 0.05)
+        .attr('fill-opacity', isSegOn ? 0.05 : 0.02)
         .attr('stroke',       '#cbd5e1')
-        .attr('stroke-width', 1);
+        .attr('stroke-width', 1)
+        .attr('opacity',      isSegOn ? 1 : 0.35);
 
       var midA   = a0 + segAngle / 2;
       var labelR = outerR + 30;
@@ -550,17 +579,22 @@
         .attr('font-size',   12)
         .attr('font-weight', 600)
         .attr('fill',        seg.color)
+        .attr('opacity',     isSegOn ? 1 : 0.35)
         .text(seg.label);
     });
 
-    // Ring labels near the top of each ring.
+    // Ring labels — centered vertically within each ring band.
     ringBands.forEach(function (band, ri) {
-      var r = innerR + (outerR - innerR) * (ri + 1) / numRings;
+      var rInner = innerR + (outerR - innerR) * ri / numRings;
+      var rOuter = innerR + (outerR - innerR) * (ri + 1) / numRings;
+      var rMid   = (rInner + rOuter) / 2;
       g.append('text')
-        .attr('x',         5)
-        .attr('y',         -r - 3)
-        .attr('font-size', 9)
-        .attr('fill',      '#94a3b8')
+        .attr('x',                5)
+        .attr('y',                -rMid)
+        .attr('dy',               '0.35em')
+        .attr('font-size',        9)
+        .attr('fill',             '#94a3b8')
+        .attr('text-anchor',      'start')
         .text(band.label);
     });
 
@@ -571,7 +605,15 @@
       .attr('stroke',       '#e2e8f0')
       .attr('stroke-width', 1);
 
-    // Group forms by segment.
+    // Full dataset used for stable angle positions (unaffected by client filters).
+    var allForms = (options.allForms && options.allForms.length) ? options.allForms : forms;
+    var fullSegMap = { p: [], r: [], m: [] };
+    allForms.forEach(function (f) {
+      var key = fullSegMap[f.visibility] ? f.visibility : 'p';
+      fullSegMap[key].push(f);
+    });
+
+    // Group filtered forms by segment for rendering.
     var segMap = { p: [], r: [], m: [] };
     forms.forEach(function (f) {
       var key = segMap[f.visibility] ? f.visibility : 'p';
@@ -580,14 +622,22 @@
 
     // Plot dots.
     segments.forEach(function (seg, si) {
-      var segForms = segMap[seg.key];
-      var a0       = si * segAngle;
-      var margin   = 0.18;
-      var usable   = segAngle - margin * 2;
+      var segForms     = segMap[seg.key];
+      var fullSegForms = fullSegMap[seg.key] || [];
+      var a0           = si * segAngle;
+      var margin       = 0.18;
+      var usable       = segAngle - margin * 2;
 
-      segForms.forEach(function (f, fi) {
-        var t      = segForms.length === 1 ? 0.5 : fi / (segForms.length - 1);
-        var angle  = a0 + margin + t * usable;
+      // Stable index lookup: form id → position in the full (unfiltered) segment.
+      var stableIndex = {};
+      fullSegForms.forEach(function (f, fi) { stableIndex[f.id] = fi; });
+      var fullCount = fullSegForms.length;
+
+      segForms.forEach(function (f) {
+        var fi    = stableIndex[f.id] !== undefined ? stableIndex[f.id] : 0;
+        var total = fullCount || 1;
+        var t     = total === 1 ? 0.5 : fi / (total - 1);
+        var angle = a0 + margin + t * usable;
         var radius = f.total_submitted === 0 ? innerR * 0.6 : getRadius(f.total_submitted);
         var x      = radius * Math.sin(angle);
         var y      = -radius * Math.cos(angle);
@@ -772,7 +822,90 @@
       if (settings.dfAnalytics.radar) {
         var radarEl = document.getElementById('dfa-chart-radar');
         if (radarEl) {
-          renderRadarChart(radarEl, settings.dfAnalytics.radar);
+          var radarAllData = settings.dfAnalytics.radar.slice();
+          var radarAjaxUrl = settings.dfAnalytics.radarAjax || null;
+
+          var radarState = {
+            visibilityKeys: ['p', 'r', 'm'],
+            ringLabels:     ['Emerging', 'Growing', 'Active', 'Popular'],
+            completionMin:  0,
+            data:           radarAllData,
+          };
+
+          function radarRedraw() {
+            renderRadarChart(
+              radarEl,
+              _applyRadarFilters(radarState.data, radarState),
+              {
+                activeVisibility: radarState.visibilityKeys,
+                allForms:         radarState.data,
+              }
+            );
+          }
+
+          radarRedraw();
+
+          // Visibility + ring toggle buttons.
+          $(document).on('click', '.dfa-filter-toggle', function () {
+            var $btn     = $(this);
+            var type     = $btn.data('filter');
+            var key      = String($btn.data('key'));
+            var isActive = $btn.hasClass('active');
+
+            if (type === 'visibility') {
+              if (isActive) {
+                radarState.visibilityKeys = radarState.visibilityKeys.filter(function (k) { return k !== key; });
+              } else {
+                radarState.visibilityKeys.push(key);
+              }
+            } else if (type === 'ring') {
+              if (isActive) {
+                radarState.ringLabels = radarState.ringLabels.filter(function (k) { return k !== key; });
+              } else {
+                radarState.ringLabels.push(key);
+              }
+            }
+
+            $btn.toggleClass('active', !isActive);
+            radarRedraw();
+          });
+
+          // Completion rate slider.
+          $('#dfa-completion-min').on('input change', function () {
+            var pct = parseInt(this.value, 10) || 0;
+            $('#dfa-completion-val').text(pct + '%');
+            radarState.completionMin = pct / 100;
+            radarRedraw();
+          });
+
+          // Date range AJAX.
+          if (radarAjaxUrl) {
+            $('#dfa-date-apply').on('click', function () {
+              var from = $('#dfa-date-from').val();
+              var to   = $('#dfa-date-to').val();
+              if (!from && !to) { return; }
+              var $card = $(radarEl).closest('.dfb-chart-card');
+              $card.addClass('dfa-radar-loading');
+              var params = {};
+              if (from) { params.from = from; }
+              if (to)   { params.to   = to;   }
+              $.getJSON(radarAjaxUrl, params)
+                .done(function (data) {
+                  radarState.data = data;
+                  radarRedraw();
+                })
+                .always(function () {
+                  $card.removeClass('dfa-radar-loading');
+                });
+            });
+
+            $('#dfa-date-clear').on('click', function () {
+              $('#dfa-date-from').val('');
+              $('#dfa-date-to').val('');
+              radarState.data = radarAllData;
+              radarRedraw();
+            });
+          }
         }
       }
 
