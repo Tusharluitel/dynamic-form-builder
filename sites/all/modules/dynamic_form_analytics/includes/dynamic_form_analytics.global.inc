@@ -1,11 +1,6 @@
 <?php
 
 /**
- * @file
- * Global analytics page: cross-form overview charts and KPI cards.
- */
-
-/**
  * Page callback for dashboard/analytics.
  */
 function dynamic_form_analytics_global_page() {
@@ -103,7 +98,7 @@ function _dynamic_form_analytics_global_data() {
       $status_data[1]['cnt'] += (int) $row->cnt;
     }
   }
-
+    //Get only the top 10 forms with most responses, and format for chart.
   $top_rows = db_query(
     "SELECT f.title, COUNT(r.id) AS cnt
      FROM {dynamic_form_responses} r
@@ -160,7 +155,7 @@ function _dynamic_form_analytics_global_html($data) {
   $output .= _dynamic_form_stat_card(t('Avg / Form'),        $kpi['avg_per_form'],     '&#128202;', 'warning');
   $output .= '</div>';
 
-  // Charts row 1: trend line + status donut side by side.
+  // Charts trend line + status.
   $output .= '<div class="dfb-analytics-grid">';
 
   $output .= '<div class="dfb-chart-card dfb-chart-card--wide">';
