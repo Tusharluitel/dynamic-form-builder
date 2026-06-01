@@ -1,16 +1,5 @@
 <?php
 
-/**
- * @file
- * Authentication page callbacks and forms for the Dynamic Form module.
- *
- * Contains login and register form builders, validators, submit handlers,
- * and the auth page HTML wrapper.
- */
-
-/* =====================================================================
-   LOGIN
-   ===================================================================== */
 
 /**
  * Page callback for /login.
@@ -97,10 +86,6 @@ function dynamic_form_login_form_submit($form, &$form_state)
     $form_state['redirect'] = '<front>';
   }
 }
-
-/* =====================================================================
-   REGISTER
-   ===================================================================== */
 
 /**
  * Page callback for /register.
@@ -234,21 +219,9 @@ function dynamic_form_register_form_submit($form, &$form_state)
   }
 }
 
-/* =====================================================================
-   AUTH PAGE WRAPPER
-   ===================================================================== */
+//Auth Page Wrapper
 
-/**
- * Builds the auth page wrapper HTML.
- *
- * @param string $form_html
- *   Rendered form HTML.
- * @param string $type
- *   Either 'login' or 'register'.
- *
- * @return string
- *   Full auth page HTML.
- */
+
 function _dynamic_form_auth_wrapper($form_html, $type)
 {
   if ($type === 'login') {

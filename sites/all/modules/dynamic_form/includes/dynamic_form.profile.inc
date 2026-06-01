@@ -7,9 +7,6 @@
 
 /**
  * Page callback: dashboard/profile
- *
- * Displays the current user's profile: name, email, roles, join date,
- * and a quick summary of their activity (forms created, responses submitted).
  */
 function dynamic_form_profile_page() {
   global $user;

@@ -3,22 +3,10 @@
 /**
  * Implements hook_init().
  *
- * Loads toast.js and toast.css on every page through Drupal's asset pipeline
- * so they benefit from aggregation, cache-busting, and proper load ordering.
- * jQuery is guaranteed to be present because Drupal core adds it first.
- *
- * Also enforces per-IP / per-user rate limits on restws JSON API requests
+ * Enforces per-IP / per-user rate limits on restws JSON API requests
  * before restws's own hook_init() has a chance to produce output.
  */
 function dynamic_form_init() {
-  $mp = drupal_get_path('module', 'dynamic_form');
-  // Skip CSS/JS on JSON/XML API responses — restws endpoints end in .json/.xml.
-  if (strpos(request_path(), '.json') === FALSE && strpos(request_path(), '.xml') === FALSE) {
-    drupal_add_css('sites/all/libraries/fontawesome/css/all.min.css', array('type' => 'file', 'group' => CSS_DEFAULT, 'every_page' => TRUE, 'weight' => -20));
-  }
-  drupal_add_css($mp . '/css/toast.css');
-  drupal_add_js($mp . '/js/toast.js', array('scope' => 'footer', 'weight' => 5));
-
   _dynamic_form_api_rate_limit();
 }
 

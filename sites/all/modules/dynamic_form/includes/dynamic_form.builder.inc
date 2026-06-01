@@ -9,17 +9,6 @@
    WIDTH PICKER HELPER
    ===================================================================== */
 
-/**
- * Returns HTML for the visual width-picker button strip.
- *
- * Each button shows a mini column-layout icon (N evenly-spaced bars with the
- * leftmost bar filled to represent this question's span) plus a text label.
- * The button whose $value matches $current_width gets the dfb-width-active
- * class; JS keeps this state in sync while the modal is open.
- *
- * @param string $current_width  One of: full | half | third | quarter.
- * @return string HTML.
- */
 function _dfb_width_picker_markup($current_width = 'full') {
   $allowed = array('full', 'half', 'third', 'quarter');
   if (!in_array($current_width, $allowed)) {
@@ -55,13 +44,6 @@ function _dfb_width_picker_markup($current_width = 'full') {
    BUILDER PAGE CALLBACK
    ===================================================================== */
 
-/**
- * Page callback: renders the form builder shell.
- *
- * The sections list and "Add Section" form are handled by the embedded
- * Drupal Form API form (dynamic_form_builder_sections_form). Questions
- * are still managed via the custom AJAX endpoint and modal.
- */
 function dynamic_form_builder_page($form_id) {
   $form_record = db_select('dynamic_form_forms', 'f')
     ->fields('f')
@@ -182,21 +164,6 @@ function dynamic_form_builder_page($form_id) {
    SECTIONS — DRUPAL FORM API (add-more pattern)
    ===================================================================== */
 
-/**
- * Form builder: sections list + inline "Add Section" card.
- *
- * On initial load, sections are pulled from the DB and stored in
- * $form_state['sections']. On every rebuild triggered by the submit
- * handler, the in-memory list (already updated) is used — no extra
- * DB query for newly-added sections.
- *
- * $form_state['build_info']['files'] is set so Drupal's system/ajax
- * endpoint can locate this function during AJAX rebuilds.
- *
- * @param array $form
- * @param array &$form_state
- * @param int   $form_id  The dynamic_form_forms record ID.
- */
 function dynamic_form_builder_sections_form($form, &$form_state, $form_id) {
   // Required: tells Drupal where to find this function for AJAX rebuilds.
   $form_state['build_info']['files'][] = array(
@@ -366,12 +333,6 @@ function dynamic_form_builder_sections_form_submit($form, &$form_state) {
 
 /**
  * AJAX callback for dynamic_form_builder_sections_form.
- *
- * Returns the sections_wrapper element. Because $form_state['rebuild']
- * was set to TRUE in the submit handler, Drupal has already re-run the
- * form builder; $form['sections_wrapper'] now includes the new section.
- * Drupal wraps the return value in ajax_command_replace targeting
- * #dfb-sections-wrapper.
  */
 function dynamic_form_builder_sections_ajax_callback($form, &$form_state) {
   $commands   = array();
@@ -1900,8 +1861,7 @@ function dynamic_form_builder_question_edit_form_submit($form, &$form_state) {
 /**
  * AJAX callback for the "Save Changes" button.
  *
- * On success: replaces the question card in the builder, closes the
- * edit modal, then resets the form wrapper for the next edit.
+ * On success: replaces the question card in the builder, closes the edit modal, then resets the form wrapper for the next edit.
  * On error: re-renders the form in place so error messages appear.
  */
 function _dfb_question_edit_save_ajax_callback($form, &$form_state) {
@@ -1985,12 +1945,6 @@ function dynamic_form_ajax_section_rename($section_id) {
    COLLABORATION — sections reload endpoint
    ===================================================================== */
 
-/**
- * AJAX endpoint: returns an ajax_command_replace for #dfb-sections-wrapper.
- *
- * Called by collaborate.js when another user's content_changed message
- * arrives, so the receiving client can refresh its sections in place.
- */
 function dynamic_form_ajax_sections_reload($form_id) {
   $form_id = (int) $form_id;
 
