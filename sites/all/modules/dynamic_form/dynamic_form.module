@@ -3,18 +3,10 @@
 /**
  * Implements hook_init().
  *
- * Loads toast.js and toast.css on every page through Drupal's asset pipeline
- * so they benefit from aggregation, cache-busting, and proper load ordering.
- * jQuery is guaranteed to be present because Drupal core adds it first.
- *
- * Also enforces per-IP / per-user rate limits on restws JSON API requests
+ * Enforces per-IP / per-user rate limits on restws JSON API requests
  * before restws's own hook_init() has a chance to produce output.
  */
 function dynamic_form_init() {
-  $mp = drupal_get_path('module', 'dynamic_form');
-  drupal_add_css($mp . '/css/toast.css');
-  drupal_add_js($mp . '/js/toast.js', array('scope' => 'footer', 'weight' => 5));
-
   _dynamic_form_api_rate_limit();
 }
 
@@ -82,6 +74,25 @@ function _dynamic_form_rate_limit_deny($retry_after = 60) {
     'retry_after' => (int) $retry_after,
   ));
   drupal_exit();
+}
+
+/**
+ * Returns (and caches to a temp file) a WS-specific HMAC secret.
+ *
+ * ws_server.php has no Drupal DB access, so the secret is derived from
+ * Drupal's private key and written to a temp file that both processes can read.
+ * The file is mode 0600 and lives outside the web root in sys_get_temp_dir().
+ *
+ * @return string  64-char hex secret.
+ */
+function _dynamic_form_ws_secret() {
+  $secret = drupal_hmac_base64('dfb_ws_secret', drupal_get_private_key() . drupal_get_hash_salt());
+  $file   = sys_get_temp_dir() . '/.dfb_ws_secret';
+  if (!file_exists($file) || trim(file_get_contents($file)) !== $secret) {
+    file_put_contents($file, $secret, LOCK_EX);
+    @chmod($file, 0600);
+  }
+  return $secret;
 }
 
 /**

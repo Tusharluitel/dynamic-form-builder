@@ -1,11 +1,6 @@
 <?php
 
 /**
- * @file
- * Form preview page — renders a read-only respondent view of the form.
- */
-
-/**
  * Page callback: dashboard/forms/%/preview
  */
 function dynamic_form_preview_page($form_id) {
@@ -340,11 +335,6 @@ JS;
 
 /**
  * Loads Select2 assets when the form has 'select' or 'tags' questions.
- *
- * Adds Select2 CSS/JS from sites/all/libraries/select2/ and inline
- * Drupal behaviours for both question types.
- *
- * @param int $form_id  The dynamic_form_forms record ID.
  */
 function _dynamic_form_preview_maybe_load_select2($form_id) {
   $has_select2 = db_select('dynamic_form_questions', 'q')
@@ -390,9 +380,6 @@ function _dynamic_form_preview_maybe_load_select2($form_id) {
   };
 
   // Tags input — Select2 v3 on a hidden input with `tags: []`.
-  // Select2 v3 free-form tagging requires an <input type="hidden"> element and
-  // `tags` set to an array (empty = no pre-loaded choices). Combined with AJAX
-  // autocomplete + createSearchChoice this gives a proper tag-pill input field.
   Drupal.behaviors.dfpTagsPreview = {
     attach: function (context, settings) {
       $('.dfp-tags-select2', context).once('dfp-tags-s2-init', function () {
@@ -621,7 +608,7 @@ function _dynamic_form_render_preview_question($q, array $opts, array $scale) {
       }
       $input_html .= '<div class="dfp-stars">';
       for ($i = $min; $i <= $max; $i++) {
-        $input_html .= '<span class="dfp-star" title="' . $i . '">&#9733;</span>';
+        $input_html .= '<span class="dfp-star" title="' . $i . '"><i class="fa-solid fa-star"></i></span>';
       }
       $input_html .= '</div>';
       if ($max_label) {

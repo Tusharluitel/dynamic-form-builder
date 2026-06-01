@@ -1,23 +1,9 @@
 <?php
 
-/**
- * @file
- * Invitation system for the Dynamic Form module.
- *
- * Handles send, accept, resend, revoke, and the accept landing page.
- * Registered users are added directly to dynamic_form_members.
- * Unregistered emails receive a token-based invite link (7-day expiry).
- */
 
-/* =====================================================================
-   PAGE CALLBACK — ACCEPT INVITATION
-   ===================================================================== */
 
 /**
  * Page callback: Accept an invitation via its token.
- *
- * Route: dynamic-form/invite/accept/TOKEN
- * Access: public (token is the secret).
  */
 function dynamic_form_invite_accept_page($token) {
   global $user;

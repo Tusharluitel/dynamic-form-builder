@@ -1,10 +1,5 @@
 <?php
 
-/**
- * @file
- * Per-form analytics page: submission trends, funnel, respondent type,
- * and per-question answer distribution charts.
- */
 
 /**
  * Page callback for dashboard/forms/%/analytics.
@@ -355,17 +350,17 @@ function _dynamic_form_analytics_form_html($form, $data) {
   $output .= '</div>';
   $output .= '<div class="dfb-analytics-header-actions">';
   $output .= '<a href="' . url('dashboard/forms/' . $form->id . '/responses') . '" class="dfb-btn dfb-btn-secondary">' . t('View Responses') . '</a>';
-  $output .= '<a href="' . url('dashboard/analytics') . '" class="dfb-btn dfb-btn-ghost">' . t('&#8592; All Analytics') . '</a>';
+  $output .= '<a href="' . url('dashboard/analytics') . '" class="dfb-btn dfb-btn-ghost"><i class="fa-solid fa-arrow-left"></i> ' . t('All Analytics') . '</a>';
   $output .= '</div>';
   $output .= '</div>';
   $output .= '</div>';
 
   // KPI cards.
   $output .= '<div class="dfb-stats-grid">';
-  $output .= _dynamic_form_stat_card(t('Submitted'),        $kpi['total_submitted'],  '&#9989;',  'success');
-  $output .= _dynamic_form_stat_card(t('Completion Rate'),  $kpi['completion_rate'] . '%', '&#128200;', 'primary');
-  $output .= _dynamic_form_stat_card(t('Abandoned'),        $kpi['abandoned'],        '&#128683;', 'warning');
-  $output .= _dynamic_form_stat_card(t('Avg Time'),         $kpi['avg_time'],         '&#9201;',  'accent');
+  $output .= _dynamic_form_stat_card(t('Submitted'),        $kpi['total_submitted'],  '<i class="fa-solid fa-circle-check"></i>',  'success');
+  $output .= _dynamic_form_stat_card(t('Completion Rate'),  $kpi['completion_rate'] . '%', '<i class="fa-solid fa-chart-line"></i>', 'primary');
+  $output .= _dynamic_form_stat_card(t('Abandoned'),        $kpi['abandoned'],        '<i class="fa-solid fa-ban"></i>', 'warning');
+  $output .= _dynamic_form_stat_card(t('Avg Time'),         $kpi['avg_time'],         '<i class="fa-regular fa-clock"></i>',  'accent');
   $output .= '</div>';
 
   // Charts grid.

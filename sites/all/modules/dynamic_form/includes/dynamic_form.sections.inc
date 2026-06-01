@@ -1,16 +1,5 @@
 <?php
 
-/**
- * @file
- * Section CRUD page callbacks and forms for the Dynamic Form module.
- *
- * Contains create, edit, and delete (soft) form builders,
- * validators, and submit handlers.
- */
-
-/* =====================================================================
-   SECTION CRUD — CREATE
-   ===================================================================== */
 
 /**
  * Form builder: Create a new section.

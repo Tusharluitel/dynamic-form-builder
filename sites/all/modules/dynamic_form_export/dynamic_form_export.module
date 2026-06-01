@@ -82,7 +82,7 @@ function dynamic_form_export_dynamic_form_dashboard_sidebar_items_alter(&$items)
     $items['export'] = array(
       'label' => t('Export'),
       'path'  => 'dashboard/export',
-      'icon'  => '&#128202;',
+      'icon'  => '<i class="fa-solid fa-chart-bar"></i>',
     );
   }
 }
