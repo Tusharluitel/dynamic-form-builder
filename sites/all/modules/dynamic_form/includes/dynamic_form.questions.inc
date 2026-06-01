@@ -137,7 +137,7 @@ function dynamic_form_edit_question_form($form, &$form_state, $question_id) {
   if ($type_locked) {
     $form['type_section']['type_lock_notice'] = array(
       '#markup' => '<div class="dfb-type-locked-notice">'
-        . '<span class="dfb-lock-icon">&#128274;</span> '
+        . '<span class="dfb-lock-icon"><i class="fa-solid fa-lock"></i></span> '
         . t('This form already has responses. The question type cannot be changed to preserve data integrity.')
         . '</div>',
       '#weight' => 10,

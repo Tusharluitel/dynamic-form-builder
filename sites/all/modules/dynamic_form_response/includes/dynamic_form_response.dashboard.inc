@@ -314,7 +314,7 @@ function dynamic_form_response_list_page($form_id) {
           . ' &lt;' . check_plain($users[$uid]->mail) . '&gt;';
       }
       elseif (!$uid && $r->guest_email) {
-        $name = $r->guest_email;
+        $name = check_plain($r->guest_email);
       }
       else {
         $name = t('Anonymous');
@@ -507,7 +507,7 @@ function _dynamic_form_response_render_filter_bar($form_id, array $filter_rows, 
       // Clear button — only visible when there is an active value.
       $clear_cls = $val !== '' ? '' : ' style="display:none"';
       $out .= '<button type="button" class="dfr-qfilter-clear" aria-label="' . t('Clear') . '"'
-        . $clear_cls . '>&#10005;</button>';
+        . $clear_cls . '><i class="fa-solid fa-xmark"></i></button>';
 
       $out .= '</div>'; // .dfr-qfilter-field
     }
@@ -935,7 +935,7 @@ function dynamic_form_response_submissions_page() {
 
   if (empty($rows)) {
     $out .= '<div class="dfb-empty-state">';
-    $out .= '<div class="dfb-empty-icon">&#128221;</div>';
+    $out .= '<div class="dfb-empty-icon"><i class="fa-regular fa-pen-to-square"></i></div>';
     $out .= '<p>' . t("You haven't submitted any forms yet. <a href=\"!url\">Browse available forms</a> to get started.", array('!url' => url('dashboard/browse'))) . '</p>';
     $out .= '</div>';
   }
@@ -1015,7 +1015,7 @@ function _dynamic_form_response_render_answer_card($q, array $answers) {
       // File upload answer — render as a download link.
       $out .= '<div class="dfr-answer-value">'
         . '<a href="' . check_url($decoded['url']) . '" target="_blank" class="dfr-file-link">'
-        . '&#128206; ' . check_plain($decoded['filename'])
+        . '<i class="fa-solid fa-paperclip"></i> ' . check_plain($decoded['filename'])
         . '</a>'
         . '</div>';
     } elseif (is_array($decoded)) {

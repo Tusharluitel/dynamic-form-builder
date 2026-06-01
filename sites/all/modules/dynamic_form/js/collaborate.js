@@ -52,7 +52,8 @@
           type:    'join',
           form_id: self.formId,
           uid:     self.user.uid,
-          name:    self.user.name
+          name:    self.user.name,
+          token:   self.user.wsToken || ''
         }));
       };
 
@@ -123,7 +124,8 @@
         $card.find('[data-section-name]').attr('data-section-name', name);
       }
       if (window.DFBToast) {
-        DFBToast.info((sender || Drupal.t('Someone')) + Drupal.t(' renamed a section.'));
+        var _safeRenamer = $('<div>').text(sender || Drupal.t('Someone')).html();
+        DFBToast.info(_safeRenamer + Drupal.t(' renamed a section.'));
       }
     },
 
@@ -136,7 +138,9 @@
       }
       if ($card && $card.length) { $card.remove(); }
       if (window.DFBToast) {
-        DFBToast.info((sender || Drupal.t('Someone')) + Drupal.t(' deleted a ') + entityType + '.');
+        var _safeSender = $('<div>').text(sender || Drupal.t('Someone')).html();
+        var _safeType   = $('<div>').text(entityType).html();
+        DFBToast.info(_safeSender + Drupal.t(' deleted a ') + _safeType + '.');
       }
     },
 
@@ -169,7 +173,8 @@
       });
 
       if (window.DFBToast) {
-        DFBToast.info((sender || Drupal.t('Someone')) + Drupal.t(' updated the form.'));
+        var _safeUpdater = $('<div>').text(sender || Drupal.t('Someone')).html();
+        DFBToast.info(_safeUpdater + Drupal.t(' updated the form.'));
       }
     },
 

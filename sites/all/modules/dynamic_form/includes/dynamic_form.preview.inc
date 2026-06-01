@@ -621,7 +621,7 @@ function _dynamic_form_render_preview_question($q, array $opts, array $scale) {
       }
       $input_html .= '<div class="dfp-stars">';
       for ($i = $min; $i <= $max; $i++) {
-        $input_html .= '<span class="dfp-star" title="' . $i . '">&#9733;</span>';
+        $input_html .= '<span class="dfp-star" title="' . $i . '"><i class="fa-solid fa-star"></i></span>';
       }
       $input_html .= '</div>';
       if ($max_label) {

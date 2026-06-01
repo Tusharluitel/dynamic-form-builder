@@ -84,7 +84,7 @@ function dynamic_form_analytics_dynamic_form_dashboard_sidebar_items_alter(&$ite
     $items = array('analytics' => array(
       'label' => t('Analytics'),
       'path'  => 'dashboard/analytics',
-      'icon'  => '&#128200;',
+      'icon'  => '<i class="fa-solid fa-chart-line"></i>',
     )) + $items; // Moves the analytics item to the top of the sidebar.
   }
 }

@@ -88,32 +88,32 @@ function _dynamic_form_dashboard_sidebar($active = 'overview')
     'forms' => array(
       'label' => t('Forms'),
       'path' => 'dashboard/forms',
-      'icon' => '&#128196;',
+      'icon' => '<i class="fa-regular fa-file-lines"></i>',
     ),
     'questions' => array(
       'label' => t('Questions'),
       'path' => 'dashboard/questions',
-      'icon' => '&#10067;',
+      'icon' => '<i class="fa-solid fa-circle-question"></i>',
     ),
     'sections' => array(
       'label' => t('Sections'),
       'path' => 'dashboard/sections',
-      'icon' => '&#128193;',
+      'icon' => '<i class="fa-regular fa-folder"></i>',
     ),
     'browse' => array(
       'label' => t('Browse Forms'),
       'path' => 'dashboard/browse',
-      'icon' => '&#128269;',
+      'icon' => '<i class="fa-solid fa-magnifying-glass"></i>',
     ),
     'submissions' => array(
       'label' => t('My Submissions'),
       'path' => 'dashboard/submissions',
-      'icon' => '&#128221;',
+      'icon' => '<i class="fa-regular fa-pen-to-square"></i>',
     ),
     'profile' => array(
       'label' => t('My Profile'),
       'path' => 'dashboard/profile',
-      'icon' => '&#128100;',
+      'icon' => '<i class="fa-solid fa-user"></i>',
     ),
   );
 
@@ -121,7 +121,7 @@ function _dynamic_form_dashboard_sidebar($active = 'overview')
 
   $output = '<nav class="dfb-sidebar-nav">';
   $output .= '<div class="dfb-sidebar-header">';
-  $output .= '<span class="dfb-sidebar-icon">&#9881;</span>';
+  $output .= '<span class="dfb-sidebar-icon"><i class="fa-solid fa-gear"></i></span>';
   $output .= '<span class="dfb-sidebar-title">' . t('Manage') . '</span>';
   $output .= '</div>';
   $output .= '<ul class="dfb-sidebar-menu">';
@@ -146,7 +146,7 @@ function _dynamic_form_dashboard_sidebar($active = 'overview')
     }
     $output .= '<li class="' . $log_classes . '">';
     $output .= '<a href="' . url('dashboard/activity-log') . '">';
-    $output .= '<span class="dfb-sidebar-item-icon">&#128203;</span>';
+    $output .= '<span class="dfb-sidebar-item-icon"><i class="fa-regular fa-clipboard"></i></span>';
     $output .= '<span class="dfb-sidebar-item-label">' . t('Activity Log') . '</span>';
     $output .= '</a>';
     $output .= '</li>';
@@ -159,7 +159,7 @@ function _dynamic_form_dashboard_sidebar($active = 'overview')
     }
     $output .= '<li class="' . $trash_classes . '">';
     $output .= '<a href="' . url('dashboard/trash') . '">';
-    $output .= '<span class="dfb-sidebar-item-icon">&#128465;</span>';
+    $output .= '<span class="dfb-sidebar-item-icon"><i class="fa-regular fa-trash-can"></i></span>';
     $output .= '<span class="dfb-sidebar-item-label">' . t('Trash') . '</span>';
     $output .= '</a>';
     $output .= '</li>';
@@ -241,10 +241,10 @@ function _dynamic_form_dashboard_overview()
 
   $output .= '<div class="dfb-stats-grid">';
 
-  $output .= _dynamic_form_stat_card(t('Total Forms'), $total_forms, '&#128196;', 'primary');
-  $output .= _dynamic_form_stat_card(t('Published'), $published_forms, '&#9989;', 'success');
-  $output .= _dynamic_form_stat_card(t('Questions'), $total_questions, '&#10067;', 'accent');
-  $output .= _dynamic_form_stat_card(t('Sections'), $total_sections, '&#128193;', 'warning');
+  $output .= _dynamic_form_stat_card(t('Total Forms'), $total_forms, '<i class="fa-regular fa-file-lines"></i>', 'primary');
+  $output .= _dynamic_form_stat_card(t('Published'), $published_forms, '<i class="fa-solid fa-circle-check"></i>', 'success');
+  $output .= _dynamic_form_stat_card(t('Questions'), $total_questions, '<i class="fa-solid fa-circle-question"></i>', 'accent');
+  $output .= _dynamic_form_stat_card(t('Sections'), $total_sections, '<i class="fa-regular fa-folder"></i>', 'warning');
 
   $output .= '</div>';
 
@@ -409,7 +409,7 @@ function _dynamic_form_dashboard_forms()
 
   if (empty($forms_by_id)) {
     $output .= '<div class="dfb-empty-state">';
-    $output .= '<div class="dfb-empty-icon">&#128196;</div>';
+    $output .= '<div class="dfb-empty-icon"><i class="fa-regular fa-file-lines"></i></div>';
     $output .= '<p>' . t('You haven\'t created any forms yet.') . '</p>';
     $output .= '<a href="' . url('dashboard/forms/create') . '" class="dfb-empty-action">' . t('Create your first form') . '</a>';
     $output .= '</div>';
@@ -541,7 +541,7 @@ function _dynamic_form_dashboard_questions()
 
   if (empty($results)) {
     $output .= '<div class="dfb-empty-state">';
-    $output .= '<div class="dfb-empty-icon">&#10067;</div>';
+    $output .= '<div class="dfb-empty-icon"><i class="fa-solid fa-circle-question"></i></div>';
     $output .= '<p>' . t('No questions found. Questions will appear here once you add them to your forms.') . '</p>';
     $output .= '</div>';
     return $output;
@@ -632,7 +632,7 @@ function _dynamic_form_dashboard_sections()
 
   if (empty($results)) {
     $output .= '<div class="dfb-empty-state">';
-    $output .= '<div class="dfb-empty-icon">&#128193;</div>';
+    $output .= '<div class="dfb-empty-icon"><i class="fa-regular fa-folder"></i></div>';
     $output .= '<p>' . t('No sections found. Create a section to group your questions.') . '</p>';
     $output .= '<a href="' . url('dashboard/sections/create') . '" class="dfb-empty-action">' . t('Create your first section') . '</a>';
     $output .= '</div>';
@@ -949,7 +949,7 @@ function _dynamic_form_delete_confirm_modal() {
   return '
 <div id="dfb-delete-modal" role="alertdialog" aria-modal="true" aria-labelledby="dfb-delete-modal-title" style="display:none;">
   <div class="dfb-delete-modal-dialog">
-    <span class="dfb-delete-modal-icon">&#128465;</span>
+    <span class="dfb-delete-modal-icon"><i class="fa-regular fa-trash-can"></i></span>
     <h3 class="dfb-delete-modal-title" id="dfb-delete-modal-title">'
       . t('Delete this') . ' <span class="dfb-delete-modal-type"></span>?
     </h3>
@@ -1253,7 +1253,7 @@ function dynamic_form_dashboard_browse_page() {
 
   if (empty($forms)) {
     $out .= '<div class="dfb-empty-state">';
-    $out .= '<div class="dfb-empty-icon">&#128269;</div>';
+    $out .= '<div class="dfb-empty-icon"><i class="fa-solid fa-magnifying-glass"></i></div>';
     $out .= '<p>' . t('No forms are currently available for you to fill out.') . '</p>';
     $out .= '</div>';
   }

@@ -1105,7 +1105,11 @@ function _dynamic_form_response_apply_rule($rule_type, $rule_value, $error_messa
       return (is_numeric($value) && (float) $value > (float) $rule_value) ? $msg : NULL;
     case 'regex':
       $pattern = '/' . addcslashes($rule_value, '/') . '/u';
-      return (@preg_match($pattern, $value) === 0) ? $msg : NULL;
+      // Cap backtracking to prevent ReDoS via malicious patterns stored in the DB.
+      $prev_limit = ini_set('pcre.backtrack_limit', 10000);
+      $match = @preg_match($pattern, $value);
+      ini_set('pcre.backtrack_limit', $prev_limit);
+      return ($match === 0) ? $msg : NULL;
   }
   return NULL;
 }
@@ -1312,7 +1316,21 @@ function _dynamic_form_response_do_upload() {
   $file_name = $_FILES['file']['name'];
   $file_size = $_FILES['file']['size'];
 
-  // Validate file extension.
+  // Always block executable extensions regardless of the configured allowlist.
+  $_dangerous_exts = array(
+    'php', 'php3', 'php4', 'php5', 'php7', 'phtml', 'phar',
+    'asp', 'aspx', 'cgi', 'pl', 'py', 'rb', 'sh', 'bash',
+    'exe', 'htaccess', 'shtml',
+  );
+  $_upload_ext = strtolower(pathinfo(drupal_basename($file_name), PATHINFO_EXTENSION));
+  if (in_array($_upload_ext, $_dangerous_exts)) {
+    return array(
+      'status'  => 'error',
+      'message' => t('File type .@ext is not allowed.', array('@ext' => $_upload_ext)),
+    );
+  }
+
+  // Validate file extension against the configured allowlist.
   if (!empty($question->allow_file_types)) {
     $allowed = array_filter(array_map('strtolower', array_map('trim', explode(',', $question->allow_file_types))));
     $ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
@@ -1344,7 +1362,11 @@ function _dynamic_form_response_do_upload() {
   }
 
   // Sanitise filename and resolve name conflicts.
-  $safe_name = file_munge_filename(drupal_basename($file_name), '');
+  // Pass the allowlist so file_munge_filename catches dual-extension tricks.
+  $_munge_exts = !empty($question->allow_file_types)
+    ? implode(' ', array_filter(array_map('trim', explode(',', $question->allow_file_types))))
+    : '';
+  $safe_name = file_munge_filename(drupal_basename($file_name), $_munge_exts);
   $dest      = file_destination($dir . '/' . $safe_name, FILE_EXISTS_RENAME);
 
   if (!drupal_move_uploaded_file($file_tmp, $dest)) {

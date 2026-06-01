@@ -60,7 +60,7 @@ function _dynamic_form_dashboard_trash_content() {
   $deleted_forms = $fq->execute()->fetchAll();
 
   $output .= _dynamic_form_trash_section_block(
-    t('Forms'), '&#128196;', count($deleted_forms),
+    t('Forms'), '<i class="fa-regular fa-file-lines"></i>', count($deleted_forms),
     array(t('Title'), t('Status'), t('Deleted On'), t('Actions')),
     $deleted_forms, 'form', $can_act
   );
@@ -78,7 +78,7 @@ function _dynamic_form_dashboard_trash_content() {
   $deleted_sections = $sq->execute()->fetchAll();
 
   $output .= _dynamic_form_trash_section_block(
-    t('Sections'), '&#128193;', count($deleted_sections),
+    t('Sections'), '<i class="fa-regular fa-folder"></i>', count($deleted_sections),
     array(t('Section Name'), t('Parent Form'), t('Deleted On'), t('Actions')),
     $deleted_sections, 'section', $can_act
   );
@@ -96,7 +96,7 @@ function _dynamic_form_dashboard_trash_content() {
   $deleted_questions = $qq->execute()->fetchAll();
 
   $output .= _dynamic_form_trash_section_block(
-    t('Questions'), '&#10067;', count($deleted_questions),
+    t('Questions'), '<i class="fa-solid fa-circle-question"></i>', count($deleted_questions),
     array(t('Question'), t('Type'), t('Parent Form'), t('Deleted On'), t('Actions')),
     $deleted_questions, 'question', $can_act
   );
@@ -117,7 +117,7 @@ function _dynamic_form_dashboard_trash_content() {
   $deleted_responses = $rq->execute()->fetchAll();
 
   $output .= _dynamic_form_trash_section_block(
-    t('Responses'), '&#128221;', count($deleted_responses),
+    t('Responses'), '<i class="fa-regular fa-pen-to-square"></i>', count($deleted_responses),
     array(t('Respondent'), t('Form'), t('Status'), t('Submitted'), t('Deleted On'), t('Actions')),
     $deleted_responses, 'response', $can_act
   );
@@ -587,7 +587,7 @@ function _dynamic_form_restore_confirm_modal() {
   return '
 <div id="dfb-restore-modal" role="alertdialog" aria-modal="true" aria-labelledby="dfb-restore-modal-title" style="display:none;">
   <div class="dfb-delete-modal-dialog">
-    <span class="dfb-delete-modal-icon">&#9850;</span>
+    <span class="dfb-delete-modal-icon"><i class="fa-solid fa-rotate-left"></i></span>
     <h3 class="dfb-delete-modal-title" id="dfb-restore-modal-title">'
       . t('Restore this') . ' <span class="dfb-restore-modal-type"></span>?
     </h3>
@@ -637,6 +637,26 @@ function dynamic_form_ajax_entity_restore($entity_type, $entity_id) {
   if (!$record) {
     drupal_json_output(array('status' => 'error', 'message' => t('Item not found in trash.')));
     drupal_exit();
+  }
+
+  // Responses belong to a form — verify the current user can manage that form.
+  if ($entity_type === 'response' && !user_access('edit any form')) {
+    global $user;
+    $form_owner = db_select('dynamic_form_forms', 'f')
+      ->fields('f', array('created_by'))
+      ->condition('f.id', $record->form_id)
+      ->execute()
+      ->fetchField();
+    $is_member = (bool) db_select('dynamic_form_members', 'm')
+      ->condition('m.form_id', $record->form_id)
+      ->condition('m.user_id', $user->uid)
+      ->condition('m.role', array('owner', 'editor'), 'IN')
+      ->isNull('m.deleted_at')
+      ->countQuery()->execute()->fetchField();
+    if (!$form_owner || ((int) $form_owner !== (int) $user->uid && !$is_member)) {
+      drupal_json_output(array('status' => 'error', 'message' => t('Access denied.')));
+      drupal_exit();
+    }
   }
 
   db_update($table)

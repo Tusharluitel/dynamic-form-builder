@@ -1,10 +1,6 @@
 /**
  * @file
  * D3 v5 analytics charts for Dynamic Form Analytics module.
- *
- * Reads data from Drupal.settings.dfAnalytics and renders charts
- * into the mount elements placed by the PHP page callbacks.
- *
  * Chart types:
  *   renderLineChart  — time-series submissions trend (line + area)
  *   renderHBarChart  — horizontal bar for option/tag distributions
@@ -43,6 +39,7 @@
     });
   }
 
+  //XSS-safe text escaper for tooltip content (not for HTML content like links in tag forms list).
   function _esc(str) {
     return $('<div>').text(String(str || '')).html();
   }
@@ -55,6 +52,7 @@
   var _hideTimer  = null;
   var _activeTag  = null;
   var _tagFormsCache = {};
+
 
   function getTooltip() {
     if (!tooltip) {
@@ -95,9 +93,6 @@
     if (_hideTimer) { clearTimeout(_hideTimer); _hideTimer = null; }
   }
 
-  /* ================================================================
-     WORD CLOUD — per-form tag drilldown tooltip
-     ================================================================ */
 
   function _wcShowTagForms(ajaxTagForms, tag) {
     if (_tagFormsCache.hasOwnProperty(tag)) {
@@ -129,25 +124,38 @@
     }
     html += '<ul class="dfa-wc-forms-list">';
     forms.forEach(function (f) {
-      var href = base + 'dashboard/forms/' + parseInt(f.form_id, 10) + '/responses'
-        + '?f%5B0%5D%5Bqid%5D=' + parseInt(f.question_id, 10)
-        + '&f%5B0%5D%5Bval%5D=' + encodeURIComponent(tag);
       html += '<li class="dfa-wc-form-item">'
-        + '<a href="' + href + '" class="dfa-wc-form-link">' + _esc(f.title) + '</a>'
+        + '<div class="dfa-wc-form-header">'
+        + '<span class="dfa-wc-form-name">' + _esc(f.title) + '</span>'
         + '<span class="dfa-wc-form-count">' + _esc(f.count) + '</span>'
-        + '</li>';
+        + '</div>';
+
+      html += '<ul class="dfa-wc-questions-list">';
+      if (f.questions && f.questions.length) {
+        f.questions.forEach(function (q) {
+          var href = base + 'dashboard/forms/' + parseInt(f.form_id, 10) + '/responses'
+            + '?f%5B0%5D%5Bqid%5D=' + parseInt(q.id, 10)
+            + '&f%5B0%5D%5Bval%5D=' + encodeURIComponent(tag);
+          html += '<li><a href="' + href + '" class="dfa-wc-q-link">'
+            + _esc(q.label) + '</a></li>';
+        });
+      } else {
+        var href = base + 'dashboard/forms/' + parseInt(f.form_id, 10) + '/responses';
+        html += '<li><a href="' + href + '" class="dfa-wc-q-link">View responses &rarr;</a></li>';
+      }
+      html += '</ul>';
+
+      html += '</li>';
     });
     html += '</ul>';
+
     getTooltip()
       .classed('dfa-tooltip--interactive', true)
       .html(html)
       .style('opacity', 1);
   }
 
-  /* ================================================================
-     LINE CHART — time-series (submissions over time)
-     el: DOM element, data: [{day:'YYYY-MM-DD', cnt:N}, ...]
-     ================================================================ */
+// Line Chart
 
   function renderLineChart(el, data) {
     var margin = { top: 16, right: 20, bottom: 36, left: 44 };
