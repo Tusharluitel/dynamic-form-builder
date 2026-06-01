@@ -1,13 +1,5 @@
 <?php
 
-/**
- * @file
- * Member management AJAX handlers and helpers for the Dynamic Form module.
- */
-
-/* =====================================================================
-   AJAX — USER SEARCH
-   ===================================================================== */
 
 /**
  * AJAX page callback: Search users by name or e-mail.
@@ -79,15 +71,6 @@ function _dynamic_form_load_existing_members($form_id) {
 
 /**
  * Persists form members from a submitted JSON string.
- *
- * Inserts new rows, restores/updates changed existing rows, and
- * (on edit) soft-deletes members that were removed from the list.
- *
- * @param int    $form_id      Target form ID.
- * @param string $members_json JSON-encoded [{uid, role}, …].
- * @param bool   $is_new       TRUE on form create (skip removal step).
- *
- * @return array  Newly-added items as [{user_id, role}, …].
  */
 function _dynamic_form_save_members($form_id, $members_json, $is_new = TRUE) {
   global $user;
@@ -184,10 +167,6 @@ function _dynamic_form_save_members($form_id, $members_json, $is_new = TRUE) {
 
 /**
  * Queues email notifications for newly-added form members.
- *
- * @param int    $form_id
- * @param string $form_title
- * @param array  $newly_added  [{user_id, role}, …]
  */
 function _dynamic_form_queue_member_notifications($form_id, $form_title, array $newly_added) {
   if (empty($newly_added)) {
@@ -210,8 +189,6 @@ function _dynamic_form_queue_member_notifications($form_id, $form_title, array $
 
 /**
  * Sends a member-added notification email. Called by the queue worker.
- *
- * @param array $item  Queue item: form_id, form_title, user_id, role, form_url.
  */
 function _dynamic_form_send_member_notification(array $item) {
   $account = user_load($item['user_id']);

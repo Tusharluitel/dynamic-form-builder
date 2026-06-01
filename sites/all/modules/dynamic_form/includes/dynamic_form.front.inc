@@ -6,8 +6,6 @@
  */
 
 /**
- * Applies the "currently active" conditions to a query against dynamic_form_forms f.
- *
  * A form is active when:
  *   - It has been published (published_at IS NOT NULL)
  *   - opens_at has passed or is unset

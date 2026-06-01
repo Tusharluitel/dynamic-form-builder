@@ -8,6 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="<?php print $base_path; ?>sites/all/libraries/fontawesome/css/all.min.css">
+  <link rel="stylesheet" href="<?php print $base_path; ?>sites/all/modules/dynamic_form/css/toast.css">
   <?php print $styles; ?>
   <?php print $scripts; ?>
 </head>
@@ -63,34 +65,6 @@
     </div>
   </section>
 
-  <!-- Features Section -->
-  <!-- <section class="dfb-features" id="features">
-    <div class="dfb-features-inner">
-      <div class="dfb-features-header">
-        <span class="dfb-section-label">Features</span>
-        <h2>Everything you need to build great forms</h2>
-        <p>Powerful tools that make form creation, customization, and analysis effortless.</p>
-      </div>
-      <div class="dfb-features-grid">
-        <div class="dfb-feature-card dfb-animate">
-          <div class="dfb-feature-icon">&#127912;</div>
-          <h3>Drag &amp; Drop Builder</h3>
-          <p>Create forms visually with an intuitive drag-and-drop interface. Add text fields, dropdowns, checkboxes, file uploads, and more.</p>
-        </div>
-        <div class="dfb-feature-card dfb-animate">
-          <div class="dfb-feature-icon">&#128202;</div>
-          <h3>Real-Time Analytics</h3>
-          <p>Track form responses as they come in. Visualize trends, export data, and make informed decisions with built-in analytics.</p>
-        </div>
-        <div class="dfb-feature-card dfb-animate">
-          <div class="dfb-feature-icon">&#128274;</div>
-          <h3>Secure &amp; Private</h3>
-          <p>Enterprise-grade security with encrypted file uploads, access controls, and GDPR-compliant data handling.</p>
-        </div>
-      </div>
-    </div>
-  </section> -->
-
   <!-- Public / Accessible Forms Section -->
   <?php if (!empty($front_forms)): ?>
   <section class="dfb-front-forms" id="public-forms">
@@ -139,6 +113,6 @@
 </div>
 
 <?php print $page_bottom; ?>
-
+<script src="<?php print $base_path; ?>sites/all/modules/dynamic_form/js/toast.js"></script>
 </body>
 </html>

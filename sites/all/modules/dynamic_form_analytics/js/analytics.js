@@ -253,10 +253,7 @@
       .call(d3.axisLeft(y).ticks(4));
   }
 
-  /* ================================================================
-     HORIZONTAL BAR CHART — option/tag distributions
-     el: DOM element, data: [{label:'...', cnt:N}, ...]
-     ================================================================ */
+// Bar Chart
 
   function renderHBarChart(el, data) {
     var BAR_H   = 28;
@@ -338,10 +335,7 @@
       });
   }
 
-  /* ================================================================
-     VERTICAL BAR CHART — date (month) distributions
-     el: DOM element, data: [{label:'YYYY-MM', cnt:N}, ...]
-     ================================================================ */
+  //Vertical Bar Chart
 
   function renderVBarChart(el, data) {
     var margin = { top: 16, right: 16, bottom: 46, left: 44 };
@@ -414,11 +408,7 @@
       .call(d3.axisLeft(y).ticks(4));
   }
 
-  /* ================================================================
-     DONUT CHART — status / respondent type / file type breakdown
-     el: DOM element, data: [{label:'...', cnt:N}, ...]
-     centerLabel: optional string displayed in the hole
-     ================================================================ */
+// Donut Chart
 
   function renderDonutChart(el, data, centerLabel) {
     var totalW  = el.clientWidth || 320;

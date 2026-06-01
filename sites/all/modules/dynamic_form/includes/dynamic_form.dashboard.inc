@@ -1,25 +1,8 @@
 <?php
 
-/**
- * @file
- * Dashboard page callbacks and rendering functions for the Dynamic Form module.
- *
- * Contains the main dashboard page callback, sidebar builder, and individual
- * panel renderers for overview, forms, questions, and sections.
- */
-
-/* =====================================================================
-   DASHBOARD — PAGE CALLBACK
-   ===================================================================== */
 
 /**
  * Page callback for /dashboard and /dashboard/*.
- *
- * @param string $section
- *   The active dashboard section: overview, forms, questions, or sections.
- *
- * @return string
- *   Rendered dashboard HTML via the dynamic_form_dashboard theme hook.
  */
 function dynamic_form_dashboard_page($section = 'overview')
 {
@@ -69,18 +52,9 @@ function dynamic_form_dashboard_page($section = 'overview')
   ));
 }
 
-/* =====================================================================
-   DASHBOARD — SIDEBAR
-   ===================================================================== */
 
 /**
  * Builds the sidebar navigation HTML for the dashboard.
- *
- * @param string $active
- *   The currently active section key.
- *
- * @return string
- *   Rendered sidebar HTML.
  */
 function _dynamic_form_dashboard_sidebar($active = 'overview')
 {
@@ -179,15 +153,12 @@ function _dynamic_form_dashboard_sidebar($active = 'overview')
   return $output;
 }
 
-/* =====================================================================
-   DASHBOARD — OVERVIEW PANEL
-   ===================================================================== */
-
 /**
- * Renders the dashboard overview panel with summary statistics.
+ *  Renders the dashboard overview panel with summary statistics.
  *
  * @return string
  *   Rendered overview HTML.
+ * NOTE: This function is not being used after the analytics module has been implemented, but it may be useful for a future "Dashboard Home" or "Analytics Overview" page.
  */
 function _dynamic_form_dashboard_overview()
 {
@@ -300,18 +271,6 @@ function _dynamic_form_dashboard_overview()
 
 /**
  * Helper: Builds a single stat card.
- *
- * @param string $label
- *   The stat label.
- * @param int $value
- *   The stat value.
- * @param string $icon
- *   An HTML entity icon.
- * @param string $variant
- *   Color variant: primary, success, accent, warning.
- *
- * @return string
- *   Rendered stat card HTML.
  */
 function _dynamic_form_stat_card($label, $value, $icon, $variant = 'primary')
 {
@@ -326,15 +285,9 @@ function _dynamic_form_stat_card($label, $value, $icon, $variant = 'primary')
   return $output;
 }
 
-/* =====================================================================
-   DASHBOARD — FORMS PANEL
-   ===================================================================== */
 
 /**
  * Renders the forms listing panel for the dashboard.
- *
- * @return string
- *   Rendered forms panel HTML.
  */
 function _dynamic_form_dashboard_forms()
 {
@@ -504,15 +457,8 @@ function _dfb_sort_by_created_desc($a, $b)
   return $b->created_at - $a->created_at;
 }
 
-/* =====================================================================
-   DASHBOARD — QUESTIONS PANEL
-   ===================================================================== */
-
 /**
  * Renders the questions listing panel for the dashboard.
- *
- * @return string
- *   Rendered questions panel HTML.
  */
 function _dynamic_form_dashboard_questions()
 {

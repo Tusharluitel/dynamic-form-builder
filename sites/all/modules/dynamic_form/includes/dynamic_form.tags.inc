@@ -7,11 +7,6 @@
 
 /**
  * AJAX endpoint: returns matching tags for Select2 autocomplete.
- *
- * Expects GET param 'term'. Returns JSON array of {id, text} objects
- * where id == text == standardized_value (Select2 format).
- *
- * URL: dynamic-form/ajax/tags/autocomplete?term=php
  */
 function dynamic_form_ajax_tags_autocomplete() {
   $term = isset($_GET['term']) ? trim($_GET['term']) : '';
@@ -40,20 +35,6 @@ function dynamic_form_ajax_tags_autocomplete() {
 
 /**
  * Saves tag answers for a tags-type question within a form response.
- *
- * For each raw tag value:
- *   1. Normalize via _dynamic_form_normalize_tag().
- *   2. Upsert into dynamic_form_tags (get or create the canonical row).
- *   3. Insert into dynamic_form_tag_answers with the raw value preserved.
- *
- * Also writes a comma-joined string of normalized values into
- * dynamic_form_answers.value for display fallback on the responses page.
- *
- * @param int   $response_id  FK to dynamic_form_responses.
- * @param int   $question_id  FK to dynamic_form_questions.
- * @param array $raw_tags     Raw strings submitted by the respondent.
- *
- * @return array  Normalized tag values that were saved (empty strings skipped).
  */
 function _dynamic_form_save_tag_answers($response_id, $question_id, array $raw_tags) {
   global $user;

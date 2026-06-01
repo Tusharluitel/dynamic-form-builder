@@ -1,13 +1,6 @@
 <?php
 
-/**
- * @file
- * Question CRUD — edit and delete using the same UI as the builder modal.
- */
 
-/* =====================================================================
-   EDIT — FORM BUILDER
-   ===================================================================== */
 
 function dynamic_form_edit_question_form($form, &$form_state, $question_id) {
   global $user;
