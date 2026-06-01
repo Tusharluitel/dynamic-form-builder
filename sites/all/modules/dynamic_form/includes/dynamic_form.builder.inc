@@ -80,18 +80,28 @@ function dynamic_form_builder_page($form_id) {
   global $user;
   $module_path = drupal_get_path('module', 'dynamic_form');
   drupal_add_css($module_path . '/css/builder.css');
-  drupal_add_js('https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js', 'external');
+  drupal_add_js('sites/all/libraries/sortablejs/Sortable.min.js', array('type' => 'file'));
   drupal_add_js($module_path . '/js/builder.js');
   drupal_add_js($module_path . '/js/collaborate.js');
+  // Build WebSocket URL: configurable via variable_set, defaults to auto-detected scheme.
+  global $is_https;
+  $ws_url = variable_get('dynamic_form_ws_url',
+    ($is_https ? 'wss' : 'ws') . '://localhost:8080');
+
+  // Generate a time-windowed HMAC token so ws_server.php can verify the join.
+  $ws_secret = _dynamic_form_ws_secret();
+  $ws_token  = hash_hmac('sha256', $user->uid . ':' . floor(REQUEST_TIME / 300), $ws_secret);
+
   drupal_add_js(array(
     'dynamicFormBuilder' => array(
       'formId'      => (int) $form_record->id,
       'basePath'    => url('dynamic-form/ajax/builder'),
       'deletePath'  => url('dynamic-form/ajax/delete'),
-      'wsUrl'       => 'ws://localhost:8080',
+      'wsUrl'       => $ws_url,
       'currentUser' => array(
-        'uid'  => (int) $user->uid,
-        'name' => format_username($user),
+        'uid'     => (int) $user->uid,
+        'name'    => format_username($user),
+        'wsToken' => $ws_token,
       ),
     ),
   ), 'setting');
@@ -137,7 +147,7 @@ function dynamic_form_builder_page($form_id) {
   // Delete confirmation modal.
   $output .= '<div id="dfb-delete-confirm-modal" class="dfb-modal-overlay" style="display:none;">';
   $output .= '<div class="dfb-delete-confirm-box">';
-  $output .= '<div class="dfb-delete-confirm-icon">&#128465;</div>';
+  $output .= '<div class="dfb-delete-confirm-icon"><i class="fa-regular fa-trash-can"></i></div>';
   $output .= '<p class="dfb-delete-confirm-msg">' . t('Delete') . ' "<strong id="dfb-delete-confirm-name"></strong>"?</p>';
   $output .= '<p class="dfb-delete-confirm-sub">' . t('This will move it to Trash. You can restore it later.') . '</p>';
   $output .= '<div class="dfb-delete-confirm-actions">';
@@ -390,11 +400,11 @@ function _dynamic_form_render_builder_section($section, array $questions) {
   // Section header with drag handle.
   $output .= '<div class="dfb-section-header">';
   $output .= '<div class="dfb-drag-handle dfb-section-drag-handle"'
-    . ' title="' . t('Drag to reorder') . '">&#8942;&#8942;</div>';
+    . ' title="' . t('Drag to reorder') . '"><i class="fa-solid fa-grip-vertical"></i></div>';
   $output .= '<div class="dfb-section-title-wrap">';
   $output .= '<h2 class="dfb-section-title">' . check_plain($section->name) . '</h2>';
   $output .= '<button class="dfb-section-edit-icon" data-action="inline-rename-section"'
-    . ' title="' . t('Rename section') . '">&#9998;</button>';
+    . ' title="' . t('Rename section') . '"><i class="fa-solid fa-pen"></i></button>';
   $output .= '<button class="dfb-section-delete-icon" data-action="open-delete-modal"'
     . ' data-entity-type="section"'
     . ' data-entity-id="' . (int) $section->id . '"'
@@ -447,7 +457,7 @@ function _dynamic_form_render_builder_question($question) {
 
   $output  = '<div class="dfb-question-card" data-question-id="' . (int) $question->id . '">';
   $output .= '<div class="dfb-drag-handle dfb-question-drag-handle"'
-    . ' title="' . t('Drag to reorder') . '">&#8942;&#8942;</div>';
+    . ' title="' . t('Drag to reorder') . '"><i class="fa-solid fa-grip-vertical"></i></div>';
 
   $output .= '<div class="dfb-question-content dfb-question-editable"'
     . ' title="' . t('Click to edit') . '">';
@@ -461,7 +471,7 @@ function _dynamic_form_render_builder_question($question) {
     $output .= '<span class="dfb-question-width-badge">' . $width_labels[$q_width] . '</span>';
   }
   $output .= '<span class="dfb-question-type-badge">' . check_plain($question->type) . '</span>';
-  $output .= '<span class="dfb-edit-hint">&#9998;</span>';
+  $output .= '<span class="dfb-edit-hint"><i class="fa-solid fa-pen"></i></span>';
   $output .= '<button class="dfb-question-delete-icon" data-action="open-delete-modal"'
     . ' data-entity-type="question"'
     . ' data-entity-id="' . (int) $question->id . '"'
@@ -1388,7 +1398,7 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
   if ($type_locked) {
     $form['type_section']['type_lock_notice'] = array(
       '#markup' => '<div class="dfb-type-locked-notice">'
-        . '<span class="dfb-lock-icon">&#128274;</span> '
+        . '<span class="dfb-lock-icon"><i class="fa-solid fa-lock"></i></span> '
         . t('This form already has responses. The question type cannot be changed to preserve data integrity.')
         . '</div>',
       '#weight' => 10,

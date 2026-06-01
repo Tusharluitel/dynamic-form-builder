@@ -71,9 +71,9 @@ function dynamic_form_profile_page() {
 
   // Stats row.
   $out .= '<div class="dfb-profile-stats">';
-  $out .= _dfb_profile_stat(t('Member Since'), format_date($account->created, 'custom', 'M j, Y'), '&#128197;');
-  $out .= _dfb_profile_stat(t('Forms Created'), $forms_count, '&#128196;');
-  $out .= _dfb_profile_stat(t('Responses Submitted'), $responses_count, '&#128221;');
+  $out .= _dfb_profile_stat(t('Member Since'), format_date($account->created, 'custom', 'M j, Y'), '<i class="fa-regular fa-calendar"></i>');
+  $out .= _dfb_profile_stat(t('Forms Created'), $forms_count, '<i class="fa-regular fa-file-lines"></i>');
+  $out .= _dfb_profile_stat(t('Responses Submitted'), $responses_count, '<i class="fa-regular fa-pen-to-square"></i>');
   $out .= '</div>';
 
   $out .= '</div>';

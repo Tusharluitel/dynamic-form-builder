@@ -3,6 +3,10 @@
  * Simple WebSocket server for form builder collaboration.
  */
 
+define('WS_MAX_TOTAL',  200); // hard cap on simultaneous connections
+define('WS_MAX_PER_IP',  10); // cap per source IP
+define('WS_SECRET_FILE', sys_get_temp_dir() . '/.dfb_ws_secret');
+
 $host = '0.0.0.0';
 $port = 8080;
 
@@ -15,12 +19,11 @@ socket_set_nonblock($server);
 echo "[WS] WebSocket server running on ws://{$host}:{$port}\n";
 echo "[WS] Press Ctrl+C to stop.\n\n";
 
-// $sockets  — flat list of all open Socket objects (server + clients).
-// $clients  — int id => { socket, handshaked, form_id, uid, name, color }
-// $sock_map — spl_object_id($sock) => client id  (fast reverse lookup)
+
 $sockets  = array($server);
 $clients  = array();
 $sock_map = array();
+$ip_conns = array();
 $next_id  = 0;
 
 $colours = array('#E74C3C','#3498DB','#2ECC71','#F39C12','#9B59B6','#1ABC9C','#E67E22','#E91E63');
@@ -45,7 +48,24 @@ while (true) {
     if ($sock === $server) {
       $new = socket_accept($server);
       if ($new === false) { continue; }
+
+      // Enforce total and per-IP connection limits.
+      $remote_ip = '';
+      @socket_getpeername($new, $remote_ip);
+      $client_count = count($sockets) - 1; // exclude the server socket
+      if ($client_count >= WS_MAX_TOTAL) {
+        echo "[WS] Total limit reached ({$client_count}), rejected {$remote_ip}\n";
+        @socket_close($new);
+        continue;
+      }
+      if (isset($ip_conns[$remote_ip]) && $ip_conns[$remote_ip] >= WS_MAX_PER_IP) {
+        echo "[WS] Per-IP limit reached for {$remote_ip}, rejected\n";
+        @socket_close($new);
+        continue;
+      }
+
       socket_set_nonblock($new);
+      $ip_conns[$remote_ip] = ($ip_conns[$remote_ip] ?? 0) + 1;
 
       $id            = $next_id++;
       $sockets[]     = $new;
@@ -57,8 +77,9 @@ while (true) {
         'uid'        => null,
         'name'       => '',
         'color'      => '#999999',
+        'ip'         => $remote_ip,
       );
-      echo "[WS] Client connected (id:{$id})\n";
+      echo "[WS] Client connected (id:{$id}, ip:{$remote_ip})\n";
       continue;
     }
 
@@ -70,7 +91,7 @@ while (true) {
     $data = @socket_read($sock, 8192);
 
     if ($data === false || $data === '') {
-      _ws_disconnect($id, $sockets, $clients, $sock_map, $colours);
+      _ws_disconnect($id, $sockets, $clients, $sock_map, $ip_conns, $colours);
       continue;
     }
 
@@ -82,7 +103,7 @@ while (true) {
 
     $opcode = ord($data[0]) & 0x0F;
     if ($opcode === 0x08) { // close frame
-      _ws_disconnect($id, $sockets, $clients, $sock_map, $colours);
+      _ws_disconnect($id, $sockets, $clients, $sock_map, $ip_conns, $colours);
       continue;
     }
     if ($opcode === 0x09) { // ping → pong
@@ -190,16 +211,39 @@ function _ws_presence_list($form_id, &$clients) {
    Message handler
    --------------------------------------------------------------------- */
 
+function _ws_valid_token($token, $uid, $secret) {
+  $secret = trim($secret);
+  if (empty($secret) || !strlen($token)) { return false; }
+  // Accept current and previous 5-minute windows to handle clock skew.
+  $now = (int) floor(time() / 300);
+  foreach (array($now, $now - 1) as $window) {
+    if (hash_equals(hash_hmac('sha256', $uid . ':' . $window, $secret), $token)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function _ws_handle($from_id, array $payload, &$sockets, &$clients, &$sock_map, $colours) {
   $type = isset($payload['type']) ? $payload['type'] : '';
 
   if ($type === 'join') {
     $form_id = (int) (isset($payload['form_id']) ? $payload['form_id'] : 0);
     $uid     = (int) (isset($payload['uid'])     ? $payload['uid']     : 0);
+    $token   = isset($payload['token']) ? (string) $payload['token'] : '';
     $name    = isset($payload['name'])
                ? htmlspecialchars(strip_tags($payload['name']), ENT_QUOTES)
                : 'Anonymous';
-    $color   = $colours[$uid % count($colours)];
+
+    // Validate the HMAC token written by Drupal to the shared secret file.
+    $secret = @file_get_contents(WS_SECRET_FILE);
+    if ($secret === false || !_ws_valid_token($token, $uid, $secret)) {
+      _ws_send($clients[$from_id]['socket'], array('type' => 'error', 'message' => 'Authentication failed.'));
+      echo "[WS] Join rejected for uid:{$uid} — invalid token\n";
+      return;
+    }
+
+    $color = $colours[$uid % count($colours)];
 
     $clients[$from_id]['form_id'] = $form_id;
     $clients[$from_id]['uid']     = $uid;
@@ -230,17 +274,24 @@ function _ws_handle($from_id, array $payload, &$sockets, &$clients, &$sock_map, 
    Disconnect
    --------------------------------------------------------------------- */
 
-function _ws_disconnect($id, &$sockets, &$clients, &$sock_map, $colours) {
+function _ws_disconnect($id, &$sockets, &$clients, &$sock_map, &$ip_conns, $colours) {
   if (!isset($clients[$id])) { return; }
 
   $name    = $clients[$id]['name'] ?: "client#{$id}";
   $form_id = $clients[$id]['form_id'];
   $sock    = $clients[$id]['socket'];
+  $ip      = isset($clients[$id]['ip']) ? $clients[$id]['ip'] : '';
 
   // Remove from lookup map first.
   $obj_id = spl_object_id($sock);
   unset($sock_map[$obj_id]);
   unset($clients[$id]);
+
+  // Release the per-IP slot.
+  if ($ip && isset($ip_conns[$ip])) {
+    $ip_conns[$ip]--;
+    if ($ip_conns[$ip] <= 0) { unset($ip_conns[$ip]); }
+  }
 
   // Remove from the sockets list using identity (===), never int-cast.
   $sockets = array_values(array_filter($sockets, function ($s) use ($sock) {
