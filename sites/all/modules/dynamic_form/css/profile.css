@@ -23,7 +23,7 @@
   width: 72px;
   height: 72px;
   border-radius: 50%;
-  background: var(--color-primary, #6366f1);
+  background: var(--color-primary, #FF3299);
   color: #fff;
   font-size: 2rem;
   font-weight: 700;
@@ -62,9 +62,9 @@
   display: inline-block;
   padding: 8px 18px;
   background: transparent;
-  border: 1.5px solid var(--color-primary, #6366f1);
+  border: 1.5px solid var(--color-primary, #FF3299);
   border-radius: 6px;
-  color: var(--color-primary, #6366f1);
+  color: var(--color-primary, #FF3299);
   font-size: 0.875rem;
   font-weight: 600;
   text-decoration: none;
@@ -73,7 +73,7 @@
 
 .dfb-btn-edit-profile:hover,
 .dfb-btn-edit-profile:focus {
-  background: var(--color-primary, #6366f1);
+  background: var(--color-primary, #FF3299);
   color: #fff;
   text-decoration: none;
 }

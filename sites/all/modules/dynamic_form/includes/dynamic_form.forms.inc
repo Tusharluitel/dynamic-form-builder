@@ -192,18 +192,6 @@ function dynamic_form_create_form_validate($form, &$form_state)
     form_set_error('title', t('Title must be at least 3 characters long.'));
   }
 
-  // Generate slug and check uniqueness.
-  $slug = _dynamic_form_generate_slug($title);
-  $exists = db_select('dynamic_form_forms', 'f')
-    ->fields('f', array('id'))
-    ->condition('slug', $slug)
-    ->condition('deleted_at', NULL, 'IS NULL')
-    ->execute()
-    ->fetchField();
-
-  if ($exists) {
-    form_set_error('title', t('A form with a similar title already exists. Please choose a different title.'));
-  }
 }
 
 /**
@@ -541,21 +529,6 @@ function dynamic_form_edit_form_validate($form, &$form_state)
     form_set_error('title', t('Title must be at least 3 characters long.'));
   }
 
-  // Check slug uniqueness if title changed.
-  if ($title !== $record->title) {
-    $slug = _dynamic_form_generate_slug($title);
-    $exists = db_select('dynamic_form_forms', 'f')
-      ->fields('f', array('id'))
-      ->condition('slug', $slug)
-      ->condition('id', $record->id, '<>')
-      ->condition('deleted_at', NULL, 'IS NULL')
-      ->execute()
-      ->fetchField();
-
-    if ($exists) {
-      form_set_error('title', t('A form with a similar title already exists.'));
-    }
-  }
 }
 
 /**

@@ -87,7 +87,9 @@ function _dynamic_form_rate_limit_deny($retry_after = 60) {
  */
 function _dynamic_form_ws_secret() {
   $secret = drupal_hmac_base64('dfb_ws_secret', drupal_get_private_key() . drupal_get_hash_salt());
-  $file   = sys_get_temp_dir() . '/.dfb_ws_secret';
+  // Use DRUPAL_ROOT so the path is identical regardless of which OS user runs
+  // the process — sys_get_temp_dir() differs between Apache and the CLI user.
+  $file = DRUPAL_ROOT . '/.dfb_ws_secret';
   if (!file_exists($file) || trim(file_get_contents($file)) !== $secret) {
     file_put_contents($file, $secret, LOCK_EX);
     @chmod($file, 0600);
@@ -985,7 +987,6 @@ function _dynamic_form_generate_slug($title)
   while (db_select('dynamic_form_forms', 'f')
     ->fields('f', array('id'))
     ->condition('slug', $slug)
-    ->condition('deleted_at', NULL, 'IS NULL')
     ->execute()
     ->fetchField()) {
     $slug = $base_slug . '-' . $counter;

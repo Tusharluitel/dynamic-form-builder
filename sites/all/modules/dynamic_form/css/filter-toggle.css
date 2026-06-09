@@ -123,7 +123,7 @@
 }
 
 .dfb-filter-toggle-input:checked + .dfb-toggle-label {
-  background: var(--color-primary, #4f46e5);
+  background: var(--color-primary, #CC1A7A);
 }
 
 .dfb-filter-toggle-input:checked + .dfb-toggle-label::after {
@@ -131,7 +131,7 @@
 }
 
 .dfb-filter-toggle-input:focus + .dfb-toggle-label {
-  outline: 2px solid var(--color-primary, #4f46e5);
+  outline: 2px solid var(--color-primary, #CC1A7A);
   outline-offset: 2px;
 }
 

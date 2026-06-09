@@ -5,7 +5,8 @@
 
 define('WS_MAX_TOTAL',  200); // hard cap on simultaneous connections
 define('WS_MAX_PER_IP',  10); // cap per source IP
-define('WS_SECRET_FILE', sys_get_temp_dir() . '/.dfb_ws_secret');
+// Use the project root — same path that dynamic_form.module writes (DRUPAL_ROOT).
+define('WS_SECRET_FILE', dirname(__FILE__) . '/.dfb_ws_secret');
 
 $host = '0.0.0.0';
 $port = 8080;
