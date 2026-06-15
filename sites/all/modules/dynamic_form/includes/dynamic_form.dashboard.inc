@@ -16,6 +16,9 @@ function dynamic_form_dashboard_page($section = 'overview')
     drupal_add_js(array('dynamicFormSearch' => array('section' => $section)), 'setting');
     drupal_add_css($module_path . '/css/dashboard-delete.css');
     drupal_add_js($module_path . '/js/dashboard-delete.js');
+    drupal_add_js(array('dfbAjaxTokens' => array(
+      'softDelete' => drupal_get_token('dfb_ajax_delete'),
+    )), 'setting');
   }
 
   // Build sidebar.
@@ -703,6 +706,7 @@ function dynamic_form_dashboard_form_edit_page($form_id)
   $questions = db_select('dynamic_form_questions', 'q')
     ->fields('q', array('id', 'label', 'type', 'allow_filter'))
     ->condition('form_id', (int) $form_id)
+    ->condition('type', 'file', '<>')
     ->isNull('deleted_at')
     ->orderBy('position', 'ASC')
     ->execute()
@@ -899,9 +903,13 @@ function _dynamic_form_delete_confirm_modal() {
     <h3 class="dfb-delete-modal-title" id="dfb-delete-modal-title">'
       . t('Delete this') . ' <span class="dfb-delete-modal-type"></span>?
     </h3>
-    <p class="dfb-delete-modal-body">'
+    <p class="dfb-delete-modal-body dfb-msg-soft">'
       . t('You are about to delete') . ' <strong class="dfb-delete-modal-name"></strong>. '
       . t('The item will be moved to Trash and can be restored later.') . '
+    </p>
+    <p class="dfb-delete-modal-body dfb-msg-perma" style="display:none;">'
+      . t('You are about to permanently delete') . ' <strong class="dfb-delete-modal-name"></strong>. '
+      . t('This cannot be undone. All associated data will be permanently removed.') . '
     </p>
     <div class="dfb-delete-modal-actions">
       <button class="dfb-delete-confirm-btn" type="button">' . t('Delete') . '</button>
@@ -929,6 +937,12 @@ function dynamic_form_ajax_entity_delete($entity_type, $entity_id) {
 
   if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     drupal_json_output(array('status' => 'error', 'message' => t('Invalid request method.')));
+    drupal_exit();
+  }
+
+  $token = isset($_POST['token']) ? $_POST['token'] : '';
+  if (!drupal_valid_token($token, 'dfb_ajax_delete')) {
+    drupal_json_output(array('status' => 'error', 'message' => t('Invalid token.')));
     drupal_exit();
   }
 

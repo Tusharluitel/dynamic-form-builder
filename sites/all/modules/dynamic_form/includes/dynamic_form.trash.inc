@@ -20,10 +20,15 @@ function dynamic_form_dashboard_trash_page() {
   $module_path = drupal_get_path('module', 'dynamic_form');
   drupal_add_css($module_path . '/css/dashboard-delete.css');
   drupal_add_js($module_path . '/js/dashboard-delete.js');
+  drupal_add_js(array('dfbAjaxTokens' => array(
+    'restore'     => drupal_get_token('dfb_ajax_restore'),
+    'permaDelete' => drupal_get_token('dfb_ajax_perma_delete'),
+  )), 'setting');
 
   $sidebar_html = _dynamic_form_dashboard_sidebar('trash');
   $content_html = _dynamic_form_dashboard_trash_content();
   $content_html .= _dynamic_form_restore_confirm_modal();
+  $content_html .= _dynamic_form_delete_confirm_modal();
 
   return theme('dynamic_form_dashboard', array(
     'sidebar' => $sidebar_html,
@@ -182,7 +187,14 @@ function _dynamic_form_trash_build_row($record, $entity_type, $can_act) {
     $actions[] = l(
       t('Delete Permanently'),
       'dashboard/trash/' . $entity_type . '/' . $record->id . '/delete-permanent',
-      array('attributes' => array('class' => array('dfb-action-delete')))
+      array('attributes' => array(
+        'class'            => array('dfb-action-delete', 'dfb-delete-trigger'),
+        'data-entity-type' => $entity_type,
+        'data-entity-id'   => (string) $record->id,
+        'data-entity-name' => $entity_name,
+        'data-perma'       => '1',
+        'data-ajax-url'    => url('dynamic-form/ajax/trash/' . $entity_type . '/' . $record->id . '/delete-permanent'),
+      ))
     );
   }
   $actions_html = implode(' &middot; ', $actions);
@@ -619,6 +631,12 @@ function dynamic_form_ajax_entity_restore($entity_type, $entity_id) {
     drupal_exit();
   }
 
+  $token = isset($_POST['token']) ? $_POST['token'] : '';
+  if (!drupal_valid_token($token, 'dfb_ajax_restore')) {
+    drupal_json_output(array('status' => 'error', 'message' => t('Invalid token.')));
+    drupal_exit();
+  }
+
   if (!in_array($entity_type, array('form', 'section', 'question', 'response'))) {
     drupal_json_output(array('status' => 'error', 'message' => t('Invalid entity type.')));
     drupal_exit();
@@ -675,6 +693,65 @@ function dynamic_form_ajax_entity_restore($entity_type, $entity_id) {
   drupal_json_output(array(
     'status'  => 'ok',
     'message' => t('"@label" has been restored.', array('@label' => $label)),
+  ));
+  drupal_exit();
+}
+
+/* =====================================================================
+   TRASH — AJAX PERMANENT DELETE
+   ===================================================================== */
+
+/**
+ * AJAX endpoint: permanently deletes a soft-deleted entity.
+ *
+ * Route: POST dynamic-form/ajax/trash/{entity_type}/{entity_id}/delete-permanent
+ * Returns JSON: {status: "ok"|"error", message: "..."}
+ */
+function dynamic_form_ajax_entity_delete_permanent($entity_type, $entity_id) {
+  if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    drupal_json_output(array('status' => 'error', 'message' => t('Invalid request method.')));
+    drupal_exit();
+  }
+
+  $token = isset($_POST['token']) ? $_POST['token'] : '';
+  if (!drupal_valid_token($token, 'dfb_ajax_perma_delete')) {
+    drupal_json_output(array('status' => 'error', 'message' => t('Invalid token.')));
+    drupal_exit();
+  }
+
+  if (!in_array($entity_type, array('form', 'section', 'question', 'response'))) {
+    drupal_json_output(array('status' => 'error', 'message' => t('Invalid entity type.')));
+    drupal_exit();
+  }
+
+  $entity_id = (int) $entity_id;
+  $record    = _dynamic_form_trash_load_entity($entity_type, $entity_id);
+
+  if (!$record) {
+    drupal_json_output(array('status' => 'error', 'message' => t('Item not found in trash.')));
+    drupal_exit();
+  }
+
+  $label = _dynamic_form_trash_label($entity_type, $record);
+
+  switch ($entity_type) {
+    case 'form':
+      _dynamic_form_trash_hard_delete_form($entity_id);
+      break;
+    case 'section':
+      _dynamic_form_trash_hard_delete_section($entity_id);
+      break;
+    case 'question':
+      _dynamic_form_trash_hard_delete_question($entity_id);
+      break;
+    case 'response':
+      _dynamic_form_trash_hard_delete_response($entity_id);
+      break;
+  }
+
+  drupal_json_output(array(
+    'status'  => 'ok',
+    'message' => t('"@label" has been permanently deleted.', array('@label' => $label)),
   ));
   drupal_exit();
 }

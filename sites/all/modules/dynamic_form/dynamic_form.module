@@ -713,6 +713,14 @@ function dynamic_form_menu()
     'type'            => MENU_CALLBACK,
   );
 
+  $items['dynamic-form/ajax/trash/%/%/delete-permanent'] = array(
+    'page callback'   => 'dynamic_form_ajax_entity_delete_permanent',
+    'page arguments'  => array(3, 4),
+    'access arguments' => array('restore deleted'),
+    'file'            => 'includes/dynamic_form.trash.inc',
+    'type'            => MENU_CALLBACK,
+  );
+
   // AJAX soft-delete endpoint (used by the dashboard delete modal).
   $items['dynamic-form/ajax/delete/%/%'] = array(
     'page callback'   => 'dynamic_form_ajax_entity_delete',

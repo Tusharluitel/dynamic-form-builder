@@ -1,21 +1,10 @@
 <?php
 
-/**
- * @file
- * Indexes dynamic_form tags and responses into Apache Solr.
- *   - dynamic_form_solr_url: Solr core URL.
- *     Default: http://localhost:8983/solr/dynamic-form-builder
- */
 
 define('DYNAMIC_FORM_SOLR_DEFAULT_URL', 'http://localhost:8983/solr/dynamic-form-builder');
 
-// ---------------------------------------------------------------------------
-// hook_dynamic_form_*_predelete — clean up Solr index on permanent deletion
-// ---------------------------------------------------------------------------
-
 /**
- * Implements hook_dynamic_form_form_predelete().
- *
+
  * Removes all Solr response documents for the form before its DB rows are
  * deleted.
  */
@@ -48,8 +37,8 @@ function dynamic_form_solr_menu() {
   );
 
   $items['admin/config/search/dynamic-form-solr'] = array(
-    'title'            => 'Dynamic Form Solr Tags',
-    'description'      => 'Configure and re-index form tags in Apache Solr.',
+    'title'            => 'Dynamic Form Solr',
+    'description'      => 'Configure and re-index form tags and responses in Apache Solr.',
     'page callback'    => 'drupal_get_form',
     'page arguments'   => array('dynamic_form_solr_admin_form'),
     'access arguments' => array('administer site configuration'),
@@ -98,8 +87,6 @@ function _dynamic_form_solr_send_documents(array $docs, $commit = TRUE) {
  * @param array $delete  A Solr delete payload, e.g.:
  *                         array('id' => 'tag-1')           — single doc by ID
  *                         array('query' => 'doc_type:tag')  — by query
- * @param bool  $commit  Append ?commit=true (default TRUE).
- * @return bool
  */
 function _dynamic_form_solr_delete_documents(array $delete, $commit = TRUE) {
   $solr_url = variable_get('dynamic_form_solr_url', DYNAMIC_FORM_SOLR_DEFAULT_URL);
@@ -354,11 +341,6 @@ function dynamic_form_solr_index_response($response_id) {
 /**
  * Inject canonical tag values from dynamic_form_tag_answers into an answers array.
  *
- * Replaces any existing tag answer value with a JSON-encoded array of
- * standardized tag values, and appends entries for tag questions that have
- * no row in dynamic_form_answers at all. This ensures the Solr document
- * always reflects the authoritative tag data regardless of what is stored
- * in the display-fallback column.
  *
  * @param array $answers         Rows from dynamic_form_answers (objects with question_id, value).
  * @param array &$question_types Map of question_id → type (extended in-place for new qids).
@@ -644,16 +626,6 @@ function dynamic_form_solr_filter_responses($form_id, array $criteria) {
 
 /**
  * Fetch Solr field facets for option-type and tags questions on a form.
- *
- * Returns facet value counts keyed by question ID. Always queries Solr
- * (even with no active criteria) so the caller gets totals for the full
- * form result set. The same criteria used for filtering are applied so
- * facet counts are context-aware.
- *
- * Each question's facets are stored in sm_q_{qid} (exact-string multi),
- * which covers: checkbox, multi-select (already sm_*), radio and
- * single-select (also indexed as sm_* since the last re-index), and tags
- * (dual-indexed as both tm_* and sm_*).
  *
  * @param int   $form_id
  * @param array $criteria   Same keys as dynamic_form_solr_filter_responses().

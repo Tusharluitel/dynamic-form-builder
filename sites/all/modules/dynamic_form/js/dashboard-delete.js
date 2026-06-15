@@ -27,21 +27,29 @@
           var entityType = $trigger.data('entity-type');
           var entityId   = $trigger.data('entity-id');
           var entityName = $trigger.data('entity-name');
+          var isPerma    = !!$trigger.data('perma');
+          var ajaxUrl    = $trigger.data('ajax-url') || null;
 
-          // Populate text inside the modal.
+          // Populate text inside the modal (both paragraphs share .dfb-delete-modal-name).
           $modal.find('.dfb-delete-modal-type').text(entityType);
           $modal.find('.dfb-delete-modal-name').text(entityName);
+
+          // Toggle the correct message paragraph.
+          $modal.find('.dfb-msg-soft').toggle(!isPerma);
+          $modal.find('.dfb-msg-perma').toggle(isPerma);
 
           // Store context so the confirm handler knows what to delete.
           $modal
             .data('entity-type', entityType)
             .data('entity-id',   entityId)
-            .data('target-row',  $trigger.closest('tr'));
+            .data('target-row',  $trigger.closest('tr'))
+            .data('is-perma',    isPerma)
+            .data('ajax-url',    ajaxUrl);
 
-          // Reset button to its default state before opening.
+          // Set button label and reset disabled state.
           $modal.find('.dfb-delete-confirm-btn')
             .removeAttr('disabled')
-            .text(Drupal.t('Delete'));
+            .text(isPerma ? Drupal.t('Delete Permanently') : Drupal.t('Delete'));
 
           // Fade in the modal (display:flex is needed for centering).
           $modal.css({ display: 'flex', opacity: 0 }).animate({ opacity: 1 }, 150);
@@ -66,11 +74,15 @@
 
         // Confirm: fire AJAX delete, then remove the row on success.
         $m.find('.dfb-delete-confirm-btn').bind('click', function () {
-          var $btn = $(this);
-          var type = $m.data('entity-type');
-          var id   = $m.data('entity-id');
-          var $row = $m.data('target-row');
-          var url  = Drupal.settings.basePath + 'dynamic-form/ajax/delete/' + type + '/' + id;
+          var $btn    = $(this);
+          var type    = $m.data('entity-type');
+          var id      = $m.data('entity-id');
+          var $row    = $m.data('target-row');
+          var isPerma = $m.data('is-perma');
+          var url     = $m.data('ajax-url') || (Drupal.settings.basePath + 'dynamic-form/ajax/delete/' + type + '/' + id);
+          var token   = isPerma
+            ? (Drupal.settings.dfbAjaxTokens || {}).permaDelete || ''
+            : (Drupal.settings.dfbAjaxTokens || {}).softDelete  || '';
 
           $btn.attr('disabled', 'disabled').text(Drupal.t('Deleting…'));
 
@@ -78,6 +90,7 @@
             url:      url,
             type:     'POST',
             dataType: 'json',
+            data:     { token: token },
             success: function (res) {
               if (res && res.status === 'ok') {
                 _close($m);
@@ -88,14 +101,16 @@
                 if (window.DFBToast) { DFBToast.success(res.message); }
               }
               else {
-                $btn.removeAttr('disabled').text(Drupal.t('Delete'));
+                var resetLabel = isPerma ? Drupal.t('Delete Permanently') : Drupal.t('Delete');
+                $btn.removeAttr('disabled').text(resetLabel);
                 if (window.DFBToast) {
                   DFBToast.error((res && res.message) || Drupal.t('Could not delete item.'));
                 }
               }
             },
             error: function () {
-              $btn.removeAttr('disabled').text(Drupal.t('Delete'));
+              var resetLabel = isPerma ? Drupal.t('Delete Permanently') : Drupal.t('Delete');
+              $btn.removeAttr('disabled').text(resetLabel);
               if (window.DFBToast) {
                 DFBToast.error(Drupal.t('An error occurred. Please try again.'));
               }
@@ -175,6 +190,7 @@
             url:      url,
             type:     'POST',
             dataType: 'json',
+            data:     { token: (Drupal.settings.dfbAjaxTokens || {}).restore || '' },
             success: function (res) {
               if (res && res.status === 'ok') {
                 _close($m);

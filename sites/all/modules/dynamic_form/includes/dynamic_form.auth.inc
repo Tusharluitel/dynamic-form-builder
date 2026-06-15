@@ -83,7 +83,7 @@ function dynamic_form_login_form_submit($form, &$form_state)
     $form_state['redirect'] = 'dynamic-form/invite/accept/' . $_SESSION['dfb_invite_token'];
   }
   else {
-    $form_state['redirect'] = '<front>';
+    $form_state['redirect'] = '/dashboard/forms';
   }
 }
 
