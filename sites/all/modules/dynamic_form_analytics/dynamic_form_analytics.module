@@ -1,6 +1,70 @@
 <?php
 
 /**
+ * Implements hook_theme().
+ */
+function dynamic_form_analytics_theme() {
+  $tpl_path = drupal_get_path('module', 'dynamic_form_analytics') . '/templates';
+  return array(
+    'dynamic_form_analytics_stat_card' => array(
+      'variables' => array('label' => '', 'value' => '', 'icon' => '', 'modifier' => ''),
+      'template'  => 'dynamic-form-analytics-stat-card',
+      'path'      => $tpl_path,
+    ),
+    'dynamic_form_analytics_question_card' => array(
+      'variables' => array('qid' => 0, 'label' => '', 'type' => '', 'body_html' => ''),
+      'template'  => 'dynamic-form-analytics-question-card',
+      'path'      => $tpl_path,
+    ),
+    'dynamic_form_analytics_form_page' => array(
+      'variables' => array(
+        'form_title'     => '',
+        'form_id'        => 0,
+        'responses_url'  => '',
+        'analytics_url'  => '',
+        'kpi_cards'      => array(),
+        'has_trend'      => FALSE,
+        'questions_html' => '',
+      ),
+      'template' => 'dynamic-form-analytics-form-page',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_analytics_global_page' => array(
+      'variables' => array(
+        'radar_url'     => '',
+        'kpi_cards'     => array(),
+        'has_trend'     => FALSE,
+        'has_top_forms' => FALSE,
+      ),
+      'template' => 'dynamic-form-analytics-global-page',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_analytics_radar_page' => array(
+      'variables' => array('back_url' => ''),
+      'template'  => 'dynamic-form-analytics-radar-page',
+      'path'      => $tpl_path,
+    ),
+  );
+}
+
+/**
+ * Renders a KPI stat card via the theme system.
+ *
+ * @param string $label    Card label (translated).
+ * @param string $value    Display value (number or string).
+ * @param string $icon     Pre-rendered icon HTML.
+ * @param string $modifier Color modifier: primary | success | accent | warning.
+ */
+function _dynamic_form_stat_card($label, $value, $icon, $modifier) {
+  return theme('dynamic_form_analytics_stat_card', array(
+    'label'    => $label,
+    'value'    => $value,
+    'icon'     => $icon,
+    'modifier' => $modifier,
+  ));
+}
+
+/**
  * Implements hook_permission().
  */
 function dynamic_form_analytics_permission() {

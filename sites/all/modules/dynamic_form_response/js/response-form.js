@@ -229,42 +229,60 @@
         var $q        = $input.closest('.dfp-question');
         var $valInput = $q.find('.dfp-file-value');
         var $nameEl   = $dropzone.find('.dfp-file-name');
+        var files     = Array.prototype.slice.call(this.files);
+        var total     = files.length;
 
-        $nameEl.text('Uploading…').show();
+        $nameEl.text(total > 1 ? 'Uploading 1 of ' + total + '…' : 'Uploading…').show();
         $dropzone.addClass('dfp-file-uploading').removeClass('dfp-file-done dfp-file-error');
         $valInput.val('');
 
-        var fd = new FormData();
-        fd.append('file', this.files[0]);
-        fd.append('form_id', formId);
-        fd.append('question_id', $input.data('question-id'));
-        fd.append('token', token);
+        var results = [];
 
-        $.ajax({
-          url:         uploadUrl,
-          type:        'POST',
-          data:        fd,
-          contentType: false,
-          processData: false,
-          dataType:    'json',
-          success: function (res) {
+        function uploadFile(idx) {
+          if (idx >= total) {
             $dropzone.removeClass('dfp-file-uploading');
-            if (res && res.status === 'ok') {
-              $valInput.val(JSON.stringify({ fid: res.fid, filename: res.filename, url: res.url }));
-              $nameEl.text(res.filename);
-              $dropzone.addClass('dfp-file-done');
-              $q.find('.dfr-field-error').text('').hide();
-              $q.removeClass('dfp-question-error');
-            } else {
-              $dropzone.addClass('dfp-file-error');
-              $nameEl.text((res && res.message) || 'Upload failed.');
-            }
-          },
-          error: function () {
-            $dropzone.removeClass('dfp-file-uploading').addClass('dfp-file-error');
-            $nameEl.text('Upload failed. Please try again.');
+            $valInput.val(JSON.stringify(results));
+            $nameEl.text(results.map(function (r) { return r.filename; }).join(', '));
+            $dropzone.addClass('dfp-file-done');
+            $q.find('.dfr-field-error').text('').hide();
+            $q.removeClass('dfp-question-error');
+            return;
           }
-        });
+
+          if (total > 1) {
+            $nameEl.text('Uploading ' + (idx + 1) + ' of ' + total + '…');
+          }
+
+          var fd = new FormData();
+          fd.append('file', files[idx]);
+          fd.append('form_id', formId);
+          fd.append('question_id', $input.data('question-id'));
+          fd.append('token', token);
+
+          $.ajax({
+            url:         uploadUrl,
+            type:        'POST',
+            data:        fd,
+            contentType: false,
+            processData: false,
+            dataType:    'json',
+            success: function (res) {
+              if (res && res.status === 'ok') {
+                results.push({ fid: res.fid, filename: res.filename, url: res.url });
+                uploadFile(idx + 1);
+              } else {
+                $dropzone.removeClass('dfp-file-uploading').addClass('dfp-file-error');
+                $nameEl.text((res && res.message) || 'Upload failed.');
+              }
+            },
+            error: function () {
+              $dropzone.removeClass('dfp-file-uploading').addClass('dfp-file-error');
+              $nameEl.text('Upload failed. Please try again.');
+            }
+          });
+        }
+
+        uploadFile(0);
       });
 
       // ----------------------------------------------------------------

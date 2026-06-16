@@ -331,7 +331,7 @@ function _dynamic_form_analytics_question_distribution($q) {
 }
 
 /**
- * Builds the per-form analytics page HTML.
+ * Builds the per-form analytics page HTML via the theme system.
  *
  * @param object $form  Form record from DB.
  * @param array  $data  Data from _dynamic_form_analytics_form_data().
@@ -339,118 +339,75 @@ function _dynamic_form_analytics_question_distribution($q) {
 function _dynamic_form_analytics_form_html($form, $data) {
   $kpi = $data['kpi'];
 
-  $output  = '<div class="dfb-analytics-page">';
+  $kpi_cards = array(
+    array('label' => t('Submitted'),       'value' => $kpi['total_submitted'],       'icon' => '<i class="fa-solid fa-circle-check"></i>', 'modifier' => 'success'),
+    array('label' => t('Completion Rate'), 'value' => $kpi['completion_rate'] . '%', 'icon' => '<i class="fa-solid fa-chart-line"></i>',   'modifier' => 'primary'),
+    array('label' => t('Abandoned'),       'value' => $kpi['abandoned'],             'icon' => '<i class="fa-solid fa-ban"></i>',          'modifier' => 'warning'),
+    array('label' => t('Avg Time'),        'value' => $kpi['avg_time'],              'icon' => '<i class="fa-regular fa-clock"></i>',      'modifier' => 'accent'),
+  );
 
-  // Header with back links.
-  $output .= '<div class="dfb-analytics-header">';
-  $output .= '<div class="dfb-analytics-header-top">';
-  $output .= '<div>';
-  $output .= '<h2>' . t('Analytics: @title', array('@title' => check_plain($form->title))) . '</h2>';
-  $output .= '<p class="dfb-dashboard-subtitle">' . t('Submission data and question breakdowns') . '</p>';
-  $output .= '</div>';
-  $output .= '<div class="dfb-analytics-header-actions">';
-  $output .= '<a href="' . url('dashboard/forms/' . $form->id . '/responses') . '" class="dfb-btn dfb-btn-secondary">' . t('View Responses') . '</a>';
-  $output .= '<a href="' . url('dashboard/analytics') . '" class="dfb-btn dfb-btn-ghost"><i class="fa-solid fa-arrow-left"></i> ' . t('All Analytics') . '</a>';
-  $output .= '</div>';
-  $output .= '</div>';
-  $output .= '</div>';
+  $questions_html = '';
+  foreach ($data['questions'] as $q) {
+    $questions_html .= _dynamic_form_analytics_render_question_card($q);
+  }
 
-  // KPI cards.
-  $output .= '<div class="dfb-stats-grid">';
-  $output .= _dynamic_form_stat_card(t('Submitted'),        $kpi['total_submitted'],  '<i class="fa-solid fa-circle-check"></i>',  'success');
-  $output .= _dynamic_form_stat_card(t('Completion Rate'),  $kpi['completion_rate'] . '%', '<i class="fa-solid fa-chart-line"></i>', 'primary');
-  $output .= _dynamic_form_stat_card(t('Abandoned'),        $kpi['abandoned'],        '<i class="fa-solid fa-ban"></i>', 'warning');
-  $output .= _dynamic_form_stat_card(t('Avg Time'),         $kpi['avg_time'],         '<i class="fa-regular fa-clock"></i>',  'accent');
-  $output .= '</div>';
+  return theme('dynamic_form_analytics_form_page', array(
+    'form_title'     => check_plain($form->title),
+    'form_id'        => (int) $form->id,
+    'responses_url'  => check_url(url('dashboard/forms/' . $form->id . '/responses')),
+    'analytics_url'  => check_url(url('dashboard/analytics')),
+    'kpi_cards'      => $kpi_cards,
+    'has_trend'      => !empty($data['trend']),
+    'questions_html' => $questions_html,
+  ));
+}
 
-  // Charts grid.
-  $output .= '<div class="dfb-analytics-grid">';
-
-  // Submission trend (full width).
-  $output .= '<div class="dfb-chart-card dfb-chart-card--wide">';
-  $output .= '<h3 class="dfb-chart-title">' . t('Daily Submissions') . '</h3>';
-  if (empty($data['trend'])) {
-    $output .= '<div class="dfb-analytics-empty">' . t('No submissions recorded yet.') . '</div>';
+/**
+ * Renders a single question analytics card.
+ *
+ * Determines the correct body HTML based on the question's chart type, then
+ * delegates the card wrapper to the theme system.
+ *
+ * @param array $q  Question data array from _dynamic_form_analytics_form_data().
+ * @return string   Rendered HTML.
+ */
+function _dynamic_form_analytics_render_question_card($q) {
+  if ($q['chart'] === 'text') {
+    $samples_html = '';
+    if (!empty($q['samples'])) {
+      $items = '';
+      foreach ($q['samples'] as $sample) {
+        $items .= '<li>' . truncate_utf8($sample, 120, TRUE, TRUE) . '</li>';
+      }
+      $samples_html = '<ul class="dfb-analytics-samples">' . $items . '</ul>';
+    }
+    $body_html = '<div class="dfb-analytics-text-responses">'
+      . '<p class="dfb-analytics-text-count">'
+      . format_plural($q['count'], '1 response', '@count responses')
+      . '</p>'
+      . $samples_html
+      . '</div>';
+  }
+  elseif (!empty($q['data'])) {
+    $chart_class = 'dfb-chart-container';
+    if ($q['chart'] === 'hbar') {
+      $chart_class .= ' dfb-chart-container--hbar';
+    }
+    elseif ($q['chart'] === 'donut') {
+      $chart_class .= ' dfb-chart-container--donut';
+    }
+    $body_html = '<div id="dfa-q-' . $q['id'] . '" class="' . $chart_class . '"></div>';
   }
   else {
-    $output .= '<div id="dfa-chart-form-trend" class="dfb-chart-container"></div>';
-  }
-  $output .= '</div>';
-
-  // Completion funnel.
-  $output .= '<div class="dfb-chart-card">';
-  $output .= '<h3 class="dfb-chart-title">' . t('Completion Funnel') . '</h3>';
-  $output .= '<div id="dfa-chart-funnel" class="dfb-chart-container dfb-chart-container--donut"></div>';
-  $output .= '</div>';
-
-  // Respondent type.
-  $output .= '<div class="dfb-chart-card">';
-  $output .= '<h3 class="dfb-chart-title">' . t('Respondent Type') . '</h3>';
-  $output .= '<div id="dfa-chart-respondent" class="dfb-chart-container dfb-chart-container--donut"></div>';
-  $output .= '</div>';
-
-  $output .= '</div>'; // .dfb-analytics-grid
-
-  // Tag word cloud for this form.
-  $output .= '<div class="dfb-chart-card dfb-chart-card--wide dfb-wc-card">';
-  $output .= '<div class="dfb-wc-header">';
-  $output .= '<h3 class="dfb-chart-title">' . t('Tag Word Cloud') . '</h3>';
-  $output .= '<div class="dfb-wc-filters">';
-  $output .= '<select id="dfa-wc-question-form" class="dfb-wc-select" aria-label="' . t('Filter by question') . '">';
-  $output .= '<option value="">' . t('All Tag Questions') . '</option>';
-  $output .= '</select>';
-  $output .= '</div>'; // .dfb-wc-filters
-  $output .= '</div>'; // .dfb-wc-header
-  $output .= '<div id="dfa-chart-wordcloud-form" class="dfb-chart-container dfb-chart-container--wordcloud"></div>';
-  $output .= '</div>'; // .dfb-wc-card
-
-  // Per-question sections.
-  if (!empty($data['questions'])) {
-    $output .= '<div class="dfb-analytics-questions">';
-    $output .= '<h3 class="dfb-analytics-section-title">' . t('Question Breakdown') . '</h3>';
-
-    foreach ($data['questions'] as $q) {
-      $output .= '<div class="dfb-question-analytics-card" data-question-id="' . $q['id'] . '">';
-      $output .= '<div class="dfb-question-analytics-header">';
-      $output .= '<span class="dfb-question-analytics-label">' . $q['label'] . '</span>';
-      $output .= '<span class="dfb-question-type-badge">' . check_plain($q['type']) . '</span>';
-      $output .= '</div>';
-
-      if ($q['chart'] === 'text') {
-        $output .= '<div class="dfb-analytics-text-responses">';
-        $output .= '<p class="dfb-analytics-text-count">' . format_plural($q['count'], '1 response', '@count responses') . '</p>';
-        if (!empty($q['samples'])) {
-          $output .= '<ul class="dfb-analytics-samples">';
-          foreach ($q['samples'] as $sample) {
-            $output .= '<li>' . truncate_utf8($sample, 120, TRUE, TRUE) . '</li>';
-          }
-          $output .= '</ul>';
-        }
-        $output .= '</div>';
-      }
-      elseif (!empty($q['data'])) {
-        $chart_class = 'dfb-chart-container';
-        if ($q['chart'] === 'hbar') {
-          $chart_class .= ' dfb-chart-container--hbar';
-        }
-        elseif ($q['chart'] === 'donut') {
-          $chart_class .= ' dfb-chart-container--donut';
-        }
-        $output .= '<div id="dfa-q-' . $q['id'] . '" class="' . $chart_class . '"></div>';
-      }
-      else {
-        $output .= '<div class="dfb-analytics-empty">' . t('No answers recorded yet.') . '</div>';
-      }
-
-      $output .= '</div>'; // .dfb-question-analytics-card
-    }
-
-    $output .= '</div>'; // .dfb-analytics-questions
+    $body_html = '<div class="dfb-analytics-empty">' . t('No answers recorded yet.') . '</div>';
   }
 
-  $output .= '</div>'; // .dfb-analytics-page
-
-  return $output;
+  return theme('dynamic_form_analytics_question_card', array(
+    'qid'       => $q['id'],
+    'label'     => $q['label'],
+    'type'      => check_plain($q['type']),
+    'body_html' => $body_html,
+  ));
 }
 
 /**

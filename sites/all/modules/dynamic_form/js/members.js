@@ -257,9 +257,7 @@
         function _buildRoleOpts(selected) {
           var roles = [
             ['editor',         Drupal.t('Editor')],
-            ['form_applicant', Drupal.t('Form Applicant')],
-            ['viewer',         Drupal.t('Viewer')],
-            ['reviewer',       Drupal.t('Reviewer')]
+            ['form_applicant', Drupal.t('Form Applicant')]
           ];
           var html = '';
           $.each(roles, function (i, r) {

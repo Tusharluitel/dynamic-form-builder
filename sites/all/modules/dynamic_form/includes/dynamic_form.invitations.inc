@@ -642,9 +642,6 @@ function _dynamic_form_role_label($role) {
   $labels = array(
     'editor'         => t('Editor'),
     'form_applicant' => t('Form Applicant'),
-    'viewer'         => t('Viewer'),
-    'reviewer'       => t('Reviewer'),
-    'owner'          => t('Owner'),
   );
   return isset($labels[$role]) ? $labels[$role] : drupal_ucfirst($role);
 }

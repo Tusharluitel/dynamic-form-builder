@@ -49,10 +49,10 @@ function _dynamic_form_dashboard_trash_content() {
   $is_resp_admin   = user_access('view any form responses');
   $can_act         = user_access('restore deleted');
 
-  $output  = '<div class="dfb-dashboard-header">';
-  $output .= '<h2>' . t('Trash') . '</h2>';
-  $output .= '<p class="dfb-dashboard-subtitle">' . t('Soft-deleted forms, sections, questions, and responses. Restore them or remove permanently.') . '</p>';
-  $output .= '</div>';
+  $output = theme('dynamic_form_dashboard_page_header', array(
+    'title'    => t('Trash'),
+    'subtitle' => t('Soft-deleted forms, sections, questions, and responses. Restore them or remove permanently.'),
+  ));
 
   // ---- Deleted forms ----
   $fq = db_select('dynamic_form_forms', 'f')
@@ -134,30 +134,25 @@ function _dynamic_form_dashboard_trash_content() {
  * Builds a single entity-type block (title bar + table or empty notice).
  */
 function _dynamic_form_trash_section_block($title, $icon, $count, $header, $records, $entity_type, $can_act) {
-  $out  = '<div class="dfb-trash-section">';
-  $out .= '<h3 class="dfb-trash-section-title">';
-  $out .= '<span class="dfb-trash-section-icon">' . $icon . '</span>';
-  $out .= check_plain($title);
-  $out .= ' <span class="dfb-trash-count">(' . (int) $count . ')</span>';
-  $out .= '</h3>';
-
+  $table_html = '';
   if (!empty($records)) {
     $rows = array();
     foreach ($records as $record) {
       $rows[] = _dynamic_form_trash_build_row($record, $entity_type, $can_act);
     }
-    $out .= theme('table', array(
+    $table_html = theme('table', array(
       'header'     => $header,
       'rows'       => $rows,
       'attributes' => array('class' => array('dfb-dashboard-table', 'dfb-trash-table')),
     ));
   }
-  else {
-    $out .= '<div class="dfb-trash-empty"><p>' . t('No deleted items.') . '</p></div>';
-  }
 
-  $out .= '</div>';
-  return $out;
+  return theme('dynamic_form_trash_section', array(
+    'title'      => $title,
+    'icon'       => $icon,
+    'count'      => (int) $count,
+    'table_html' => $table_html,
+  ));
 }
 
 /**
@@ -596,23 +591,7 @@ function _dynamic_form_trash_label($entity_type, $record) {
  * Returns the HTML for the restore-confirmation modal on the trash page.
  */
 function _dynamic_form_restore_confirm_modal() {
-  return '
-<div id="dfb-restore-modal" role="alertdialog" aria-modal="true" aria-labelledby="dfb-restore-modal-title" style="display:none;">
-  <div class="dfb-delete-modal-dialog">
-    <span class="dfb-delete-modal-icon"><i class="fa-solid fa-rotate-left"></i></span>
-    <h3 class="dfb-delete-modal-title" id="dfb-restore-modal-title">'
-      . t('Restore this') . ' <span class="dfb-restore-modal-type"></span>?
-    </h3>
-    <p class="dfb-delete-modal-body">'
-      . t('You are about to restore') . ' <strong class="dfb-restore-modal-name"></strong>. '
-      . t('The item will become active again.') . '
-    </p>
-    <div class="dfb-delete-modal-actions">
-      <button class="dfb-restore-confirm-btn" type="button">' . t('Restore') . '</button>
-      <button class="dfb-restore-cancel-btn"  type="button">' . t('Cancel') . '</button>
-    </div>
-  </div>
-</div>';
+  return theme('dynamic_form_trash_restore_modal', array());
 }
 
 /* =====================================================================

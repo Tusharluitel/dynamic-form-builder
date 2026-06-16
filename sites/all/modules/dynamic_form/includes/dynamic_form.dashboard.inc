@@ -4,7 +4,7 @@
 /**
  * Page callback for /dashboard and /dashboard/*.
  */
-function dynamic_form_dashboard_page($section = 'overview')
+function dynamic_form_dashboard_page($section = 'forms')
 {
   drupal_set_title(t('Dashboard'));
 
@@ -26,9 +26,6 @@ function dynamic_form_dashboard_page($section = 'overview')
 
   // Build content for the active section.
   switch ($section) {
-    case 'forms':
-      $content_html = _dynamic_form_dashboard_forms();
-      break;
 
     case 'questions':
       $content_html = _dynamic_form_dashboard_questions();
@@ -38,10 +35,11 @@ function dynamic_form_dashboard_page($section = 'overview')
       $content_html = _dynamic_form_dashboard_sections();
       break;
 
-    case 'overview':
+    case 'forms':
     default:
-      $content_html = _dynamic_form_dashboard_overview();
+      $content_html = _dynamic_form_dashboard_forms();
       break;
+
   }
 
   // Append delete-confirmation modal to listing pages.
@@ -57,236 +55,61 @@ function dynamic_form_dashboard_page($section = 'overview')
 
 
 /**
- * Builds the sidebar navigation HTML for the dashboard.
+ * Builds the sidebar navigation for the dashboard.
  */
-function _dynamic_form_dashboard_sidebar($active = 'overview')
+function _dynamic_form_dashboard_sidebar($active = 'forms')
 {
-  $items = array(
-    'forms' => array(
-      'label' => t('Forms'),
-      'path' => 'dashboard/forms',
-      'icon' => '<i class="fa-regular fa-file-lines"></i>',
-    ),
-    'questions' => array(
-      'label' => t('Questions'),
-      'path' => 'dashboard/questions',
-      'icon' => '<i class="fa-solid fa-circle-question"></i>',
-    ),
-    'sections' => array(
-      'label' => t('Sections'),
-      'path' => 'dashboard/sections',
-      'icon' => '<i class="fa-regular fa-folder"></i>',
-    ),
-    'browse' => array(
-      'label' => t('Browse Forms'),
-      'path' => 'dashboard/browse',
-      'icon' => '<i class="fa-solid fa-magnifying-glass"></i>',
-    ),
-    'submissions' => array(
-      'label' => t('My Submissions'),
-      'path' => 'dashboard/submissions',
-      'icon' => '<i class="fa-regular fa-pen-to-square"></i>',
-    ),
-    'profile' => array(
-      'label' => t('My Profile'),
-      'path' => 'dashboard/profile',
-      'icon' => '<i class="fa-solid fa-user"></i>',
-    ),
+  $nav_items = array(
+    'forms'       => array('label' => t('Forms'),          'path' => 'dashboard/forms',       'icon' => '<i class="fa-regular fa-file-lines"></i>'),
+    'questions'   => array('label' => t('Questions'),      'path' => 'dashboard/questions',   'icon' => '<i class="fa-solid fa-circle-question"></i>'),
+    'sections'    => array('label' => t('Sections'),       'path' => 'dashboard/sections',    'icon' => '<i class="fa-regular fa-folder"></i>'),
+    'browse'      => array('label' => t('Browse Forms'),   'path' => 'dashboard/browse',      'icon' => '<i class="fa-solid fa-magnifying-glass"></i>'),
+    'submissions' => array('label' => t('My Submissions'), 'path' => 'dashboard/submissions', 'icon' => '<i class="fa-regular fa-pen-to-square"></i>'),
+    'profile'     => array('label' => t('My Profile'),     'path' => 'dashboard/profile',     'icon' => '<i class="fa-solid fa-user"></i>'),
   );
 
-  drupal_alter('dynamic_form_dashboard_sidebar_items', $items);
+  drupal_alter('dynamic_form_dashboard_sidebar_items', $nav_items);
 
-  $output = '<nav class="dfb-sidebar-nav">';
-  $output .= '<div class="dfb-sidebar-header">';
-  $output .= '<span class="dfb-sidebar-icon"><i class="fa-solid fa-gear"></i></span>';
-  $output .= '<span class="dfb-sidebar-title">' . t('Manage') . '</span>';
-  $output .= '</div>';
-  $output .= '<ul class="dfb-sidebar-menu">';
-
-  foreach ($items as $key => $item) {
+  $items = array();
+  foreach ($nav_items as $key => $item) {
     $classes = 'dfb-sidebar-item dfb-sidebar-item--' . $key;
     if ($key === $active) {
       $classes .= ' active';
     }
-    $output .= '<li class="' . $classes . '">';
-    $output .= '<a href="' . url($item['path']) . '">';
-    $output .= '<span class="dfb-sidebar-item-icon">' . $item['icon'] . '</span>';
-    $output .= '<span class="dfb-sidebar-item-label">' . $item['label'] . '</span>';
-    $output .= '</a>';
-    $output .= '</li>';
+    $items[] = array(
+      'classes' => $classes,
+      'url'     => url($item['path']),
+      'icon'    => $item['icon'],
+      'label'   => $item['label'],
+    );
   }
 
   if (user_access('view activity log')) {
-    $log_classes = 'dfb-sidebar-item dfb-sidebar-item--activity-log';
-    if ($active === 'activity-log') {
-      $log_classes .= ' active';
-    }
-    $output .= '<li class="' . $log_classes . '">';
-    $output .= '<a href="' . url('dashboard/activity-log') . '">';
-    $output .= '<span class="dfb-sidebar-item-icon"><i class="fa-regular fa-clipboard"></i></span>';
-    $output .= '<span class="dfb-sidebar-item-label">' . t('Activity Log') . '</span>';
-    $output .= '</a>';
-    $output .= '</li>';
+    $items[] = array(
+      'classes' => 'dfb-sidebar-item dfb-sidebar-item--activity-log' . ($active === 'activity-log' ? ' active' : ''),
+      'url'     => url('dashboard/activity-log'),
+      'icon'    => '<i class="fa-regular fa-clipboard"></i>',
+      'label'   => t('Activity Log'),
+    );
   }
 
   if (user_access('view soft delete')) {
-    $trash_classes = 'dfb-sidebar-item dfb-sidebar-item--trash';
-    if ($active === 'trash') {
-      $trash_classes .= ' active';
-    }
-    $output .= '<li class="' . $trash_classes . '">';
-    $output .= '<a href="' . url('dashboard/trash') . '">';
-    $output .= '<span class="dfb-sidebar-item-icon"><i class="fa-regular fa-trash-can"></i></span>';
-    $output .= '<span class="dfb-sidebar-item-label">' . t('Trash') . '</span>';
-    $output .= '</a>';
-    $output .= '</li>';
-  }
-
-  $output .= '</ul>';
-
-  // Quick action button.
-  $output .= '<div class="dfb-sidebar-action">';
-  $output .= '<a href="' . url('dashboard/forms/create') . '" class="dfb-sidebar-create-btn">';
-  $output .= '<span>+</span> ' . t('New Form');
-  $output .= '</a>';
-  $output .= '</div>';
-
-  $output .= '</nav>';
-
-  return $output;
-}
-
-/**
- *  Renders the dashboard overview panel with summary statistics.
- *
- * @return string
- *   Rendered overview HTML.
- * NOTE: This function is not being used after the analytics module has been implemented, but it may be useful for a future "Dashboard Home" or "Analytics Overview" page.
- */
-function _dynamic_form_dashboard_overview()
-{
-  global $user;
-
-  // Build conditions for user-scoped queries.
-  $is_admin = user_access('edit any form');
-
-  // Count forms.
-  $forms_query = db_select('dynamic_form_forms', 'f')
-    ->condition('f.deleted_at', NULL, 'IS NULL');
-  if (!$is_admin) {
-    $forms_query->condition('f.created_by', $user->uid);
-  }
-  $forms_query->addExpression('COUNT(*)', 'cnt');
-  $total_forms = (int) $forms_query->execute()->fetchField();
-
-  // Count published forms.
-  $published_query = db_select('dynamic_form_forms', 'f')
-    ->condition('f.deleted_at', NULL, 'IS NULL')
-    ->condition('f.status', 1);
-  if (!$is_admin) {
-    $published_query->condition('f.created_by', $user->uid);
-  }
-  $published_query->addExpression('COUNT(*)', 'cnt');
-  $published_forms = (int) $published_query->execute()->fetchField();
-
-  // Count questions.
-  $questions_query = db_select('dynamic_form_questions', 'q')
-    ->condition('q.deleted_at', NULL, 'IS NULL');
-  if (!$is_admin) {
-    $questions_query->condition('q.created_by', $user->uid);
-  }
-  $questions_query->addExpression('COUNT(*)', 'cnt');
-  $total_questions = (int) $questions_query->execute()->fetchField();
-
-  // Count sections.
-  $sections_query = db_select('dynamic_form_sections', 's')
-    ->condition('s.deleted_at', NULL, 'IS NULL');
-  if (!$is_admin) {
-    $sections_query->condition('s.created_by', $user->uid);
-  }
-  $sections_query->addExpression('COUNT(*)', 'cnt');
-  $total_sections = (int) $sections_query->execute()->fetchField();
-
-  // Build stats cards.
-  $output = '<div class="dfb-dashboard-header">';
-  $output .= '<h2>' . t('Overview') . '</h2>';
-  $output .= '<p class="dfb-dashboard-subtitle">' . t('Your form builder at a glance') . '</p>';
-  $output .= '</div>';
-
-  $output .= '<div class="dfb-stats-grid">';
-
-  $output .= _dynamic_form_stat_card(t('Total Forms'), $total_forms, '<i class="fa-regular fa-file-lines"></i>', 'primary');
-  $output .= _dynamic_form_stat_card(t('Published'), $published_forms, '<i class="fa-solid fa-circle-check"></i>', 'success');
-  $output .= _dynamic_form_stat_card(t('Questions'), $total_questions, '<i class="fa-solid fa-circle-question"></i>', 'accent');
-  $output .= _dynamic_form_stat_card(t('Sections'), $total_sections, '<i class="fa-regular fa-folder"></i>', 'warning');
-
-  $output .= '</div>';
-
-  // Recent forms.
-  $recent_query = db_select('dynamic_form_forms', 'f')
-    ->fields('f', array('id', 'title', 'status', 'updated_at'))
-    ->condition('f.deleted_at', NULL, 'IS NULL')
-    ->orderBy('f.updated_at', 'DESC')
-    ->range(0, 5);
-  if (!$is_admin) {
-    $recent_query->condition('f.created_by', $user->uid);
-  }
-  $recent_forms = $recent_query->execute()->fetchAll();
-
-  $output .= '<div class="dfb-dashboard-section">';
-  $output .= '<h3>' . t('Recent Activity') . '</h3>';
-
-  if (!empty($recent_forms)) {
-    $status_labels = array(
-      0 => '<span class="dfb-badge dfb-badge-draft">' . t('Draft') . '</span>',
-      1 => '<span class="dfb-badge dfb-badge-published">' . t('Published') . '</span>',
-      2 => '<span class="dfb-badge dfb-badge-closed">' . t('Closed') . '</span>',
+    $items[] = array(
+      'classes' => 'dfb-sidebar-item dfb-sidebar-item--trash' . ($active === 'trash' ? ' active' : ''),
+      'url'     => url('dashboard/trash'),
+      'icon'    => '<i class="fa-regular fa-trash-can"></i>',
+      'label'   => t('Trash'),
     );
-
-    $header = array(t('Form'), t('Status'), t('Last Updated'), t('Actions'));
-    $rows = array();
-
-    foreach ($recent_forms as $form) {
-      $rows[] = array(
-        check_plain($form->title),
-        array('data' => isset($status_labels[$form->status]) ? $status_labels[$form->status] : t('Unknown'), 'class' => array('status-cell')),
-        format_date($form->updated_at, 'short'),
-        l(t('Edit'), 'dashboard/forms/' . $form->id . '/edit'),
-      );
-    }
-
-    $output .= theme('table', array(
-      'header' => $header,
-      'rows' => $rows,
-      'attributes' => array('class' => array('dfb-dashboard-table')),
-    ));
-  }
-  else {
-    $output .= '<div class="dfb-empty-state">';
-    $output .= '<p>' . t('No forms yet. <a href="!url">Create your first form</a> to get started.', array('!url' => url('dashboard/forms/create'))) . '</p>';
-    $output .= '</div>';
   }
 
-  $output .= '</div>';
-
-  return $output;
+  return theme('dynamic_form_dashboard_sidebar', array(
+    'items'      => $items,
+    'create_url' => url('dashboard/forms/create'),
+  ));
 }
 
-/**
- * Helper: Builds a single stat card.
- */
-function _dynamic_form_stat_card($label, $value, $icon, $variant = 'primary')
-{
-  $output = '<div class="dfb-stat-card dfb-stat-' . $variant . '">';
-  $output .= '<div class="dfb-stat-icon">' . $icon . '</div>';
-  $output .= '<div class="dfb-stat-body">';
-  $output .= '<span class="dfb-stat-value">' . $value . '</span>';
-  $output .= '<span class="dfb-stat-label">' . $label . '</span>';
-  $output .= '</div>';
-  $output .= '</div>';
 
-  return $output;
-}
+
 
 
 /**
@@ -353,22 +176,21 @@ function _dynamic_form_dashboard_forms()
     }
   }
 
-  $output = '<div class="dfb-dashboard-header">';
-  $output .= '<div class="dfb-dashboard-header-row">';
-  $output .= '<div>';
-  $output .= '<h2>' . t('Forms') . '</h2>';
-  $output .= '<p class="dfb-dashboard-subtitle">' . t('Manage all your forms') . '</p>';
-  $output .= '</div>';
-  $output .= '<a href="' . url('dashboard/forms/create') . '" class="dfb-header-action-btn">' . t('+ New Form') . '</a>';
-  $output .= '</div>';
-  $output .= '</div>';
+  $output = theme('dynamic_form_dashboard_page_header', array(
+    'title'        => t('Forms'),
+    'subtitle'     => t('Manage all your forms'),
+    'with_row'     => TRUE,
+    'action_url'   => url('dashboard/forms/create'),
+    'action_label' => t('+ New Form'),
+  ));
 
   if (empty($forms_by_id)) {
-    $output .= '<div class="dfb-empty-state">';
-    $output .= '<div class="dfb-empty-icon"><i class="fa-regular fa-file-lines"></i></div>';
-    $output .= '<p>' . t('You haven\'t created any forms yet.') . '</p>';
-    $output .= '<a href="' . url('dashboard/forms/create') . '" class="dfb-empty-action">' . t('Create your first form') . '</a>';
-    $output .= '</div>';
+    $output .= theme('dynamic_form_dashboard_empty_state', array(
+      'icon'         => '<i class="fa-regular fa-file-lines"></i>',
+      'message'      => t("You haven't created any forms yet."),
+      'action_url'   => url('dashboard/forms/create'),
+      'action_label' => t('Create your first form'),
+    ));
     return $output;
   }
 
@@ -483,16 +305,16 @@ function _dynamic_form_dashboard_questions()
 
   $results = $query->execute()->fetchAll();
 
-  $output = '<div class="dfb-dashboard-header">';
-  $output .= '<h2>' . t('Questions') . '</h2>';
-  $output .= '<p class="dfb-dashboard-subtitle">' . t('All questions across your forms') . '</p>';
-  $output .= '</div>';
+  $output = theme('dynamic_form_dashboard_page_header', array(
+    'title'    => t('Questions'),
+    'subtitle' => t('All questions across your forms'),
+  ));
 
   if (empty($results)) {
-    $output .= '<div class="dfb-empty-state">';
-    $output .= '<div class="dfb-empty-icon"><i class="fa-solid fa-circle-question"></i></div>';
-    $output .= '<p>' . t('No questions found. Questions will appear here once you add them to your forms.') . '</p>';
-    $output .= '</div>';
+    $output .= theme('dynamic_form_dashboard_empty_state', array(
+      'icon'    => '<i class="fa-solid fa-circle-question"></i>',
+      'message' => t('No questions found. Questions will appear here once you add them to your forms.'),
+    ));
     return $output;
   }
 
@@ -569,22 +391,21 @@ function _dynamic_form_dashboard_sections()
 
   $results = $query->execute()->fetchAll();
 
-  $output = '<div class="dfb-dashboard-header">';
-  $output .= '<div class="dfb-dashboard-header-row">';
-  $output .= '<div>';
-  $output .= '<h2>' . t('Sections') . '</h2>';
-  $output .= '<p class="dfb-dashboard-subtitle">' . t('All sections across your forms') . '</p>';
-  $output .= '</div>';
-  $output .= '<a href="' . url('dashboard/sections/create') . '" class="dfb-header-action-btn">' . t('+ New Section') . '</a>';
-  $output .= '</div>';
-  $output .= '</div>';
+  $output = theme('dynamic_form_dashboard_page_header', array(
+    'title'        => t('Sections'),
+    'subtitle'     => t('All sections across your forms'),
+    'with_row'     => TRUE,
+    'action_url'   => url('dashboard/sections/create'),
+    'action_label' => t('+ New Section'),
+  ));
 
   if (empty($results)) {
-    $output .= '<div class="dfb-empty-state">';
-    $output .= '<div class="dfb-empty-icon"><i class="fa-regular fa-folder"></i></div>';
-    $output .= '<p>' . t('No sections found. Create a section to group your questions.') . '</p>';
-    $output .= '<a href="' . url('dashboard/sections/create') . '" class="dfb-empty-action">' . t('Create your first section') . '</a>';
-    $output .= '</div>';
+    $output .= theme('dynamic_form_dashboard_empty_state', array(
+      'icon'         => '<i class="fa-regular fa-folder"></i>',
+      'message'      => t('No sections found. Create a section to group your questions.'),
+      'action_url'   => url('dashboard/sections/create'),
+      'action_label' => t('Create your first section'),
+    ));
     return $output;
   }
 
@@ -643,19 +464,15 @@ function dynamic_form_dashboard_form_create_page()
 {
   drupal_set_title(t('Create Form'));
 
-  // Load the forms include so the form builder is available.
   module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.forms');
 
   $sidebar_html = _dynamic_form_dashboard_sidebar('forms');
 
-  $content_html = '<div class="dfb-dashboard-header">';
-  $content_html .= '<div class="dfb-dashboard-header-row">';
-  $content_html .= '<div>';
-  $content_html .= '<h2>' . t('Create New Form') . '</h2>';
-  $content_html .= '<p class="dfb-dashboard-subtitle">' . t('Set up your form details, configuration, and schedule') . '</p>';
-  $content_html .= '</div>';
-  $content_html .= '</div>';
-  $content_html .= '</div>';
+  $content_html = theme('dynamic_form_dashboard_page_header', array(
+    'title'    => t('Create New Form'),
+    'subtitle' => t('Set up your form details, configuration, and schedule'),
+    'with_row' => TRUE,
+  ));
 
   $content_html .= drupal_render(drupal_get_form('dynamic_form_create_form'));
 
@@ -693,14 +510,11 @@ function dynamic_form_dashboard_form_edit_page($form_id)
 
   $sidebar_html = _dynamic_form_dashboard_sidebar('forms');
 
-  $content_html  = '<div class="dfb-dashboard-header">';
-  $content_html .= '<div class="dfb-dashboard-header-row">';
-  $content_html .= '<div>';
-  $content_html .= '<h2>' . t('Edit Form') . '</h2>';
-  $content_html .= '<p class="dfb-dashboard-subtitle">' . t('Update your form details, configuration, and schedule') . '</p>';
-  $content_html .= '</div>';
-  $content_html .= '</div>';
-  $content_html .= '</div>';
+  $content_html = theme('dynamic_form_dashboard_page_header', array(
+    'title'    => t('Edit Form'),
+    'subtitle' => t('Update your form details, configuration, and schedule'),
+    'with_row' => TRUE,
+  ));
 
   // Load questions for the filter toggle panel.
   $questions = db_select('dynamic_form_questions', 'q')
@@ -715,7 +529,7 @@ function dynamic_form_dashboard_form_edit_page($form_id)
   // Two-panel wrapper: left = form fields, right = filter toggles.
   $content_html .= '<div class="dfb-form-wrapper dfb-form-wrapper--edit">';
   $content_html .= drupal_render(drupal_get_form('dynamic_form_edit_form', $form_id));
-  $content_html .= _dfb_render_filter_toggle_panel((int) $form_id, $questions);
+  $content_html .= theme('dynamic_form_dashboard_filter_panel', array('questions' => $questions));
   $content_html .= '</div>';
 
   return theme('dynamic_form_dashboard', array(
@@ -724,50 +538,6 @@ function dynamic_form_dashboard_form_edit_page($form_id)
   ));
 }
 
-/**
- * Renders the filter-toggle sidebar panel for the form edit page.
- *
- * @param int   $form_id    Form primary key.
- * @param array $questions  Question rows (id, label, type, allow_filter).
- * @return string HTML.
- */
-function _dfb_render_filter_toggle_panel($form_id, array $questions) {
-  $out  = '<div class="dfb-filter-questions-panel">';
-  $out .= '<h3>' . t('Response Filters') . '</h3>';
-  $out .= '<p class="dfb-filter-panel-desc">'
-    . t('Toggle which questions appear as filter options on the responses page.')
-    . '</p>';
-
-  if (empty($questions)) {
-    $out .= '<p class="dfb-filter-panel-empty">'
-      . t('No questions yet. Add questions via the Builder.')
-      . '</p>';
-  }
-  else {
-    foreach ($questions as $q) {
-      $qid     = (int) $q->id;
-      $checked = !empty($q->allow_filter) ? ' checked="checked"' : '';
-      $out .= '<div class="dfb-filter-question-item">';
-      $out .= '<div class="dfb-filter-question-info">';
-      $out .= '<div class="dfb-filter-question-type">' . check_plain($q->type) . '</div>';
-      $out .= '<div class="dfb-filter-question-label" title="' . check_plain($q->label) . '">'
-        . check_plain(truncate_utf8($q->label, 50, TRUE, TRUE))
-        . '</div>';
-      $out .= '</div>';
-      $out .= '<div class="dfb-toggle-wrap">';
-      $out .= '<input type="checkbox" class="dfb-filter-toggle-input"'
-        . ' id="dfb-toggle-' . $qid . '"'
-        . ' data-question-id="' . $qid . '"'
-        . $checked . '>';
-      $out .= '<label class="dfb-toggle-label" for="dfb-toggle-' . $qid . '"></label>';
-      $out .= '</div>';
-      $out .= '</div>';
-    }
-  }
-
-  $out .= '</div>';
-  return $out;
-}
 
 /* =====================================================================
    DASHBOARD — SECTION CREATE/EDIT WRAPPERS
@@ -788,14 +558,11 @@ function dynamic_form_dashboard_section_create_page()
 
   $sidebar_html = _dynamic_form_dashboard_sidebar('sections');
 
-  $content_html = '<div class="dfb-dashboard-header">';
-  $content_html .= '<div class="dfb-dashboard-header-row">';
-  $content_html .= '<div>';
-  $content_html .= '<h2>' . t('Create New Section') . '</h2>';
-  $content_html .= '<p class="dfb-dashboard-subtitle">' . t('Group questions together within a form') . '</p>';
-  $content_html .= '</div>';
-  $content_html .= '</div>';
-  $content_html .= '</div>';
+  $content_html = theme('dynamic_form_dashboard_page_header', array(
+    'title'    => t('Create New Section'),
+    'subtitle' => t('Group questions together within a form'),
+    'with_row' => TRUE,
+  ));
 
   $content_html .= drupal_render(drupal_get_form('dynamic_form_create_section_form'));
 
@@ -822,14 +589,11 @@ function dynamic_form_dashboard_section_edit_page($section_id)
 
   $sidebar_html = _dynamic_form_dashboard_sidebar('sections');
 
-  $content_html = '<div class="dfb-dashboard-header">';
-  $content_html .= '<div class="dfb-dashboard-header-row">';
-  $content_html .= '<div>';
-  $content_html .= '<h2>' . t('Edit Section') . '</h2>';
-  $content_html .= '<p class="dfb-dashboard-subtitle">' . t('Update section details and configuration') . '</p>';
-  $content_html .= '</div>';
-  $content_html .= '</div>';
-  $content_html .= '</div>';
+  $content_html = theme('dynamic_form_dashboard_page_header', array(
+    'title'    => t('Edit Section'),
+    'subtitle' => t('Update section details and configuration'),
+    'with_row' => TRUE,
+  ));
 
   $content_html .= drupal_render(drupal_get_form('dynamic_form_edit_section_form', $section_id));
 
@@ -871,14 +635,11 @@ function dynamic_form_dashboard_question_edit_page($question_id)
 
   $sidebar_html = _dynamic_form_dashboard_sidebar('questions');
 
-  $content_html  = '<div class="dfb-dashboard-header">';
-  $content_html .= '<div class="dfb-dashboard-header-row">';
-  $content_html .= '<div>';
-  $content_html .= '<h2>' . t('Edit Question') . '</h2>';
-  $content_html .= '<p class="dfb-dashboard-subtitle">' . t('Update question label, type, and settings') . '</p>';
-  $content_html .= '</div>';
-  $content_html .= '</div>';
-  $content_html .= '</div>';
+  $content_html = theme('dynamic_form_dashboard_page_header', array(
+    'title'    => t('Edit Question'),
+    'subtitle' => t('Update question label, type, and settings'),
+    'with_row' => TRUE,
+  ));
 
   $content_html .= drupal_render(drupal_get_form('dynamic_form_edit_question_form', $question_id));
 
@@ -893,30 +654,10 @@ function dynamic_form_dashboard_question_edit_page($question_id)
    ===================================================================== */
 
 /**
- * Returns the HTML for the shared dashboard delete-confirmation modal.
+ * Returns the shared dashboard delete-confirmation modal.
  */
 function _dynamic_form_delete_confirm_modal() {
-  return '
-<div id="dfb-delete-modal" role="alertdialog" aria-modal="true" aria-labelledby="dfb-delete-modal-title" style="display:none;">
-  <div class="dfb-delete-modal-dialog">
-    <span class="dfb-delete-modal-icon"><i class="fa-regular fa-trash-can"></i></span>
-    <h3 class="dfb-delete-modal-title" id="dfb-delete-modal-title">'
-      . t('Delete this') . ' <span class="dfb-delete-modal-type"></span>?
-    </h3>
-    <p class="dfb-delete-modal-body dfb-msg-soft">'
-      . t('You are about to delete') . ' <strong class="dfb-delete-modal-name"></strong>. '
-      . t('The item will be moved to Trash and can be restored later.') . '
-    </p>
-    <p class="dfb-delete-modal-body dfb-msg-perma" style="display:none;">'
-      . t('You are about to permanently delete') . ' <strong class="dfb-delete-modal-name"></strong>. '
-      . t('This cannot be undone. All associated data will be permanently removed.') . '
-    </p>
-    <div class="dfb-delete-modal-actions">
-      <button class="dfb-delete-confirm-btn" type="button">' . t('Delete') . '</button>
-      <button class="dfb-delete-cancel-btn"  type="button">' . t('Cancel') . '</button>
-    </div>
-  </div>
-</div>';
+  return theme('dynamic_form_dashboard_delete_modal', array());
 }
 
 /* =====================================================================
@@ -1206,16 +947,16 @@ function dynamic_form_dashboard_browse_page() {
     'r' => '<span class="dfb-badge dfb-badge-restricted">' . t('Restricted')  . '</span>',
   );
 
-  $out  = '<div class="dfb-dashboard-header">';
-  $out .= '<h2>' . t('Browse Forms') . '</h2>';
-  $out .= '<p class="dfb-dashboard-subtitle">' . t('Published forms you can fill out') . '</p>';
-  $out .= '</div>';
+  $out = theme('dynamic_form_dashboard_page_header', array(
+    'title'    => t('Browse Forms'),
+    'subtitle' => t('Published forms you can fill out'),
+  ));
 
   if (empty($forms)) {
-    $out .= '<div class="dfb-empty-state">';
-    $out .= '<div class="dfb-empty-icon"><i class="fa-solid fa-magnifying-glass"></i></div>';
-    $out .= '<p>' . t('No forms are currently available for you to fill out.') . '</p>';
-    $out .= '</div>';
+    $out .= theme('dynamic_form_dashboard_empty_state', array(
+      'icon'    => '<i class="fa-solid fa-magnifying-glass"></i>',
+      'message' => t('No forms are currently available for you to fill out.'),
+    ));
   }
   else {
     $header = array(t('Form'), t('Visibility'), t('Closes'), t('Actions'));
@@ -1312,10 +1053,10 @@ function dynamic_form_activity_log_page() {
   }
 
   $output  = '<div class="dfb-activity-log-page">';
-  $output .= '<div class="dfb-page-header">';
-  $output .= '<h1 class="dfb-page-title">' . t('Activity Log') . '</h1>';
-  $output .= '<p class="dfb-page-subtitle">' . t('A record of all create, edit, and delete actions on forms, sections, and questions.') . '</p>';
-  $output .= '</div>';
+  $output .= theme('dynamic_form_dashboard_page_header', array(
+    'title'    => t('Activity Log'),
+    'subtitle' => t('A record of all create, edit, and delete actions on forms, sections, and questions.'),
+  ));
 
   if (empty($logs)) {
     $output .= '<p class="dfb-empty-state">' . t('No activity has been recorded yet.') . '</p>';
@@ -1356,18 +1097,16 @@ function dynamic_form_activity_log_page() {
       'question_per_page' => t('Questions / Page'),
     );
 
-    $output .= '<div class="dfb-log-table-wrap">';
-    $output .= '<table class="dfb-log-table">';
-    $output .= '<thead><tr>';
-    $output .= '<th>' . t('When') . '</th>';
-    $output .= '<th>' . t('Who') . '</th>';
-    $output .= '<th>' . t('Action') . '</th>';
-    $output .= '<th>' . t('Entity') . '</th>';
-    $output .= '<th>' . t('Detail') . '</th>';
-    $output .= '<th>' . t('Old Value') . '</th>';
-    $output .= '<th>' . t('New Value') . '</th>';
-    $output .= '</tr></thead>';
-    $output .= '<tbody>';
+    $header = array(
+      array('data' => t('When'),      'class' => array('dfb-log-time')),
+      array('data' => t('Who'),       'class' => array('dfb-log-actor')),
+      array('data' => t('Action')),
+      array('data' => t('Entity'),    'class' => array('dfb-log-entity')),
+      array('data' => t('Detail'),    'class' => array('dfb-log-detail')),
+      array('data' => t('Old Value'), 'class' => array('dfb-log-oldval')),
+      array('data' => t('New Value'), 'class' => array('dfb-log-newval')),
+    );
+    $rows = array();
 
     foreach ($logs as $log) {
       $actor_name = isset($usernames[(int) $log->actor_uid])
@@ -1415,16 +1154,14 @@ function dynamic_form_activity_log_page() {
               continue;
             }
             $old_val = array_key_exists($field, $old_data) ? $old_data[$field] : NULL;
-            // Normalise for comparison — cast both to string so "0" == 0.
             $old_str = is_array($old_val) ? json_encode($old_val) : (string) $old_val;
             $new_str = is_array($new_val) ? json_encode($new_val) : (string) $new_val;
-            $changed  = ($old_str !== $new_str);
+            $changed = ($old_str !== $new_str);
 
             $label = isset($field_labels[$field])
               ? $field_labels[$field]
               : ucwords(str_replace('_', ' ', $field));
 
-            // Format Unix timestamps as human-readable dates.
             if (in_array($field, $timestamp_fields)) {
               $old_display = ($old_val !== NULL && is_numeric($old_val) && $old_val > 0)
                 ? format_date((int) $old_val, 'short')
@@ -1442,7 +1179,7 @@ function dynamic_form_activity_log_page() {
                 : '<em class="dfb-log-empty">' . t('(empty)') . '</em>';
             }
 
-            $li_class = $changed ? ' dfb-log-item--changed' : '';
+            $li_class  = $changed ? ' dfb-log-item--changed' : '';
             $old_items[] = '<li class="dfb-log-item' . $li_class . '"><span class="dfb-log-field">' . check_plain($label) . ':</span> ' . $old_display . '</li>';
             $new_items[] = '<li class="dfb-log-item' . $li_class . '"><span class="dfb-log-field">' . check_plain($label) . ':</span> ' . $new_display . '</li>';
           }
@@ -1453,18 +1190,23 @@ function dynamic_form_activity_log_page() {
         }
       }
 
-      $output .= '<tr>';
-      $output .= '<td class="dfb-log-time">' . format_date($log->created_at, 'short') . '</td>';
-      $output .= '<td class="dfb-log-actor">' . $actor_name . '</td>';
-      $output .= '<td><span class="dfb-log-action ' . $action_class . '">' . $action_label . '</span></td>';
-      $output .= '<td class="dfb-log-entity">' . check_plain($log->entity_type) . ' #' . (int) $log->entity_id . '</td>';
-      $output .= '<td class="dfb-log-detail">' . $detail . '</td>';
-      $output .= '<td class="dfb-log-oldval">' . $old_col . '</td>';
-      $output .= '<td class="dfb-log-newval">' . $new_col . '</td>';
-      $output .= '</tr>';
+      $rows[] = array(
+        array('data' => format_date($log->created_at, 'short'),                                              'class' => array('dfb-log-time')),
+        array('data' => $actor_name,                                                                          'class' => array('dfb-log-actor')),
+        array('data' => '<span class="dfb-log-action ' . $action_class . '">' . $action_label . '</span>'),
+        array('data' => check_plain($log->entity_type) . ' #' . (int) $log->entity_id,                      'class' => array('dfb-log-entity')),
+        array('data' => $detail,                                                                              'class' => array('dfb-log-detail')),
+        array('data' => $old_col,                                                                             'class' => array('dfb-log-oldval')),
+        array('data' => $new_col,                                                                             'class' => array('dfb-log-newval')),
+      );
     }
 
-    $output .= '</tbody></table>';
+    $output .= '<div class="dfb-log-table-wrap">';
+    $output .= theme('table', array(
+      'header'     => $header,
+      'rows'       => $rows,
+      'attributes' => array('class' => array('dfb-log-table')),
+    ));
     $output .= '</div>';
     $output .= theme('pager');
   }

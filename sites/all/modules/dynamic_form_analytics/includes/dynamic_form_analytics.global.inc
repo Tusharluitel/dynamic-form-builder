@@ -173,78 +173,22 @@ function _dynamic_form_analytics_global_data() {
 }
 
 /**
- * Builds the global analytics page HTML.
+ * Builds the global analytics page HTML via the theme system.
  */
 function _dynamic_form_analytics_global_html($data) {
   $kpi = $data['kpi'];
 
-  $output  = '<div class="dfb-analytics-page">';
-  $output .= '<div class="dfb-analytics-header dfb-analytics-header--split">';
-  $output .= '<div class="dfb-analytics-header-text">';
-  $output .= '<h2>' . t('Analytics Overview') . '</h2>';
-  $output .= '<p class="dfb-dashboard-subtitle">' . t('Aggregated data across all forms') . '</p>';
-  $output .= '</div>';
-  $output .= '<a href="' . url('dashboard/analytics/radar') . '" class="dfb-radar-entry-btn" title="' . t('Open Form Radar') . '">';
-  $output .= '<span class="dfb-radar-entry-icon"><i class="fa-solid fa-satellite-dish"></i></span>';
-  $output .= '<span class="dfb-radar-entry-label">Radar</span>';
-  $output .= '</a>';
-  $output .= '</div>';
+  $kpi_cards = array(
+    array('label' => t('Total Submitted'),  'value' => $kpi['total_submitted'],       'icon' => '<i class="fa-solid fa-circle-check"></i>',  'modifier' => 'success'),
+    array('label' => t('Completion Rate'),  'value' => $kpi['completion_rate'] . '%', 'icon' => '<i class="fa-solid fa-chart-line"></i>',    'modifier' => 'primary'),
+    array('label' => t('Active Forms'),     'value' => $kpi['active_forms'],          'icon' => '<i class="fa-regular fa-file-lines"></i>',  'modifier' => 'accent'),
+    array('label' => t('Avg / Form'),       'value' => $kpi['avg_per_form'],          'icon' => '<i class="fa-solid fa-chart-bar"></i>',     'modifier' => 'warning'),
+  );
 
-  // KPI stat cards.
-  $output .= '<div class="dfb-stats-grid">';
-  $output .= _dynamic_form_stat_card(t('Total Submitted'),   $kpi['total_submitted'],  '<i class="fa-solid fa-circle-check"></i>',  'success');
-  $output .= _dynamic_form_stat_card(t('Completion Rate'),   $kpi['completion_rate'] . '%', '<i class="fa-solid fa-chart-line"></i>', 'primary');
-  $output .= _dynamic_form_stat_card(t('Active Forms'),      $kpi['active_forms'],     '<i class="fa-regular fa-file-lines"></i>', 'accent');
-  $output .= _dynamic_form_stat_card(t('Avg / Form'),        $kpi['avg_per_form'],     '<i class="fa-solid fa-chart-bar"></i>', 'warning');
-  $output .= '</div>';
-
-  // Charts trend line + status.
-  $output .= '<div class="dfb-analytics-grid">';
-
-  $output .= '<div class="dfb-chart-card dfb-chart-card--wide">';
-  $output .= '<h3 class="dfb-chart-title">' . t('Submissions — Last 30 Days') . '</h3>';
-  if (empty($data['trend'])) {
-    $output .= '<div class="dfb-analytics-empty">' . t('No submissions in the last 30 days.') . '</div>';
-  }
-  else {
-    $output .= '<div id="dfa-chart-global-trend" class="dfb-chart-container"></div>';
-  }
-  $output .= '</div>';
-
-  $output .= '<div class="dfb-chart-card">';
-  $output .= '<h3 class="dfb-chart-title">' . t('Response Status') . '</h3>';
-  $output .= '<div id="dfa-chart-status-donut" class="dfb-chart-container dfb-chart-container--donut"></div>';
-  $output .= '</div>';
-
-  $output .= '<div class="dfb-chart-card dfb-chart-card--wide">';
-  $output .= '<h3 class="dfb-chart-title">' . t('Top Forms by Responses') . '</h3>';
-  if (empty($data['top_forms'])) {
-    $output .= '<div class="dfb-analytics-empty">' . t('No submitted responses yet.') . '</div>';
-  }
-  else {
-    $output .= '<div id="dfa-chart-top-forms" class="dfb-chart-container dfb-chart-container--hbar"></div>';
-  }
-  $output .= '</div>';
-
-  $output .= '</div>'; // .dfb-analytics-grid
-
-  // Tag word cloud card.
-  $output .= '<div class="dfb-chart-card dfb-chart-card--wide dfb-wc-card">';
-  $output .= '<div class="dfb-wc-header">';
-  $output .= '<h3 class="dfb-chart-title">' . t('Tag Word Cloud') . '</h3>';
-  $output .= '<div class="dfb-wc-filters">';
-  $output .= '<select id="dfa-wc-form" class="dfb-wc-select" aria-label="' . t('Filter by form') . '">';
-  $output .= '<option value="">' . t('All Forms') . '</option>';
-  $output .= '</select>';
-  $output .= '<select id="dfa-wc-question" class="dfb-wc-select" disabled aria-label="' . t('Filter by question') . '">';
-  $output .= '<option value="">' . t('All Tag Questions') . '</option>';
-  $output .= '</select>';
-  $output .= '</div>'; 
-  $output .= '</div>'; 
-  $output .= '<div id="dfa-chart-wordcloud" class="dfb-chart-container dfb-chart-container--wordcloud"></div>';
-  $output .= '</div>'; 
-
-  $output .= '</div>'; 
-
-  return $output;
+  return theme('dynamic_form_analytics_global_page', array(
+    'radar_url'     => check_url(url('dashboard/analytics/radar')),
+    'kpi_cards'     => $kpi_cards,
+    'has_trend'     => !empty($data['trend']),
+    'has_top_forms' => !empty($data['top_forms']),
+  ));
 }

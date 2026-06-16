@@ -1,13 +1,5 @@
 <?php
 
-/**
- * @file
- * Dashboard pages for viewing and managing form responses.
- */
-
-/* =====================================================================
-   RESPONSE LIST
-   ===================================================================== */
 
 /**
  * Page callback: dashboard/forms/%/responses
@@ -237,35 +229,16 @@ function dynamic_form_response_list_page($form_id) {
   }
 
   // ---- Build HTML output ----------------------------------------------
-  $out  = '<div class="dfr-breadcrumb">';
-  $out .= l(t('&larr; Forms'), 'dashboard/forms',
-    array('html' => TRUE, 'attributes' => array('class' => array('dfr-back-link'))));
-  $out .= '<span class="dfr-breadcrumb-sep">/</span>';
-  $out .= l(check_plain($form->title), 'dashboard/forms/' . $form_id . '/builder',
-    array('attributes' => array('class' => array('dfr-breadcrumb-link'))));
-  $out .= '</div>';
-
-  $out .= '<div class="dfr-responses-header">';
-  $out .= '<h2>' . t('Responses &mdash; @title', array('@title' => check_plain($form->title))) . '</h2>';
-  if ($has_filters) {
-    $out .= '<span class="dfr-response-count dfr-response-count--filtered">'
-      . format_plural($filtered_total, '1 match', '@count matches')
-      . ' <span class="dfr-response-count-of">' . t('of') . ' ' . (int) $total_all . '</span>'
-      . '</span>';
-  }
-  else {
-    $out .= '<span class="dfr-response-count">'
-      . format_plural($total_all, '1 submitted response', '@count submitted responses')
-      . '</span>';
-  }
-  $out .= '</div>';
-
-  // Solr error banner (only shown when Solr criteria were requested and Solr failed).
-  if ($solr_error) {
-    $out .= '<div class="dfr-solr-error">'
-      . t('Search service unavailable (503). Filters cannot be applied and results are hidden until the service is restored.')
-      . '</div>';
-  }
+  $out = theme('dynamic_form_response_responses_header', array(
+    'back_url'         => url('dashboard/forms'),
+    'form_id'          => $form_id,
+    'form_title'       => check_plain($form->title),
+    'form_builder_url' => url('dashboard/forms/' . $form_id . '/builder'),
+    'has_filters'      => $has_filters,
+    'filtered_total'   => $filtered_total,
+    'total_all'        => $total_all,
+    'solr_error'       => $solr_error,
+  ));
 
   // Filter bar.
   $out .= _dynamic_form_response_render_filter_bar(
@@ -294,19 +267,14 @@ function dynamic_form_response_list_page($form_id) {
     $out .= '<p class="dfr-empty-note">' . t('No responses have been submitted yet.') . '</p>';
   }
   else {
-    $out .= '<div class="dfr-table-scroll">';
-    $out .= '<table class="dfr-response-table">';
-
-    // Header.
-    $out .= '<thead><tr>';
-    $out .= '<th class="dfr-col-num">#</th>';
-    $out .= '<th class="dfr-col-respondent">' . t('Respondent') . '</th>';
-    $out .= '<th class="dfr-col-date">' . t('Submitted') . '</th>';
-    $out .= '<th class="dfr-col-actions">' . t('Actions') . '</th>';
-    $out .= '</tr></thead><tbody>';
-
+    $header = array(
+      array('data' => '#',              'class' => array('dfr-col-num')),
+      array('data' => t('Respondent'),  'class' => array('dfr-col-respondent')),
+      array('data' => t('Submitted'),   'class' => array('dfr-col-date')),
+      array('data' => t('Actions'),     'class' => array('dfr-col-actions')),
+    );
+    $rows = array();
     $i = 1;
-    
     foreach ($responses as $r) {
       $uid = (int) $r->user_id;
       if ($uid && isset($users[$uid])) {
@@ -333,18 +301,20 @@ function dynamic_form_response_list_page($form_id) {
         . ' data-entity-id="' . (int) $r->id . '"'
         . ' data-entity-name="' . check_plain($modal_name) . '">'
         . t('Delete') . '</button>';
-      $actions = '<div class="dfr-resp-actions">' . $view_link . $delete_btn . '</div>';
-
-      $out .= '<tr>';
-      $out .= '<td class="dfr-col-num">' . $i . '</td>';
-      $out .= '<td class="dfr-col-respondent">' . $name . '</td>';
-      $out .= '<td class="dfr-col-date">' . $date . '</td>';
-      $out .= '<td class="dfr-col-actions">' . $actions . '</td>';
-      $out .= '</tr>';
+      $rows[] = array(
+        array('data' => $i,                                                        'class' => array('dfr-col-num')),
+        array('data' => $name,                                                     'class' => array('dfr-col-respondent')),
+        array('data' => $date,                                                     'class' => array('dfr-col-date')),
+        array('data' => '<div class="dfr-resp-actions">' . $view_link . $delete_btn . '</div>', 'class' => array('dfr-col-actions')),
+      );
       $i++;
     }
-
-    $out .= '</tbody></table>';
+    $out .= '<div class="dfr-table-scroll">';
+    $out .= theme('table', array(
+      'header'     => $header,
+      'rows'       => $rows,
+      'attributes' => array('class' => array('dfr-response-table')),
+    ));
     $out .= '</div>';
     $out .= theme('pager');
   }
@@ -364,19 +334,25 @@ function dynamic_form_response_list_page($form_id) {
    ===================================================================== */
 
 /**
- * Renders the filter bar above the responses table.
+ * Form API builder for the response filter bar.
  *
- * @param int    $form_id
- * @param array  $filter_rows       Currently active filter rows (non-empty val only).
- * @param string $filter_date_from
- * @param string $filter_date_to
- * @param string $filter_respondent
- * @param string $filter_search
- * @param string $sort
- * @param array  $filter_questions  Questions with allow_filter=1 (id, label, type).
+ * This is a GET-method form; Drupal's token and build-id fields are removed
+ * via #pre_render so they do not pollute the query string. The page callback
+ * still reads filter values directly from $_GET.
+ *
+ * Extra args passed through drupal_get_form():
+ *   $form_id_val, $filter_rows, $filter_date_from, $filter_date_to,
+ *   $filter_respondent, $filter_search, $sort, $filter_questions
  */
-function _dynamic_form_response_render_filter_bar($form_id, array $filter_rows, $filter_date_from, $filter_date_to, $filter_respondent, $filter_search = '', $sort = 'date_desc', array $filter_questions = array()) {
-  $action = check_url(url('dashboard/forms/' . $form_id . '/responses'));
+function dynamic_form_response_filter_form($form, &$form_state, $form_id_val, array $filter_rows, $filter_date_from, $filter_date_to, $filter_respondent, $filter_search = '', $sort = 'date_desc', array $filter_questions = array()) {
+
+  $form['#method']     = 'get';
+  $form['#action']     = url('dashboard/forms/' . (int) $form_id_val . '/responses');
+  $form['#id']         = 'dfr-filter-form';
+  $form['#token']      = FALSE;
+  $form['#pre_render'] = array('_dynamic_form_response_filter_pre_render');
+  $form['#prefix']     = '<div class="dfr-filter-bar">';
+  $form['#suffix']     = '</div>';
 
   // Build a qid → active val map for pre-filling question fields.
   $active_vals = array();
@@ -407,154 +383,261 @@ function _dynamic_form_response_render_filter_bar($form_id, array $filter_rows, 
     }
   }
 
-  // URL for the tags AJAX autocomplete (Solr-backed when the Solr module is enabled).
   $ac_url = url('dynamic-form/ajax/tags/autocomplete');
 
-  $out  = '<div class="dfr-filter-bar">';
-  $out .= '<form method="get" action="' . $action . '" id="dfr-filter-form">';
+  // ── Full-text search ──────────────────────────────────────────────────────
+  $form['search_row'] = array(
+    '#type'       => 'container',
+    '#attributes' => array('class' => array('dfr-filter-row', 'dfr-filter-row--search')),
+  );
+  $form['search_row']['s'] = array(
+    '#type'          => 'textfield',
+    '#title'         => t('Search answers'),
+    '#default_value' => $filter_search,
+    '#attributes'    => array(
+      'placeholder'  => t('Search across all text answers…'),
+      'autocomplete' => 'off',
+      'class'        => array('dfr-filter-search-input'),
+    ),
+    '#prefix'        => '<div class="dfr-filter-field dfr-filter-field--search">',
+    '#suffix'        => '</div>',
+  );
 
-  // ── Full-text search ────────────────────────────────────────────────────
-  $out .= '<div class="dfr-filter-row dfr-filter-row--search">';
-  $out .= '<div class="dfr-filter-field dfr-filter-field--search">';
-  $out .= '<label for="dfr-filter-search">' . t('Search answers') . '</label>';
-  $out .= '<input type="text" name="s" id="dfr-filter-search"'
-    . ' placeholder="' . t('Search across all text answers…') . '"'
-    . ' value="' . check_plain($filter_search) . '"'
-    . ' class="dfr-filter-search-input" autocomplete="off">';
-  $out .= '</div>';
-  $out .= '</div>';
-
-  // ── Question filters (static grid, one field per allow_filter question) ─
+  // ── Question filters ──────────────────────────────────────────────────────
   if (!empty($filter_questions)) {
-    $out .= '<div class="dfr-qfilter-section">';
-    $out .= '<div class="dfr-qfilter-heading">' . t('Filter by question') . '</div>';
-    $out .= '<div class="dfr-qfilter-grid">';
+    // #tree on $form['f'] causes child elements to get names like f[0][val].
+    $form['f'] = array(
+      '#tree'       => TRUE,
+      '#type'       => 'container',
+      '#attributes' => array('class' => array('dfr-qfilter-grid')),
+      '#prefix'     => '<div class="dfr-qfilter-section">'
+                     . '<div class="dfr-qfilter-heading">' . t('Filter by question') . '</div>',
+      '#suffix'     => '</div>',
+    );
 
     foreach ($filter_questions as $idx => $fq) {
       $qid      = (int) $fq->id;
       $val      = isset($active_vals[$qid]) ? $active_vals[$qid] : '';
       $input_id = 'dfr-qf-' . $qid;
+      $is_range = in_array($fq->type, array('date', 'time'));
+      $cls      = $is_range
+        ? array('dfr-qfilter-field', 'dfr-qfilter-field--range')
+        : array('dfr-qfilter-field');
+      $clear_style = $val !== '' ? '' : ' style="display:none"';
+      $clear_btn   = '<button type="button" class="dfr-qfilter-clear"'
+        . ' aria-label="' . t('Clear') . '"' . $clear_style
+        . '><i class="fa-solid fa-xmark"></i></button>';
 
-      $is_range  = in_array($fq->type, array('date', 'time'));
-      $field_cls = 'dfr-qfilter-field' . ($is_range ? ' dfr-qfilter-field--range' : '');
-      $out .= '<div class="' . $field_cls . '" data-qid="' . $qid . '">';
-      $out .= '<label for="' . $input_id . '">' . check_plain($fq->label) . '</label>';
+      // Each question filter is a container div with class + data-qid.
+      $form['f'][$idx] = array(
+        '#type'       => 'container',
+        '#tree'       => TRUE,
+        '#attributes' => array('class' => $cls, 'data-qid' => (string) $qid),
+      );
 
-      // Hidden fields carry qid and operator; the visible input carries val.
-      $out .= '<input type="hidden" class="dfr-qfilter-qid" name="f[' . $idx . '][qid]" value="' . $qid . '">';
-      $out .= '<input type="hidden" class="dfr-qfilter-op"  name="f[' . $idx . '][op]"  value="AND">';
+      // Custom label markup appears first inside the container.
+      $form['f'][$idx]['_label'] = array(
+        '#markup' => '<label for="' . $input_id . '">' . check_plain($fq->label) . '</label>',
+      );
+
+      // Hidden fields carry qid and operator metadata.
+      $form['f'][$idx]['qid'] = array(
+        '#type'       => 'hidden',
+        '#value'      => $qid,
+        '#attributes' => array('class' => array('dfr-qfilter-qid')),
+      );
+      $form['f'][$idx]['op'] = array(
+        '#type'       => 'hidden',
+        '#value'      => 'AND',
+        '#attributes' => array('class' => array('dfr-qfilter-op')),
+      );
 
       if ($fq->type === 'tags') {
-        // Tags use live Solr AJAX autocomplete. Convert pipe-sep (internal) back
-        // to comma-sep so Select2's hidden input can pre-fill existing filters.
         $tags_val = str_replace('|', ',', $val);
-        $out .= '<input type="hidden" name="f[' . $idx . '][val]" id="' . $input_id . '"'
-              . ' class="dfr-qfilter-tags dfr-qfilter-val"'
-              . ' value="' . check_plain($tags_val) . '"'
-              . ' data-autocomplete-url="' . check_url($ac_url) . '"'
-              . ' data-placeholder="' . t('Type to search tags…') . '">';
+        $form['f'][$idx]['val'] = array(
+          '#type'       => 'hidden',
+          '#value'      => $tags_val,
+          '#attributes' => array(
+            'id'                    => $input_id,
+            'class'                 => array('dfr-qfilter-tags', 'dfr-qfilter-val'),
+            'data-autocomplete-url' => check_url($ac_url),
+            'data-placeholder'      => t('Type to search tags…'),
+          ),
+          '#suffix' => $clear_btn,
+        );
       }
       elseif (in_array($fq->type, $option_types) && !empty($options_by_qid[$qid])) {
         $active_arr  = ($val !== '') ? explode('|', $val) : array();
         $all_count   = count($options_by_qid[$qid]);
         $all_sel_lbl = (count($active_arr) === $all_count && $all_count > 0)
           ? t('Deselect all') : t('Select all');
-        $out .= '<button type="button" class="dfr-qfilter-select-all">' . $all_sel_lbl . '</button>';
-        $out .= '<select name="f[' . $idx . '][val][]" id="' . $input_id
-              . '" class="dfr-qfilter-select dfr-qfilter-val" multiple="multiple"'
-              . ' data-placeholder="' . t('— Any —') . '">';
+        $opts = array();
         foreach ($options_by_qid[$qid] as $opt) {
-          $sel  = in_array($opt, $active_arr, TRUE) ? ' selected="selected"' : '';
-          $out .= '<option value="' . check_plain($opt) . '"' . $sel . '>' . check_plain($opt) . '</option>';
+          $opts[check_plain($opt)] = check_plain($opt);
         }
-        $out .= '</select>';
+        $form['f'][$idx]['val'] = array(
+          '#type'          => 'select',
+          '#title'         => '',
+          '#title_display' => 'none',
+          '#multiple'      => TRUE,
+          '#options'       => $opts,
+          '#default_value' => $active_arr,
+          '#id'            => $input_id,
+          '#attributes'    => array(
+            'class'            => array('dfr-qfilter-select', 'dfr-qfilter-val'),
+            'data-placeholder' => t('— Any —'),
+          ),
+          '#prefix' => '<button type="button" class="dfr-qfilter-select-all">' . $all_sel_lbl . '</button>',
+          '#suffix' => $clear_btn,
+        );
       }
       elseif ($fq->type === 'date') {
-        $dp = array_pad(explode('|', $val, 2), 2, '');
-        $out .= '<div class="dfr-qfilter-range">';
-        $out .= '<input type="date" name="f[' . $idx . '][val_from]" id="' . $input_id . '-from"'
-          . ' value="' . check_plain(trim($dp[0])) . '"'
-          . ' class="dfr-qfilter-input dfr-qfilter-range-from dfr-qfilter-val">';
-        $out .= '<span class="dfr-qfilter-range-sep">&rarr;</span>';
-        $out .= '<input type="date" name="f[' . $idx . '][val_to]" id="' . $input_id . '-to"'
-          . ' value="' . check_plain(trim($dp[1])) . '"'
-          . ' class="dfr-qfilter-input dfr-qfilter-range-to dfr-qfilter-val">';
-        $out .= '</div>';
+        $dp       = array_pad(explode('|', $val, 2), 2, '');
+        $from_val = check_plain(trim($dp[0]));
+        $to_val   = check_plain(trim($dp[1]));
+        // theme_textfield() forces type="text" internally, so use #markup to
+        // emit a proper <input type="date"> that the browser renders as a picker.
+        $form['f'][$idx]['_date_range'] = array(
+          '#markup' => '<div class="dfr-qfilter-range">'
+            . '<input type="date" id="' . check_plain($input_id . '-from') . '"'
+            . ' name="f[' . $idx . '][val_from]"'
+            . ' value="' . $from_val . '"'
+            . ' class="dfr-qfilter-input dfr-qfilter-range-from dfr-qfilter-val">'
+            . '<span class="dfr-qfilter-range-sep">&rarr;</span>'
+            . '<input type="date" id="' . check_plain($input_id . '-to') . '"'
+            . ' name="f[' . $idx . '][val_to]"'
+            . ' value="' . $to_val . '"'
+            . ' class="dfr-qfilter-input dfr-qfilter-range-to dfr-qfilter-val">'
+            . '</div>' . $clear_btn,
+        );
       }
       elseif ($fq->type === 'time') {
-        $tp = array_pad(explode('|', $val, 2), 2, '');
-        $out .= '<div class="dfr-qfilter-range">';
-        $out .= '<input type="time" name="f[' . $idx . '][val_from]" id="' . $input_id . '-from"'
-          . ' value="' . check_plain(trim($tp[0])) . '"'
-          . ' class="dfr-qfilter-input dfr-qfilter-range-from dfr-qfilter-val">';
-        $out .= '<span class="dfr-qfilter-range-sep">&rarr;</span>';
-        $out .= '<input type="time" name="f[' . $idx . '][val_to]" id="' . $input_id . '-to"'
-          . ' value="' . check_plain(trim($tp[1])) . '"'
-          . ' class="dfr-qfilter-input dfr-qfilter-range-to dfr-qfilter-val">';
-        $out .= '</div>';
+        $tp       = array_pad(explode('|', $val, 2), 2, '');
+        $from_val = check_plain(trim($tp[0]));
+        $to_val   = check_plain(trim($tp[1]));
+        $form['f'][$idx]['_time_range'] = array(
+          '#markup' => '<div class="dfr-qfilter-range">'
+            . '<input type="time" id="' . check_plain($input_id . '-from') . '"'
+            . ' name="f[' . $idx . '][val_from]"'
+            . ' value="' . $from_val . '"'
+            . ' class="dfr-qfilter-input dfr-qfilter-range-from dfr-qfilter-val">'
+            . '<span class="dfr-qfilter-range-sep">&rarr;</span>'
+            . '<input type="time" id="' . check_plain($input_id . '-to') . '"'
+            . ' name="f[' . $idx . '][val_to]"'
+            . ' value="' . $to_val . '"'
+            . ' class="dfr-qfilter-input dfr-qfilter-range-to dfr-qfilter-val">'
+            . '</div>' . $clear_btn,
+        );
       }
       elseif (in_array($fq->type, array('number', 'rating', 'linear_scale'))) {
-        $out .= '<input type="number" name="f[' . $idx . '][val]" id="' . $input_id . '"'
-          . ' value="' . check_plain($val) . '" placeholder="' . t('Any') . '"'
-          . ' class="dfr-qfilter-input dfr-qfilter-val">';
+        $form['f'][$idx]['val'] = array(
+          '#type'          => 'textfield',
+          '#title'         => '',
+          '#title_display' => 'none',
+          '#default_value' => $val,
+          '#id'            => $input_id,
+          '#attributes'    => array(
+            'type'        => 'number',
+            'placeholder' => t('Any'),
+            'class'       => array('dfr-qfilter-input', 'dfr-qfilter-val'),
+          ),
+          '#suffix' => $clear_btn,
+        );
       }
       else {
-        $out .= '<input type="text" name="f[' . $idx . '][val]" id="' . $input_id . '"'
-          . ' value="' . check_plain($val) . '" placeholder="' . t('Any answer…') . '"'
-          . ' class="dfr-qfilter-input dfr-qfilter-val" autocomplete="off">';
+        $form['f'][$idx]['val'] = array(
+          '#type'          => 'textfield',
+          '#title'         => '',
+          '#title_display' => 'none',
+          '#default_value' => $val,
+          '#id'            => $input_id,
+          '#attributes'    => array(
+            'placeholder'  => t('Any answer…'),
+            'autocomplete' => 'off',
+            'class'        => array('dfr-qfilter-input', 'dfr-qfilter-val'),
+          ),
+          '#suffix' => $clear_btn,
+        );
       }
-
-      // Clear button — only visible when there is an active value.
-      $clear_cls = $val !== '' ? '' : ' style="display:none"';
-      $out .= '<button type="button" class="dfr-qfilter-clear" aria-label="' . t('Clear') . '"'
-        . $clear_cls . '><i class="fa-solid fa-xmark"></i></button>';
-
-      $out .= '</div>'; // .dfr-qfilter-field
     }
-
-    $out .= '</div>'; // .dfr-qfilter-grid
-    $out .= '</div>'; // .dfr-qfilter-section
   }
 
-  // ── Meta row: date range, respondent type, sort, apply ──────────────────
-  $out .= '<div class="dfr-filter-row dfr-filter-row--meta">';
+  $form['meta_row'] = array(
+    '#type'       => 'container',
+    '#attributes' => array('class' => array('dfr-filter-row', 'dfr-filter-row--meta')),
+  );
 
-  $out .= '<div class="dfr-filter-field dfr-filter-field--date">';
-  $out .= '<label for="dfr-filter-date-from">' . t('From') . '</label>';
-  $out .= '<input type="date" name="date_from" id="dfr-filter-date-from" value="' . check_plain($filter_date_from) . '">';
-  $out .= '</div>';
+  $form['meta_row']['date_from'] = array(
+    '#markup' => '<div class="dfr-filter-field dfr-filter-field--date">'
+      . '<label for="dfr-filter-date-from">' . t('From') . '</label>'
+      . '<input type="date" id="dfr-filter-date-from" name="date_from"'
+      . ' value="' . check_plain($filter_date_from) . '">'
+      . '</div>',
+  );
 
-  $out .= '<div class="dfr-filter-field dfr-filter-field--date">';
-  $out .= '<label for="dfr-filter-date-to">' . t('To') . '</label>';
-  $out .= '<input type="date" name="date_to" id="dfr-filter-date-to" value="' . check_plain($filter_date_to) . '">';
-  $out .= '</div>';
+  $form['meta_row']['date_to'] = array(
+    '#markup' => '<div class="dfr-filter-field dfr-filter-field--date">'
+      . '<label for="dfr-filter-date-to">' . t('To') . '</label>'
+      . '<input type="date" id="dfr-filter-date-to" name="date_to"'
+      . ' value="' . check_plain($filter_date_to) . '">'
+      . '</div>',
+  );
 
-  $out .= '<div class="dfr-filter-field dfr-filter-field--respondent">';
-  $out .= '<label for="dfr-filter-respondent">' . t('Respondent') . '</label>';
-  $out .= '<select name="respondent" id="dfr-filter-respondent">';
-  $out .= '<option value="">' . t('All') . '</option>';
-  $out .= '<option value="registered"' . ($filter_respondent === 'registered' ? ' selected="selected"' : '') . '>' . t('Registered') . '</option>';
-  $out .= '<option value="anonymous"'  . ($filter_respondent === 'anonymous'  ? ' selected="selected"' : '') . '>' . t('Anonymous')  . '</option>';
-  $out .= '</select>';
-  $out .= '</div>';
+  $form['meta_row']['respondent'] = array(
+    '#type'          => 'select',
+    '#title'         => t('Respondent'),
+    '#id'            => 'dfr-filter-respondent',
+    '#options'       => array(
+      ''           => t('All'),
+      'registered' => t('Registered'),
+      'anonymous'  => t('Anonymous'),
+    ),
+    '#default_value' => $filter_respondent,
+    '#prefix'        => '<div class="dfr-filter-field dfr-filter-field--respondent">',
+    '#suffix'        => '</div>',
+  );
 
-  $out .= '<div class="dfr-filter-field dfr-filter-field--sort">';
-  $out .= '<label for="dfr-filter-sort">' . t('Sort') . '</label>';
-  $out .= '<select name="sort" id="dfr-filter-sort">';
-  $out .= '<option value="date_desc"' . ($sort === 'date_desc' ? ' selected="selected"' : '') . '>' . t('Newest first') . '</option>';
-  $out .= '<option value="date_asc"'  . ($sort === 'date_asc'  ? ' selected="selected"' : '') . '>' . t('Oldest first') . '</option>';
-  $out .= '</select>';
-  $out .= '</div>';
+  $form['meta_row']['sort'] = array(
+    '#type'          => 'select',
+    '#title'         => t('Sort'),
+    '#id'            => 'dfr-filter-sort',
+    '#options'       => array(
+      'date_desc' => t('Newest first'),
+      'date_asc'  => t('Oldest first'),
+    ),
+    '#default_value' => $sort,
+    '#prefix'        => '<div class="dfr-filter-field dfr-filter-field--sort">',
+    '#suffix'        => '</div>',
+  );
 
-  $out .= '<div class="dfr-filter-actions">';
-  $out .= '<button type="submit" class="dfr-filter-btn-apply">' . t('Apply') . '</button>';
-  $out .= '</div>';
+  // Use #markup for the submit button so it renders as <button> (not <input>)
+  // and carries no name= attribute, preventing it from appearing in the GET URL.
+  $form['meta_row']['actions'] = array(
+    '#markup' => '<div class="dfr-filter-actions">'
+               . '<button type="submit" class="dfr-filter-btn-apply">' . t('Apply') . '</button>'
+               . '</div>',
+  );
 
-  $out .= '</div>'; // .dfr-filter-row--meta
-  $out .= '</form>';
-  $out .= '</div>'; // .dfr-filter-bar
+  return $form;
+}
 
-  return $out;
+/**
+ * #pre_render callback: strip FAPI housekeeping fields from GET filter form.
+ */
+function _dynamic_form_response_filter_pre_render($form) {
+  unset($form['form_build_id'], $form['form_id'], $form['form_token']);
+  return $form;
+}
+
+/**
+ * Renders the filter bar above the responses table.
+ */
+function _dynamic_form_response_render_filter_bar($form_id, array $filter_rows, $filter_date_from, $filter_date_to, $filter_respondent, $filter_search = '', $sort = 'date_desc', array $filter_questions = array()) {
+  return drupal_render(drupal_get_form(
+    'dynamic_form_response_filter_form',
+    $form_id, $filter_rows, $filter_date_from, $filter_date_to,
+    $filter_respondent, $filter_search, $sort, $filter_questions
+  ));
 }
 
 /**
@@ -685,17 +768,9 @@ function dynamic_form_response_ajax_filter_options() {
   ));
 }
 
-/* =====================================================================
-   SINGLE RESPONSE DETAIL
-   ===================================================================== */
 
 /**
  * Page callback: dashboard/forms/%/responses/%
- *
- * Displays every answer for one submitted response, organised by section.
- *
- * @param int $form_id      Form primary key.
- * @param int $response_id  Response primary key.
  */
 function dynamic_form_response_view_page($form_id, $response_id) {
   $form_id     = (int) $form_id;
@@ -805,12 +880,12 @@ function dynamic_form_response_view_page($form_id, $response_id) {
   $main  = l(t('&larr; Back to Responses'), 'dashboard/forms/' . $form_id . '/responses',
     array('html' => TRUE, 'attributes' => array('class' => array('dfr-back-link'))));
 
-  $main .= '<div class="dfr-detail-meta"><dl>'
-    . '<dt>' . t('Form')       . '</dt><dd>' . check_plain($form->title) . '</dd>'
-    . '<dt>' . t('Respondent') . '</dt><dd>' . $resp_name . '</dd>'
-    . '<dt>' . t('Email')      . '</dt><dd>' . $resp_mail . '</dd>'
-    . '<dt>' . t('Submitted')  . '</dt><dd>' . $submitted_at . '</dd>'
-    . '</dl></div>';
+  $main .= theme('dynamic_form_response_detail_meta', array(
+    'form_title'   => check_plain($form->title),
+    'resp_name'    => $resp_name,
+    'resp_mail'    => $resp_mail,
+    'submitted_at' => $submitted_at,
+  ));
 
   foreach ($sections as $sec) {
     $sid = (int) $sec->id;
@@ -830,63 +905,26 @@ function dynamic_form_response_view_page($form_id, $response_id) {
   }
 
   // ---- RIGHT COLUMN: info panel --------------------------------------
-
+  $base_url = 'dashboard/forms/' . $form_id . '/responses/';
+  $panel_html = '';
   if (user_access('view response panel')) {
-
-  $panel  = '<aside class="dfr-detail-panel">';
-
-  // Completion card.
-  $panel .= '<div class="dfr-panel-card">';
-  $panel .= '<h4 class="dfr-panel-card-title">' . t('Completion') . '</h4>';
-  $panel .= '<div class="dfr-panel-stat">';
-  $panel .= '<span class="dfr-panel-stat-num">' . $answered_q . ' / ' . $total_q . '</span>';
-  $panel .= '<span class="dfr-panel-stat-label">' . t('questions answered') . '</span>';
-  $panel .= '</div>';
-  $panel .= '<div class="dfr-completion-bar-wrap">';
-  $panel .= '<div class="dfr-completion-bar" style="width:' . $pct . '%"></div>';
-  $panel .= '</div>';
-  $panel .= '<div class="dfr-completion-pct">' . $pct . '%</div>';
-  $panel .= '</div>';
-
-  // Navigation card.
-  if ($prev_id !== NULL || $next_id !== NULL) {
-    $base = 'dashboard/forms/' . $form_id . '/responses/';
-    $panel .= '<div class="dfr-panel-card dfr-panel-nav">';
-    $panel .= '<h4 class="dfr-panel-card-title">' . t('Navigate') . '</h4>';
-    $panel .= '<div class="dfr-panel-nav-btns">';
-    if ($prev_id !== NULL) {
-      $panel .= l(t('&larr; Previous'), $base . $prev_id,
-        array('html' => TRUE, 'attributes' => array('class' => array('dfr-nav-btn'))));
-    }
-    if ($next_id !== NULL) {
-      $panel .= l(t('Next &rarr;'), $base . $next_id,
-        array('html' => TRUE, 'attributes' => array('class' => array('dfr-nav-btn'))));
-    }
-    $panel .= '</div>';
-    if ($current_pos !== FALSE) {
-      $panel .= '<p class="dfr-nav-position">'
-        . t('@num of @total', array('@num' => $current_pos + 1, '@total' => count($all_ids)))
-        . '</p>';
-    }
-    $panel .= '</div>';
+    $panel_html = theme('dynamic_form_response_detail_panel', array(
+      'answered_q'        => $answered_q,
+      'total_q'           => $total_q,
+      'pct'               => $pct,
+      'prev_url'          => $prev_id !== NULL ? url($base_url . $prev_id) : FALSE,
+      'next_url'          => $next_id !== NULL ? url($base_url . $next_id) : FALSE,
+      'current_pos'       => $current_pos !== FALSE ? ($current_pos + 1) : 0,
+      'total_responses'   => count($all_ids),
+      'all_responses_url' => url('dashboard/forms/' . $form_id . '/responses'),
+      'form_builder_url'  => url('dashboard/forms/' . $form_id . '/builder'),
+    ));
   }
-
-  // Actions card.
-  $panel .= '<div class="dfr-panel-card dfr-panel-actions">';
-  $panel .= '<h4 class="dfr-panel-card-title">' . t('Actions') . '</h4>';
-  $panel .= l(t('All Responses'), 'dashboard/forms/' . $form_id . '/responses',
-    array('attributes' => array('class' => array('dfr-action-btn dfr-action-btn--secondary'))));
-  $panel .= l(t('Form Builder'), 'dashboard/forms/' . $form_id . '/builder',
-    array('attributes' => array('class' => array('dfr-action-btn dfr-action-btn--secondary'))));
-  $panel .= '</div>';
-
-  $panel .= '</aside>';
-}
 
   // ---- Compose two-column layout ------------------------------------
   $out = '<div class="dfr-detail-layout">'
     . '<div class="dfr-detail-main">' . $main . '</div>'
-    . $panel
+    . $panel_html
     . '</div>';
 
   module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.dashboard');
@@ -928,16 +966,16 @@ function dynamic_form_response_submissions_page() {
 
   $rows = $query->execute()->fetchAll();
 
-  $out  = '<div class="dfb-dashboard-header">';
-  $out .= '<h2>' . t('My Submissions') . '</h2>';
-  $out .= '<p class="dfb-dashboard-subtitle">' . t('Forms you have filled out or started') . '</p>';
-  $out .= '</div>';
+  $out = theme('dynamic_form_dashboard_page_header', array(
+    'title'    => t('My Submissions'),
+    'subtitle' => t('Forms you have filled out or started'),
+  ));
 
   if (empty($rows)) {
-    $out .= '<div class="dfb-empty-state">';
-    $out .= '<div class="dfb-empty-icon"><i class="fa-regular fa-pen-to-square"></i></div>';
-    $out .= '<p>' . t("You haven't submitted any forms yet. <a href=\"!url\">Browse available forms</a> to get started.", array('!url' => url('dashboard/browse'))) . '</p>';
-    $out .= '</div>';
+    $out .= theme('dynamic_form_dashboard_empty_state', array(
+      'icon'    => '<i class="fa-regular fa-pen-to-square"></i>',
+      'message' => t("You haven't submitted any forms yet. <a href=\"!url\">Browse available forms</a> to get started.", array('!url' => url('dashboard/browse'))),
+    ));
   }
   else {
     $status_labels = array(
@@ -945,14 +983,10 @@ function dynamic_form_response_submissions_page() {
       1 => '<span class="dfb-badge dfb-badge-published">' . t('Submitted') . '</span>',
     );
 
-    $out .= '<table class="dfr-response-table">';
-    $out .= '<thead><tr>'
-      . '<th>' . t('Form')      . '</th>'
-      . '<th>' . t('Status')    . '</th>'
-      . '<th>' . t('Submitted') . '</th>'
-      . '<th>' . t('Actions')   . '</th>'
-      . '</tr></thead><tbody>';
-
+    $tbl_header = array(
+      t('Form'), t('Status'), t('Submitted'), t('Actions'),
+    );
+    $tbl_rows = array();
     foreach ($rows as $r) {
       $status_badge = isset($status_labels[(int) $r->status])
         ? $status_labels[(int) $r->status]
@@ -962,22 +996,22 @@ function dynamic_form_response_submissions_page() {
         ? format_date($r->submitted_at, 'custom', 'M j, Y H:i')
         : '—';
 
-      if ((int) $r->status === 1) {
-        $action = l(t('View'), 'dashboard/forms/' . (int) $r->form_id . '/responses/' . (int) $r->id);
-      }
-      else {
-        $action = l(t('Continue'), 'forms/' . check_plain($r->form_slug));
-      }
+      $action = ((int) $r->status === 1)
+        ? l(t('View'),     'dashboard/forms/' . (int) $r->form_id . '/responses/' . (int) $r->id)
+        : l(t('Continue'), 'forms/' . check_plain($r->form_slug));
 
-      $out .= '<tr>'
-        . '<td>' . check_plain($r->form_title) . '</td>'
-        . '<td>' . $status_badge . '</td>'
-        . '<td>' . $date . '</td>'
-        . '<td>' . $action . '</td>'
-        . '</tr>';
+      $tbl_rows[] = array(
+        check_plain($r->form_title),
+        $status_badge,
+        $date,
+        $action,
+      );
     }
-
-    $out .= '</tbody></table>';
+    $out .= theme('table', array(
+      'header'     => $tbl_header,
+      'rows'       => $tbl_rows,
+      'attributes' => array('class' => array('dfr-response-table')),
+    ));
   }
 
   module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.dashboard');
@@ -1004,31 +1038,33 @@ function _dynamic_form_response_render_answer_card($q, array $answers) {
   $qid = (int) $q->id;
   $val = isset($answers[$qid]) ? $answers[$qid] : NULL;
 
-  $out  = '<div class="dfr-answer-card">';
-  $out .= '<div class="dfr-answer-question">' . check_plain($q->label) . '</div>';
-
   if ($val === NULL || $val === '') {
-    $out .= '<div class="dfr-answer-empty">' . t('(No answer provided)') . '</div>';
-  } else {
+    $value_html = '<div class="dfr-answer-empty">' . t('(No answer provided)') . '</div>';
+  }
+  else {
     $decoded = @json_decode($val, TRUE);
     if (is_array($decoded) && isset($decoded['fid'], $decoded['filename'], $decoded['url'])) {
-      // File upload answer — render as a download link.
-      $out .= '<div class="dfr-answer-value">'
+      $value_html = '<div class="dfr-answer-value">'
         . '<a href="' . check_url($decoded['url']) . '" target="_blank" class="dfr-file-link">'
         . '<i class="fa-solid fa-paperclip"></i> ' . check_plain($decoded['filename'])
         . '</a>'
         . '</div>';
-    } elseif (is_array($decoded)) {
-      $out .= '<div class="dfr-answer-value">'
+    }
+    elseif (is_array($decoded)) {
+      $value_html = '<div class="dfr-answer-value">'
         . implode(', ', array_map('check_plain', $decoded)) . '</div>';
-    } elseif ($q->type === 'text_editor') {
-      $out .= '<div class="dfr-answer-value dfr-answer-richtext">' . $val . '</div>';
-    } else {
-      $out .= '<div class="dfr-answer-value">' . nl2br(check_plain($val)) . '</div>';
+    }
+    elseif ($q->type === 'text_editor') {
+      $value_html = '<div class="dfr-answer-value dfr-answer-richtext">' . $val . '</div>';
+    }
+    else {
+      $value_html = '<div class="dfr-answer-value">' . nl2br(check_plain($val)) . '</div>';
     }
   }
 
-  $out .= '</div>';
-  return $out;
+  return theme('dynamic_form_response_answer_card', array(
+    'label'      => check_plain($q->label),
+    'value_html' => $value_html,
+  ));
 }
 

@@ -170,33 +170,13 @@ JS;
   $page_items   = array_slice($flat, $current_page * $qpp, $qpp);
 
   // -----------------------------------------------------------------------
-  // Render
+  // Render: build the paginated body content first, then wrap in templates.
   // -----------------------------------------------------------------------
-  $output  = '<div class="dfp-preview-container">';
-
-  // Banner.
-  $output .= '<div class="dfp-preview-banner">';
-  $output .= '<span class="dfp-preview-badge">' . t('Preview Mode') . '</span>';
-  $output .= '<span class="dfp-preview-note">' . t('This is how respondents will see your form.') . '</span>';
-  $output .= l(t('← Back to Builder'), 'dashboard/forms/' . (int) $form_id . '/builder', array(
-    'attributes' => array('class' => array('dfp-back-link')),
-  ));
-  $output .= '</div>';
-
-  // Form card.
-  $output .= '<div class="dfp-form-card">';
-  $output .= '<div class="dfp-form-header">';
-  $output .= '<h1 class="dfp-form-title">' . check_plain($form_record->title) . '</h1>';
-  if (!empty($form_record->description)) {
-    $output .= '<p class="dfp-form-desc">' . check_markup($form_record->description) . '</p>';
-  }
-  $output .= '</div>';
-
   if (empty($flat)) {
-    $output .= '<p class="dfp-empty">' . t('No sections or questions have been added yet.') . '</p>';
+    $body_html = '<p class="dfp-empty">' . t('No sections or questions have been added yet.') . '</p>';
   }
   else {
-    $output .= '<div class="dfp-paginated-form">';
+    $body_html = '<div class="dfp-paginated-form">';
 
     // Column widths mapped to a 12-column grid.
     // Questions accumulate into a row until adding the next would exceed 12
@@ -217,32 +197,27 @@ JS;
       // Section change: close any open row then close the old section.
       if ($sid !== $prev_sid) {
         if ($row_open) {
-          $output .= '</div>'; // close .dfp-question-row
+          $body_html .= '</div>'; // close .dfp-question-row
           $row_open = FALSE;
           $row_cols = 0;
         }
         if ($prev_sid !== -1) {
-          $output .= '</div>'; // close .dfp-section
+          $body_html .= '</div>'; // close .dfp-section
         }
-        $output .= '<div class="dfp-section">';
-        $output .= '<div class="dfp-section-header">';
-        $output .= '<h2 class="dfp-section-title">' . check_plain($sec->name) . '</h2>';
-        if (!empty($sec->description)) {
-          $output .= '<p class="dfp-section-desc">' . check_plain($sec->description) . '</p>';
-        }
-        $output .= '</div>';
+        $body_html .= '<div class="dfp-section">';
+        $body_html .= theme('dynamic_form_preview_section_header', array('section' => $sec));
         $prev_sid = $sid;
       }
 
       // Row management: start a new row when the current one is full or
       // adding this question would exceed 12 columns.
       if (!$row_open) {
-        $output .= '<div class="dfp-question-row">';
+        $body_html .= '<div class="dfp-question-row">';
         $row_open = TRUE;
         $row_cols = 0;
       }
       elseif ($row_cols + $q_cols > 12) {
-        $output .= '</div><div class="dfp-question-row">';
+        $body_html .= '</div><div class="dfp-question-row">';
         $row_cols = 0;
       }
 
@@ -252,32 +227,37 @@ JS;
       $opts  = isset($options_by_question[$qid]) ? $options_by_question[$qid] : array();
       $scale = isset($scale_by_question[$qid])   ? $scale_by_question[$qid]   : array();
 
-      $output .= '<div class="dfp-question-col dfp-col-' . check_plain($width) . '">';
-      $output .= _dynamic_form_render_preview_question($q, $opts, $scale);
-      $output .= '</div>';
+      $body_html .= '<div class="dfp-question-col dfp-col-' . check_plain($width) . '">';
+      $body_html .= _dynamic_form_render_preview_question($q, $opts, $scale);
+      $body_html .= '</div>';
     }
 
     // Close the final open row and section.
     if ($row_open) {
-      $output .= '</div>'; // close .dfp-question-row
+      $body_html .= '</div>'; // close .dfp-question-row
     }
     if ($prev_sid !== -1) {
-      $output .= '</div>'; // close last .dfp-section
+      $body_html .= '</div>'; // close last .dfp-section
     }
 
     if ($use_pager) {
-      $output .= theme('pager', array('element' => 0));
+      $body_html .= theme('pager', array('element' => 0));
     }
 
-    $output .= '</div>'; // close .dfp-paginated-form
+    $body_html .= '</div>'; // close .dfp-paginated-form
   }
 
-  $output .= '</div>'; // .dfp-form-card
-  $output .= '</div>'; // .dfp-preview-container
+  $content = theme('dynamic_form_preview_page', array(
+    'form_record' => $form_record,
+    'back_url'    => l(t('← Back to Builder'), 'dashboard/forms/' . (int) $form_id . '/builder', array(
+      'attributes' => array('class' => array('dfp-back-link')),
+    )),
+    'body_html'   => $body_html,
+  ));
 
   return theme('dynamic_form_dashboard', array(
     'sidebar' => $sidebar_html,
-    'content' => $output,
+    'content' => $content,
   ));
 }
 
@@ -434,7 +414,10 @@ JS;
 }
 
 /**
- * Renders one question as a disabled preview form element.
+ * Renders one question as a themed preview element.
+ *
+ * Thin wrapper: delegates input rendering to theme_dynamic_form_preview_input()
+ * and the question wrapper to the dynamic_form_preview_question template.
  *
  * @param object $q     Question DB row.
  * @param array  $opts  Option DB rows for this question.
@@ -443,219 +426,222 @@ JS;
  * @return string HTML.
  */
 function _dynamic_form_render_preview_question($q, array $opts, array $scale) {
-  $type      = $q->type;
-  $label     = check_plain($q->label);
-  $req_html  = $q->is_required
-    ? ' <span class="dfp-req" title="' . t('Required') . '">*</span>'
-    : '';
-  $desc_html = !empty($q->description)
-    ? '<p class="dfp-help-text">' . check_plain($q->description) . '</p>'
-    : '';
+  $element    = _dynamic_form_preview_build_fapi_element($q, $opts, $scale);
+  $input_html = drupal_render($element);
+  return theme('dynamic_form_preview_question', array(
+    'question'   => $q,
+    'input_html' => $input_html,
+  ));
+}
 
-  $input_html = '';
+/**
+ * Builds a Drupal Form API element array for one preview question.
+ *
+ * Returns a standalone renderable FAPI element — no title, description, or
+ * required marker (those are handled by dynamic-form-preview-question.tpl.php).
+ * Callers pass the result to drupal_render() to get HTML.
+ *
+ * For question types with no FAPI equivalent (rating, linear_scale) the
+ * element falls back to '#markup' with the custom widget HTML.
+ *
+ * @param object $q     Question DB row.
+ * @param array  $opts  Option rows for this question.
+ * @param array  $scale Scale / flag meta keyed by rule_type.
+ *
+ * @return array Renderable FAPI element.
+ */
+function _dynamic_form_preview_build_fapi_element($q, array $opts, array $scale) {
+  $type = $q->type;
+
+  // Build a keyed options array for FAPI choice elements.
+  $options = array();
+  foreach ($opts as $opt) {
+    $options[$opt->option_label] = check_plain($opt->option_label);
+  }
+
+  // Base properties shared by all input elements: suppress label/description
+  // since the question template renders those independently.
+  $base = array(
+    '#title'         => '',
+    '#title_display' => 'invisible',
+    '#required'      => FALSE,
+  );
 
   switch ($type) {
 
     case 'text':
-      $input_html = '<input type="text" class="dfp-input"'
-        . ' placeholder="' . t('Short answer text') . '">';
-      break;
+      return $base + array(
+        '#type'       => 'textfield',
+        '#attributes' => array('class' => array('dfp-input'), 'placeholder' => t('Short answer text')),
+      );
 
     case 'textarea':
-      $input_html = '<textarea class="dfp-textarea" rows="4"'
-        . ' placeholder="' . t('Long answer text') . '"></textarea>';
-      break;
+      return $base + array(
+        '#type'       => 'textarea',
+        '#rows'       => 4,
+        '#attributes' => array('class' => array('dfp-textarea'), 'placeholder' => t('Long answer text')),
+      );
 
     case 'text_editor':
-      $editor_id  = 'dfp-tinymce-' . (int) $q->id;
-      $input_html = '<textarea id="' . $editor_id . '" class="dfp-text-editor-area" rows="6"></textarea>';
-      break;
+      return $base + array(
+        '#type'       => 'textarea',
+        '#rows'       => 6,
+        '#id'         => 'dfp-tinymce-' . (int) $q->id,
+        '#attributes' => array('class' => array('dfp-text-editor-area')),
+      );
 
     case 'radio':
-      if (empty($opts)) {
-        $input_html = '<p class="dfp-no-options">' . t('No options defined.') . '</p>';
+      if (empty($options)) {
+        return array('#markup' => '<p class="dfp-no-options">' . t('No options defined.') . '</p>');
       }
-      else {
-        $input_html = '<div class="dfp-options-list">';
-        foreach ($opts as $opt) {
-          $input_html .= '<label class="dfp-option-label">'
-            . '<input type="radio" name="q' . (int) $q->id . '"> '
-            . check_plain($opt->option_label)
-            . '</label>';
-        }
-        $input_html .= '</div>';
-      }
-      break;
+      return $base + array(
+        '#type'    => 'radios',
+        '#options' => $options,
+      );
 
     case 'checkbox':
-      if (empty($opts)) {
-        $input_html = '<p class="dfp-no-options">' . t('No options defined.') . '</p>';
+      if (empty($options)) {
+        return array('#markup' => '<p class="dfp-no-options">' . t('No options defined.') . '</p>');
       }
-      else {
-        $input_html = '<div class="dfp-options-list">';
-        foreach ($opts as $opt) {
-          $input_html .= '<label class="dfp-option-label">'
-            . '<input type="checkbox"> '
-            . check_plain($opt->option_label)
-            . '</label>';
-        }
-        $input_html .= '</div>';
-      }
-      break;
+      return $base + array(
+        '#type'    => 'checkboxes',
+        '#options' => $options,
+      );
 
     case 'select':
-      if (empty($opts)) {
-        $input_html = '<p class="dfp-no-options">' . t('No options defined.') . '</p>';
+      if (empty($options)) {
+        return array('#markup' => '<p class="dfp-no-options">' . t('No options defined.') . '</p>');
       }
-      else {
-        $allow_multi  = !empty($scale['allow_multiple']);
-        $multi_attr   = $allow_multi ? ' multiple' : '';
-        $select_class = $allow_multi ? 'dfp-select dfp-select-multi dfp-select2' : 'dfp-select dfp-select2';
-        $input_html   = '<select class="' . $select_class . '"' . $multi_attr . '>';
-        if (!$allow_multi) {
-          $input_html .= '<option value="">' . t('— Select an option —') . '</option>';
-        }
-        foreach ($opts as $opt) {
-          $input_html .= '<option>' . check_plain($opt->option_label) . '</option>';
-        }
-        $input_html .= '</select>';
-        if ($allow_multi) {
-          $input_html .= '<p class="dfp-multi-select-hint">'
-            . '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"'
-            . ' stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">'
-            . '<polyline points="9 11 12 14 22 4"/>'
-            . '<path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>'
-            . '</svg>'
-            . ' ' . t('Multiple options can be selected') . '</p>';
-        }
+      $allow_multi    = !empty($scale['allow_multiple']);
+      $select_classes = array('dfp-select', 'dfp-select2');
+      if ($allow_multi) {
+        $select_classes[] = 'dfp-select-multi';
       }
-      break;
+      $select_options = $allow_multi
+        ? $options
+        : array('' => t('— Select an option —')) + $options;
+      $element = $base + array(
+        '#type'       => 'select',
+        '#options'    => $select_options,
+        '#multiple'   => $allow_multi,
+        '#attributes' => array('class' => $select_classes),
+      );
+      if ($allow_multi) {
+        $element['#suffix'] = '<p class="dfp-multi-select-hint">'
+          . '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"'
+          . ' stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">'
+          . '<polyline points="9 11 12 14 22 4"/>'
+          . '<path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>'
+          . '</svg>'
+          . ' ' . t('Multiple options can be selected') . '</p>';
+      }
+      return $element;
 
     case 'file':
-      // File type badges.
       $type_badges = '';
       if (!empty($q->allow_file_types)) {
-        $types = array_filter(array_map('trim', explode(',', $q->allow_file_types)));
-        foreach ($types as $ft) {
+        foreach (array_filter(array_map('trim', explode(',', $q->allow_file_types))) as $ft) {
           $type_badges .= '<span class="dfp-file-type-badge">' . check_plain(drupal_strtoupper($ft)) . '</span>';
         }
       }
-
-      // Size pill.
-      $size_pill = '';
-      if (!empty($q->max_file_size)) {
-        $mb        = round($q->max_file_size / 1048576, 1);
-        $size_pill = '<span class="dfp-file-size-pill">' . t('Max @mb MB', array('@mb' => $mb)) . '</span>';
-      }
-
-      // Max files pill.
-      $files_pill = '';
-      if (!empty($q->max_files)) {
-        $files_pill = '<span class="dfp-file-size-pill">'
-          . t('Up to @n file(s)', array('@n' => (int) $q->max_files))
-          . '</span>';
-      }
-
+      $size_pill = !empty($q->max_file_size)
+        ? '<span class="dfp-file-size-pill">' . t('Max @mb MB', array('@mb' => round($q->max_file_size / 1048576, 1))) . '</span>'
+        : '';
+      $files_pill = !empty($q->max_files)
+        ? '<span class="dfp-file-size-pill">' . t('Up to @n file(s)', array('@n' => (int) $q->max_files)) . '</span>'
+        : '';
       $meta_html = '';
       if ($type_badges || $size_pill || $files_pill) {
         $meta_html = '<div class="dfp-file-meta">';
         if ($type_badges) {
           $meta_html .= '<div class="dfp-file-types">' . $type_badges . '</div>';
         }
-        $meta_html .= $size_pill;
-        $meta_html .= $files_pill;
-        $meta_html .= '</div>';
+        $meta_html .= $size_pill . $files_pill . '</div>';
       }
-
-      $input_html = '<div class="dfp-file-dropzone">'
-        . '<input type="file" class="dfp-file-hidden">'
-        . '<div class="dfp-file-dropzone-inner">'
-        . '<div class="dfp-file-upload-icon">'
-        . '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"'
-        . ' stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'
-        . '<path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>'
-        . '<polyline points="16 16 12 12 8 16"/>'
-        . '<line x1="12" y1="12" x2="12" y2="21"/>'
-        . '</svg>'
-        . '</div>'
-        . '<div class="dfp-file-upload-prompt">'
-        . '<span class="dfp-file-upload-btn">' . t('Click to upload') . '</span>'
-        . '<span class="dfp-file-upload-or"> ' . t('or drag and drop') . '</span>'
-        . '</div>'
-        . '<div class="dfp-file-name"></div>'
-        . $meta_html
-        . '</div>'
-        . '</div>';
-      break;
+      return $base + array(
+        '#type'       => 'file',
+        '#attributes' => array('class' => array('dfp-file-hidden')),
+        '#prefix'     => '<div class="dfp-file-dropzone">'
+          . '<div class="dfp-file-dropzone-inner">'
+          . '<div class="dfp-file-upload-icon">'
+          . '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"'
+          . ' stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'
+          . '<path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>'
+          . '<polyline points="16 16 12 12 8 16"/>'
+          . '<line x1="12" y1="12" x2="12" y2="21"/>'
+          . '</svg></div>'
+          . '<div class="dfp-file-upload-prompt">'
+          . '<span class="dfp-file-upload-btn">' . t('Click to upload') . '</span>'
+          . '<span class="dfp-file-upload-or"> ' . t('or drag and drop') . '</span>'
+          . '</div>'
+          . '<div class="dfp-file-name"></div>'
+          . $meta_html
+          . '</div>',
+        '#suffix'     => '</div>',
+      );
 
     case 'date':
-      $input_html = '<input type="date" class="dfp-input">';
-      break;
+      return $base + array(
+        '#type'       => 'textfield',
+        '#attributes' => array('type' => 'date', 'class' => array('dfp-input')),
+      );
 
     case 'time':
-      $input_html = '<input type="time" class="dfp-input">';
-      break;
+      return $base + array(
+        '#type'       => 'textfield',
+        '#attributes' => array('type' => 'time', 'class' => array('dfp-input')),
+      );
 
     case 'rating':
       $min       = isset($scale['scale_min']) ? (int) $scale['scale_min'] : 1;
       $max       = isset($scale['scale_max']) ? (int) $scale['scale_max'] : 5;
       $min_label = isset($scale['scale_min_label']) ? check_plain($scale['scale_min_label']) : '';
       $max_label = isset($scale['scale_max_label']) ? check_plain($scale['scale_max_label']) : '';
-
-      $input_html = '<div class="dfp-rating-wrap">';
+      $html = '<div class="dfp-rating-wrap">';
       if ($min_label) {
-        $input_html .= '<span class="dfp-scale-label dfp-scale-label-min">' . $min_label . '</span>';
+        $html .= '<span class="dfp-scale-label dfp-scale-label-min">' . $min_label . '</span>';
       }
-      $input_html .= '<div class="dfp-stars">';
+      $html .= '<div class="dfp-stars">';
       for ($i = $min; $i <= $max; $i++) {
-        $input_html .= '<span class="dfp-star" title="' . $i . '"><i class="fa-solid fa-star"></i></span>';
+        $html .= '<span class="dfp-star" title="' . $i . '"><i class="fa-solid fa-star"></i></span>';
       }
-      $input_html .= '</div>';
+      $html .= '</div>';
       if ($max_label) {
-        $input_html .= '<span class="dfp-scale-label dfp-scale-label-max">' . $max_label . '</span>';
+        $html .= '<span class="dfp-scale-label dfp-scale-label-max">' . $max_label . '</span>';
       }
-      $input_html .= '</div>';
-      break;
+      return array('#markup' => $html . '</div>');
 
     case 'linear_scale':
       $min       = isset($scale['scale_min']) ? (int) $scale['scale_min'] : 1;
       $max       = isset($scale['scale_max']) ? (int) $scale['scale_max'] : 5;
       $min_label = isset($scale['scale_min_label']) ? check_plain($scale['scale_min_label']) : '';
       $max_label = isset($scale['scale_max_label']) ? check_plain($scale['scale_max_label']) : '';
-
-      $input_html = '<div class="dfp-scale-wrap">';
-      $input_html .= '<div class="dfp-scale-buttons">';
+      $html = '<div class="dfp-scale-wrap"><div class="dfp-scale-buttons">';
       for ($i = $min; $i <= $max; $i++) {
-        $input_html .= '<button type="button" class="dfp-scale-btn">' . $i . '</button>';
+        $html .= '<button type="button" class="dfp-scale-btn">' . $i . '</button>';
       }
-      $input_html .= '</div>';
+      $html .= '</div>';
       if ($min_label || $max_label) {
-        $input_html .= '<div class="dfp-scale-labels">';
-        $input_html .= '<span class="dfp-scale-label dfp-scale-label-min">' . $min_label . '</span>';
-        $input_html .= '<span class="dfp-scale-label dfp-scale-label-max">' . $max_label . '</span>';
-        $input_html .= '</div>';
+        $html .= '<div class="dfp-scale-labels">'
+          . '<span class="dfp-scale-label dfp-scale-label-min">' . $min_label . '</span>'
+          . '<span class="dfp-scale-label dfp-scale-label-max">' . $max_label . '</span>'
+          . '</div>';
       }
-      $input_html .= '</div>';
-      break;
+      return array('#markup' => $html . '</div>');
 
     case 'tags':
-      $input_html  = '<input type="hidden" class="dfp-tags-select2" style="width:100%">';
-      $input_html .= '<p class="dfp-help-text">'
-        . t('Type a tag and press Enter, or search existing tags.')
-        . '</p>';
-      break;
+      return $base + array(
+        '#type'       => 'hidden',
+        '#attributes' => array('class' => array('dfp-tags-select2'), 'style' => 'width:100%'),
+        '#suffix'     => '<p class="dfp-help-text">'
+          . t('Type a tag and press Enter, or search existing tags.')
+          . '</p>',
+      );
 
     default:
-      $input_html = '<input type="text" class="dfp-input"'
-        . ' placeholder="' . t('Answer') . '">';
-      break;
+      return $base + array(
+        '#type'       => 'textfield',
+        '#attributes' => array('class' => array('dfp-input'), 'placeholder' => t('Answer')),
+      );
   }
-
-  $output  = '<div class="dfp-question" data-type="' . check_plain($type) . '">';
-  $output .= '<div class="dfp-question-label">' . $label . $req_html . '</div>';
-  $output .= $desc_html;
-  $output .= '<div class="dfp-question-input">' . $input_html . '</div>';
-  $output .= '</div>';
-
-  return $output;
 }

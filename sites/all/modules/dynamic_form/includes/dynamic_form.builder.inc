@@ -14,30 +14,25 @@ function _dfb_width_picker_markup($current_width = 'full') {
   if (!in_array($current_width, $allowed)) {
     $current_width = 'full';
   }
-  $options = array(
+  $raw_options = array(
     'full'    => array('label' => t('Full'),    'cols' => 1),
     'half'    => array('label' => t('Half'),    'cols' => 2),
     'third'   => array('label' => t('Third'),   'cols' => 3),
     'quarter' => array('label' => t('Quarter'), 'cols' => 4),
   );
-  $html  = '<div class="dfb-width-picker">';
-  $html .= '<p class="dfb-subsection-label">' . t('Column Width') . '</p>';
-  $html .= '<div class="dfb-width-options">';
-  foreach ($options as $value => $opt) {
-    $active = ($value === $current_width) ? ' dfb-width-active' : '';
-    $html .= '<button type="button" class="dfb-width-btn' . $active . '" data-width="' . $value . '">';
-    $html .= '<span class="dfb-width-icon">';
-    for ($i = 0; $i < $opt['cols']; $i++) {
-      $cls = ($i === 0) ? 'dfb-width-col dfb-width-col-filled' : 'dfb-width-col';
-      $html .= '<span class="' . $cls . '"></span>';
-    }
-    $html .= '</span>';
-    $html .= '<span class="dfb-width-label">' . check_plain($opt['label']) . '</span>';
-    $html .= '</button>';
+  $options = array();
+  foreach ($raw_options as $value => $opt) {
+    $options[] = array(
+      'value'     => $value,
+      'label'     => $opt['label'],
+      'cols'      => $opt['cols'],
+      'is_active' => ($value === $current_width),
+    );
   }
-  $html .= '</div>';
-  $html .= '</div>';
-  return $html;
+  return theme('dynamic_form_builder_width_picker', array(
+    'current_width' => $current_width,
+    'options'       => $options,
+  ));
 }
 
 /* =====================================================================
@@ -91,72 +86,16 @@ function dynamic_form_builder_page($form_id) {
   module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.dashboard');
   $sidebar_html = _dynamic_form_dashboard_sidebar('forms');
 
-  $output  = '<div class="dfb-builder-container" id="dfb-builder-container"';
-  $output .= ' data-form-id="' . (int) $form_record->id . '">';
-
-  // Form header card.
-  $output .= '<div class="dfb-builder-header-card">';
-  $output .= '<div class="dfb-builder-header-top">';
-  $output .= '<div class="dfb-builder-header-text">';
-  $output .= '<h1 class="dfb-builder-title">' . check_plain($form_record->title) . '</h1>';
-  if (!empty($form_record->description)) {
-    $output .= '<p class="dfb-builder-desc">' . check_markup($form_record->description) . '</p>';
-  }
-  $output .= '</div>';
-  $output .= '<a href="' . url('dashboard/forms/' . (int) $form_record->id . '/preview') . '"'
-    . ' target="_blank" class="dfb-btn-preview" title="' . t('Open preview in a new tab') . '">'
-    . t('Preview') . '</a>';
-  $output .= '</div>';
-  $output .= '</div>';
-
-  // Drupal Form API form: sections list + Add Section.
-  $output .= drupal_render(drupal_get_form('dynamic_form_builder_sections_form', (int) $form_record->id));
-
-  // Question modal shell — the body is a Drupal Form API form.
-  $output .= '<div id="dfb-question-modal" class="dfb-modal-overlay" style="display:none;">';
-  $output .= '<div class="dfb-modal-content">';
-  $output .= '<div class="dfb-modal-header">';
-  $output .= '<div class="dfb-modal-header-text">';
-  $output .= '<h2>' . t('Add Question') . '</h2>';
-  $output .= '<p class="dfb-modal-header-sub">' . t('Choose a question type to add to this section') . '</p>';
-  $output .= '</div>';
-  $output .= '<button type="button" class="dfb-modal-close" data-action="close-modal">&times;</button>';
-  $output .= '</div>';
-  $output .= drupal_render(drupal_get_form('dynamic_form_builder_question_form', (int) $form_record->id));
-  $output .= '</div>';
-  $output .= '</div>';
-
-  // Delete confirmation modal.
-  $output .= '<div id="dfb-delete-confirm-modal" class="dfb-modal-overlay" style="display:none;">';
-  $output .= '<div class="dfb-delete-confirm-box">';
-  $output .= '<div class="dfb-delete-confirm-icon"><i class="fa-regular fa-trash-can"></i></div>';
-  $output .= '<p class="dfb-delete-confirm-msg">' . t('Delete') . ' "<strong id="dfb-delete-confirm-name"></strong>"?</p>';
-  $output .= '<p class="dfb-delete-confirm-sub">' . t('This will move it to Trash. You can restore it later.') . '</p>';
-  $output .= '<div class="dfb-delete-confirm-actions">';
-  $output .= '<button type="button" class="dfb-btn-cancel" data-action="close-delete-modal">' . t('Cancel') . '</button>';
-  $output .= '<button type="button" class="dfb-btn-delete-confirm" id="dfb-delete-confirm-btn">' . t('Delete') . '</button>';
-  $output .= '</div>';
-  $output .= '</div>';
-  $output .= '</div>';
-
-  // Edit question modal shell — content is loaded on demand via AJAX.
-  $output .= '<div id="dfb-edit-question-modal" class="dfb-modal-overlay" style="display:none;">';
-  $output .= '<div class="dfb-modal-content">';
-  $output .= '<div id="dfb-edit-form-placeholder">';
-  $output .= '<div class="dfb-modal-header">';
-  $output .= '<div class="dfb-modal-header-text"><h2>' . t('Edit Question') . '</h2></div>';
-  $output .= '<button type="button" class="dfb-modal-close" data-action="close-edit-modal">&times;</button>';
-  $output .= '</div>';
-  $output .= '<div class="dfb-edit-form-loading"><p>' . t('Loading...') . '</p></div>';
-  $output .= '</div>';
-  $output .= '</div>';
-  $output .= '</div>';
-
-  $output .= '</div>';
+  $content = theme('dynamic_form_builder_page', array(
+    'form_record'         => $form_record,
+    'preview_url'         => url('dashboard/forms/' . (int) $form_record->id . '/preview'),
+    'sections_form'       => drupal_render(drupal_get_form('dynamic_form_builder_sections_form', (int) $form_record->id)),
+    'question_modal_form' => drupal_render(drupal_get_form('dynamic_form_builder_question_form', (int) $form_record->id)),
+  ));
 
   return theme('dynamic_form_dashboard', array(
-    'sidebar'  => $sidebar_html,
-    'content'  => $output,
+    'sidebar' => $sidebar_html,
+    'content' => $content,
   ));
 }
 
@@ -356,52 +295,14 @@ function dynamic_form_builder_sections_ajax_callback($form, &$form_state) {
  * @return string HTML.
  */
 function _dynamic_form_render_builder_section($section, array $questions) {
-  $output  = '<div class="dfb-section-card" data-section-id="' . (int) $section->id . '">';
-
-  // Section header with drag handle.
-  $output .= '<div class="dfb-section-header">';
-  $output .= '<div class="dfb-drag-handle dfb-section-drag-handle"'
-    . ' title="' . t('Drag to reorder') . '"><i class="fa-solid fa-grip-vertical"></i></div>';
-  $output .= '<div class="dfb-section-title-wrap">';
-  $output .= '<h2 class="dfb-section-title">' . check_plain($section->name) . '</h2>';
-  $output .= '<button class="dfb-section-edit-icon" data-action="inline-rename-section"'
-    . ' title="' . t('Rename section') . '"><i class="fa-solid fa-pen"></i></button>';
-  $output .= '<button class="dfb-section-delete-icon" data-action="open-delete-modal"'
-    . ' data-entity-type="section"'
-    . ' data-entity-id="' . (int) $section->id . '"'
-    . ' data-entity-name="' . check_plain($section->name) . '"'
-    . ' title="' . t('Delete section') . '">'
-    . '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"'
-    . ' fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
-    . '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>'
-    . '<path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>'
-    . '</svg></button>';
-  if (!empty($section->description)) {
-    $output .= '<p class="dfb-section-desc">' . check_plain($section->description) . '</p>';
-  }
-  $output .= '</div>';
-  $output .= '</div>';
-
-  // Questions list (sortable within this section).
-  $output .= '<div class="dfb-questions-wrapper" data-section-id="' . (int) $section->id . '">';
+  $questions_html = '';
   foreach ($questions as $question) {
-    $output .= _dynamic_form_render_builder_question($question);
+    $questions_html .= _dynamic_form_render_builder_question($question);
   }
-  $output .= '</div>';
-
-  // Footer: add-question button.
-  $output .= '<div class="dfb-section-footer">';
-  $output .= '<button class="dfb-btn-add-question"'
-    . ' data-action="open-question-modal"'
-    . ' data-section-id="' . (int) $section->id . '"'
-    . ' data-section-name="' . check_plain($section->name) . '">';
-  $output .= '<span class="icon">+</span> ' . t('Add Question');
-  $output .= '</button>';
-  $output .= '</div>';
-
-  $output .= '</div>';
-
-  return $output;
+  return theme('dynamic_form_builder_section_card', array(
+    'section'        => $section,
+    'questions_html' => $questions_html,
+  ));
 }
 
 /**
@@ -412,48 +313,7 @@ function _dynamic_form_render_builder_section($section, array $questions) {
  * @return string HTML.
  */
 function _dynamic_form_render_builder_question($question) {
-  $req_star = $question->is_required
-    ? ' <span class="dfb-req">*</span>'
-    : '';
-
-  $output  = '<div class="dfb-question-card" data-question-id="' . (int) $question->id . '">';
-  $output .= '<div class="dfb-drag-handle dfb-question-drag-handle"'
-    . ' title="' . t('Drag to reorder') . '"><i class="fa-solid fa-grip-vertical"></i></div>';
-
-  $output .= '<div class="dfb-question-content dfb-question-editable"'
-    . ' title="' . t('Click to edit') . '">';
-  $output .= '<div class="dfb-question-header">';
-  $output .= '<h3 class="dfb-question-label">' . check_plain($question->label) . $req_star . '</h3>';
-  $width_labels = array('half' => '&#189;', 'third' => '&#8531;', 'quarter' => '&#188;');
-  $q_width = (!empty($question->width) && isset($width_labels[$question->width])) ? $question->width : '';
-
-  $output .= '<div class="dfb-question-header-right">';
-  if ($q_width) {
-    $output .= '<span class="dfb-question-width-badge">' . $width_labels[$q_width] . '</span>';
-  }
-  $output .= '<span class="dfb-question-type-badge">' . check_plain($question->type) . '</span>';
-  $output .= '<span class="dfb-edit-hint"><i class="fa-solid fa-pen"></i></span>';
-  $output .= '<button class="dfb-question-delete-icon" data-action="open-delete-modal"'
-    . ' data-entity-type="question"'
-    . ' data-entity-id="' . (int) $question->id . '"'
-    . ' data-entity-name="' . check_plain($question->label) . '"'
-    . ' title="' . t('Delete question') . '">'
-    . '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"'
-    . ' fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
-    . '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>'
-    . '<path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>'
-    . '</svg></button>';
-  $output .= '</div>';
-  $output .= '</div>';
-
-  if (!empty($question->description)) {
-    $output .= '<div class="dfb-question-desc">' . check_plain($question->description) . '</div>';
-  }
-
-  $output .= '</div>';
-  $output .= '</div>';
-
-  return $output;
+  return theme('dynamic_form_builder_question_card', array('question' => $question));
 }
 
 /* =====================================================================
@@ -589,24 +449,18 @@ function dynamic_form_builder_question_form($form, &$form_state, $form_id) {
 
   // Text editor info — shown only when text_editor type is selected.
   $form['scrollable']['text_editor_info'] = array(
-    '#markup' =>
-      '<div class="dfb-q-subsection dfb-text-editor-info" data-dfb-show-for="text_editor">' .
-        '<p class="dfb-subsection-label">' . t('Rich Text Editor') . '</p>' .
-        '<p class="dfb-text-editor-hint">' .
-          t('Respondents will see a TinyMCE rich text editor for their answer. No additional configuration needed.') .
-        '</p>' .
-      '</div>',
+    '#type'       => 'container',
+    '#attributes' => array('class' => array('dfb-q-subsection', 'dfb-text-editor-info'), 'data-dfb-show-for' => 'text_editor'),
+    'label'       => array('#markup' => '<p class="dfb-subsection-label">' . t('Rich Text Editor') . '</p>'),
+    'hint'        => array('#markup' => '<p class="dfb-text-editor-hint">' . t('Respondents will see a TinyMCE rich text editor for their answer. No additional configuration needed.') . '</p>'),
   );
 
   // Tags info — shown only when tags type is selected.
   $form['scrollable']['tags_info'] = array(
-    '#markup' =>
-      '<div class="dfb-q-subsection dfb-tags-info" data-dfb-show-for="tags">' .
-        '<p class="dfb-subsection-label">' . t('Tags') . '</p>' .
-        '<p class="dfb-text-editor-hint">' .
-          t('Respondents can search existing tags or type new ones. Tags are automatically normalized (lowercase, symbols removed) for analytics.') .
-        '</p>' .
-      '</div>',
+    '#type'       => 'container',
+    '#attributes' => array('class' => array('dfb-q-subsection', 'dfb-tags-info'), 'data-dfb-show-for' => 'tags'),
+    'label'       => array('#markup' => '<p class="dfb-subsection-label">' . t('Tags') . '</p>'),
+    'hint'        => array('#markup' => '<p class="dfb-text-editor-hint">' . t('Respondents can search existing tags or type new ones. Tags are automatically normalized (lowercase, symbols removed) for analytics.') . '</p>'),
   );
 
   // Select settings — allow multiple choice. Shown only for select type.
@@ -620,16 +474,9 @@ function dynamic_form_builder_question_form($form, &$form_state, $form_id) {
   );
 
   // -----------------------------------------------------------------
-  // Options sub-section — radio / checkbox / select / rating / scale.
-  // #states keeps this hidden/shown; no AJAX needed for type changes.
+  // Options sub-section — radio / checkbox / select.
+  // data-dfb-show-for drives visibility via _dfbApplyTypeVisibility().
   // -----------------------------------------------------------------
-  $choice_states = array(
-    'visible' => array(
-      array(':input[name="type"]' => array('value' => 'radio')),
-      array(':input[name="type"]' => array('value' => 'checkbox')),
-      array(':input[name="type"]' => array('value' => 'select')),
-    ),
-  );
   $form['scrollable']['options_wrapper'] = array(
     '#type'       => 'container',
     '#attributes' => array('id' => 'dfb-eq-options-wrapper', 'class' => array('dfb-q-subsection'), 'data-dfb-show-for' => 'radio checkbox select'),
@@ -745,14 +592,6 @@ function dynamic_form_builder_question_form($form, &$form_state, $form_id) {
   // -----------------------------------------------------------------
   // Validation rules — visible only for text-input types.
   // -----------------------------------------------------------------
-  $validation_states = array(
-    'visible' => array(
-      array(':input[name="type"]' => array('value' => 'text')),
-      array(':input[name="type"]' => array('value' => 'textarea')),
-      array(':input[name="type"]' => array('value' => 'date')),
-      array(':input[name="type"]' => array('value' => 'time')),
-    ),
-  );
   $form['scrollable']['validations_wrapper'] = array(
     '#type'       => 'container',
     '#attributes' => array('id' => 'dfb-q-validations-wrapper', 'class' => array('dfb-q-subsection'), 'data-dfb-show-for' => 'text textarea date time'),
@@ -1120,14 +959,14 @@ function _dfb_question_form_save_ajax_callback($form, &$form_state) {
  */
 function dynamic_form_ajax_reorder() {
   if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    drupal_json_output(array('status' => 'error', 'message' => 'Invalid request method.'));
+    drupal_json_output(array('status' => 'error', 'message' => t('Invalid request method.')));
     drupal_exit();
   }
 
   $payload = json_decode(file_get_contents('php://input'), TRUE);
 
   if (!$payload || !isset($payload['type'], $payload['order'])) {
-    drupal_json_output(array('status' => 'error', 'message' => 'Invalid payload.'));
+    drupal_json_output(array('status' => 'error', 'message' => t('Invalid payload.')));
     drupal_exit();
   }
 
@@ -1429,24 +1268,18 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
 
   // Text editor info — shown only when text_editor type is selected.
   $form['scrollable']['text_editor_info'] = array(
-    '#markup' =>
-      '<div class="dfb-q-subsection dfb-text-editor-info" data-dfb-show-for="text_editor">' .
-        '<p class="dfb-subsection-label">' . t('Rich Text Editor') . '</p>' .
-        '<p class="dfb-text-editor-hint">' .
-          t('Respondents will see a TinyMCE rich text editor for their answer. No additional configuration needed.') .
-        '</p>' .
-      '</div>',
+    '#type'       => 'container',
+    '#attributes' => array('class' => array('dfb-q-subsection', 'dfb-text-editor-info'), 'data-dfb-show-for' => 'text_editor'),
+    'label'       => array('#markup' => '<p class="dfb-subsection-label">' . t('Rich Text Editor') . '</p>'),
+    'hint'        => array('#markup' => '<p class="dfb-text-editor-hint">' . t('Respondents will see a TinyMCE rich text editor for their answer. No additional configuration needed.') . '</p>'),
   );
 
   // Tags info — shown only when tags type is selected.
   $form['scrollable']['tags_info'] = array(
-    '#markup' =>
-      '<div class="dfb-q-subsection dfb-tags-info" data-dfb-show-for="tags">' .
-        '<p class="dfb-subsection-label">' . t('Tags') . '</p>' .
-        '<p class="dfb-text-editor-hint">' .
-          t('Respondents can search existing tags or type new ones. Tags are automatically normalized (lowercase, symbols removed) for analytics.') .
-        '</p>' .
-      '</div>',
+    '#type'       => 'container',
+    '#attributes' => array('class' => array('dfb-q-subsection', 'dfb-tags-info'), 'data-dfb-show-for' => 'tags'),
+    'label'       => array('#markup' => '<p class="dfb-subsection-label">' . t('Tags') . '</p>'),
+    'hint'        => array('#markup' => '<p class="dfb-text-editor-hint">' . t('Respondents can search existing tags or type new ones. Tags are automatically normalized (lowercase, symbols removed) for analytics.') . '</p>'),
   );
 
   // Select settings — allow multiple choice. Shown only for select type.
@@ -1464,13 +1297,6 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
   // Options sub-section. Uses dfb-eq-* IDs to avoid conflicts with
   // the simultaneously-rendered add form.
   // -----------------------------------------------------------------
-  $choice_states = array(
-    'visible' => array(
-      array(':input[name="type"]' => array('value' => 'radio')),
-      array(':input[name="type"]' => array('value' => 'checkbox')),
-      array(':input[name="type"]' => array('value' => 'select')),
-    ),
-  );
   $form['scrollable']['options_wrapper'] = array(
     '#type'       => 'container',
     '#attributes' => array('id' => 'dfb-eq-edit-options-wrapper', 'class' => array('dfb-q-subsection'), 'data-dfb-show-for' => 'radio checkbox select'),
@@ -1604,14 +1430,6 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
     'email'      => t('Email'),
     'url'        => t('URL'),
     'numeric'    => t('Numeric Only'),
-  );
-  $validation_states = array(
-    'visible' => array(
-      array(':input[name="type"]' => array('value' => 'text')),
-      array(':input[name="type"]' => array('value' => 'textarea')),
-      array(':input[name="type"]' => array('value' => 'date')),
-      array(':input[name="type"]' => array('value' => 'time')),
-    ),
   );
   $form['scrollable']['validations_wrapper'] = array(
     '#type'       => 'container',

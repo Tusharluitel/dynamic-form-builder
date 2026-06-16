@@ -47,10 +47,7 @@ function dynamic_form_response_render_form($record) {
     }
 
     if ($already) {
-      return '<div class="dfp-form-card"><div class="dfr-already-submitted">'
-        . '<div class="dfr-check-icon">&#10003;</div>'
-        . '<p>' . t('You have already submitted a response to this form.') . '</p>'
-        . '</div></div>';
+      return theme('dynamic_form_response_already_submitted', array());
     }
   }
 
@@ -197,32 +194,14 @@ function dynamic_form_response_render_form($record) {
 
   $col_map = array('full' => 12, 'half' => 6, 'third' => 4, 'quarter' => 3);
 
-  $out  = '<div class="dfp-form-card">';
-  $out .= '<div class="dfr-form-container"';
-  $out .= ' data-form-id="'          . (int) $record->id . '"';
-  $out .= ' data-token="'            . check_plain($token) . '"';
-  $out .= ' data-save-url="'         . check_url($save_url) . '"';
-  $out .= ' data-submit-url="'       . check_url($submit_url) . '"';
-  $out .= ' data-upload-url="'       . check_url($upload_url) . '"';
-  $out .= ' data-thankyou-url="'     . check_url($thanks_url) . '"';
-  $out .= ' data-total-steps="'      . $total . '"';
-  $out .= ' data-is-anonymous="'     . ($user->uid ? '0' : '1') . '"';
-  $out .= ' data-guest-email-url="'  . check_url($guest_email_url) . '">';
-
-  $out .= '<input type="hidden" id="dfr-response-id" value="' . (int) $response_id . '">';
-
-  if ($total > 1) {
-    $out .= '<div class="dfr-progress-wrap"><div class="dfr-progress-fill"></div></div>';
-    $out .= '<div class="dfr-progress-text"></div>';
-  }
-
+  $inner_html = '';
   foreach ($steps as $step_idx => $step_items) {
     $step_num = $step_idx + 1;
     $is_first = ($step_num === 1);
     $is_last  = ($step_num === $total);
     $active   = $is_first ? ' dfr-step-active' : '';
 
-    $out .= '<div class="dfr-step' . $active . '" data-step="' . $step_num . '">';
+    $inner_html .= '<div class="dfr-step' . $active . '" data-step="' . $step_num . '">';
 
     $prev_sid = -1;
     $row_open = FALSE;
@@ -239,32 +218,27 @@ function dynamic_form_response_render_form($record) {
       // Section boundary.
       if ($sid !== $prev_sid) {
         if ($row_open) {
-          $out .= '</div>'; // .dfr-question-row
+          $inner_html .= '</div>'; // .dfr-question-row
           $row_open = FALSE;
           $row_cols = 0;
         }
         if ($prev_sid !== -1) {
-          $out .= '</div>'; // .dfr-response-section
+          $inner_html .= '</div>'; // .dfr-response-section
         }
-        $out .= '<div class="dfp-section">';
+        $inner_html .= '<div class="dfp-section">';
         if ($sec) {
-          $out .= '<div class="dfp-section-header">';
-          $out .= '<h2 class="dfp-section-title">' . check_plain($sec->name) . '</h2>';
-          if (!empty($sec->description)) {
-            $out .= '<p class="dfp-section-desc">' . check_plain($sec->description) . '</p>';
-          }
-          $out .= '</div>';
+          $inner_html .= theme('dynamic_form_preview_section_header', array('section' => $sec));
         }
         $prev_sid = $sid;
       }
 
       // Column row management.
       if (!$row_open) {
-        $out .= '<div class="dfp-question-row">';
+        $inner_html .= '<div class="dfp-question-row">';
         $row_open = TRUE;
         $row_cols = 0;
       } elseif ($row_cols + $q_cols > 12) {
-        $out .= '</div><div class="dfp-question-row">';
+        $inner_html .= '</div><div class="dfp-question-row">';
         $row_cols = 0;
       }
       $row_cols += $q_cols;
@@ -275,41 +249,42 @@ function dynamic_form_response_render_form($record) {
       $rules = isset($rules_by_q[$qid])   ? $rules_by_q[$qid]   : array();
       $val   = isset($existing_answers[$qid]) ? $existing_answers[$qid] : NULL;
 
-      $out .= '<div class="dfp-question-col dfp-col-' . check_plain($width) . '">';
-      $out .= _dynamic_form_response_render_question($q, $opts, $scale, $val, $rules);
-      $out .= '</div>';
+      $inner_html .= '<div class="dfp-question-col dfp-col-' . check_plain($width) . '">';
+      $inner_html .= _dynamic_form_response_render_question($q, $opts, $scale, $val, $rules);
+      $inner_html .= '</div>';
     }
 
     if ($row_open) {
-      $out .= '</div>'; // .dfr-question-row
+      $inner_html .= '</div>'; // .dfr-question-row
     }
     if ($prev_sid !== -1) {
-      $out .= '</div>'; // .dfr-response-section
+      $inner_html .= '</div>'; // .dfr-response-section
     }
 
-    // Navigation bar.
-    $out .= '<div class="dfr-step-nav">';
-    if (!$is_first) {
-      $out .= '<button type="button" class="dfr-btn-prev" data-step="' . ($step_num - 1) . '">'
-        . t('&larr; Previous') . '</button>';
-    } else {
-      $out .= '<span class="dfr-nav-spacer"></span>';
-    }
-    if ($is_last) {
-      $out .= '<button type="button" class="dfr-btn-submit">' . t('Submit') . '</button>';
-    } else {
-      $out .= '<button type="button" class="dfr-btn-next" data-step="' . ($step_num + 1) . '">'
-        . t('Next &rarr;') . '</button>';
-    }
-    $out .= '</div>'; // .dfr-step-nav
+    $inner_html .= theme('dynamic_form_response_step_nav', array(
+      'is_first'  => $is_first,
+      'is_last'   => $is_last,
+      'prev_step' => $step_num - 1,
+      'next_step' => $step_num + 1,
+    ));
 
-    $out .= '</div>'; // .dfr-step
+    $inner_html .= '</div>'; // .dfr-step
   }
 
-  $out .= '</div>'; // .dfr-form-container
-  $out .= '</div>'; // .dfp-form-card
-
-  return $out;
+  return theme('dynamic_form_response_form_container', array(
+    'form_id'         => (int) $record->id,
+    'token'           => check_plain($token),
+    'save_url'        => check_url($save_url),
+    'submit_url'      => check_url($submit_url),
+    'upload_url'      => check_url($upload_url),
+    'thanks_url'      => check_url($thanks_url),
+    'guest_email_url' => check_url($guest_email_url),
+    'total'           => $total,
+    'is_anonymous'    => $user->uid ? '0' : '1',
+    'response_id'     => (int) $response_id,
+    'has_progress'    => $total > 1,
+    'inner_html'      => $inner_html,
+  ));
 }
 
 /* =====================================================================
@@ -320,133 +295,187 @@ function dynamic_form_response_render_form($record) {
  * Renders a question's outer container with all accessibility / data attributes.
  */
 function _dynamic_form_response_render_question($q, array $opts, array $scale, $existing_value = NULL, array $rules = array()) {
-  $qid  = (int) $q->id;
-  $type = $q->type;
-  $req  = (int) $q->is_required;
-
-  $req_html  = $req
-    ? ' <span class="dfp-req" title="' . t('Required') . '">*</span>'
-    : '';
-  $desc_html = !empty($q->description)
-    ? '<p class="dfp-help-text">' . check_plain($q->description) . '</p>'
-    : '';
-
-  $out  = '<div class="dfp-question"';
-  $out .= ' data-question-id="' . $qid . '"';
-  $out .= ' data-type="'        . check_plain($type) . '"';
-  $out .= ' data-required="'    . $req . '"';
-  if (!empty($rules)) {
-    $out .= ' data-validations="' . check_plain(drupal_json_encode($rules)) . '"';
-  }
-  $out .= '>';
-  $out .= '<div class="dfp-question-label">' . check_plain($q->label) . $req_html . '</div>';
-  $out .= $desc_html;
-  $out .= '<div class="dfp-question-input">';
-  $out .= _dynamic_form_response_render_input($q, $opts, $scale, $existing_value);
-  $out .= '</div>';
-  $out .= '<div class="dfr-field-error"></div>';
-  $out .= '</div>';
-
-  return $out;
+  return theme('dynamic_form_response_question', array(
+    'question'         => $q,
+    'input_html'       => _dynamic_form_response_render_input($q, $opts, $scale, $existing_value),
+    'validations_json' => !empty($rules) ? drupal_json_encode($rules) : NULL,
+  ));
 }
 
 /**
- * Renders the interactive input element(s) for one question type.
- *
- * @param object      $q              Question DB row.
- * @param array       $opts           Option rows (radio / checkbox / select).
- * @param array       $scale          Keyed scale / allow_multiple meta values.
- * @param string|null $existing_value Stored answer to pre-fill; NULL = blank.
- * @return string HTML.
+ * Thin wrapper: renders the FAPI element for one question type.
  */
 function _dynamic_form_response_render_input($q, array $opts, array $scale, $existing_value = NULL) {
+  $element = _dynamic_form_response_build_fapi_element($q, $opts, $scale, $existing_value);
+  return drupal_render($element);
+}
+
+/**
+ * Returns a Drupal Form API element array for one interactive response input.
+ *
+ * Rendered via drupal_render() outside of drupal_get_form(), so #process
+ * callbacks (form_expand_radios etc.) are not invoked automatically.
+ * Radio and checkbox options are therefore pre-expanded into individual
+ * child elements with #value / #return_value set directly.
+ *
+ * date / time / rating / linear_scale have no Drupal 7 FAPI equivalent and
+ * fall back to #markup.
+ *
+ * @param object      $q              Question DB row.
+ * @param array       $opts           Option rows.
+ * @param array       $scale          Scale / allow_multiple meta values.
+ * @param string|null $existing_value Stored draft answer to pre-fill.
+ *
+ * @return array Renderable FAPI element.
+ */
+function _dynamic_form_response_build_fapi_element($q, array $opts, array $scale, $existing_value = NULL) {
   $qid  = (int) $q->id;
   $type = $q->type;
-  $ph   = !empty($q->placeholder) ? ' placeholder="' . check_plain($q->placeholder) . '"' : '';
-  $val  = ($existing_value !== NULL) ? check_plain($existing_value) : '';
+  $val  = ($existing_value !== NULL) ? $existing_value : '';
+
+  $base = array(
+    '#title'         => '',
+    '#title_display' => 'invisible',
+    '#required'      => FALSE,
+  );
 
   switch ($type) {
 
     case 'text':
     case 'email':
     case 'number':
-      $itype = ($type === 'email') ? 'email' : ($type === 'number' ? 'number' : 'text');
-      return '<input type="' . $itype . '" class="dfp-input"' . $ph . ' value="' . $val . '">';
+      $attrs = array('class' => array('dfp-input'));
+      if (!empty($q->placeholder)) {
+        $attrs['placeholder'] = check_plain($q->placeholder);
+      }
+      return $base + array(
+        '#type'       => 'textfield',
+        '#value'      => check_plain($val),
+        '#attributes' => $attrs,
+      );
 
     case 'textarea':
-      return '<textarea class="dfp-textarea" rows="4"' . $ph . '>' . $val . '</textarea>';
+      $attrs = array('class' => array('dfp-textarea'));
+      if (!empty($q->placeholder)) {
+        $attrs['placeholder'] = check_plain($q->placeholder);
+      }
+      return $base + array(
+        '#type'       => 'textarea',
+        '#rows'       => 4,
+        '#value'      => check_plain($val),
+        '#attributes' => $attrs,
+      );
 
     case 'text_editor':
-      $eid = 'dfr-tinymce-' . $qid;
-      return '<textarea id="' . $eid . '" class="dfp-textarea dfr-tinymce-area" rows="6">' . $val . '</textarea>';
+      return $base + array(
+        '#type'       => 'textarea',
+        '#rows'       => 6,
+        '#id'         => 'dfr-tinymce-' . $qid,
+        '#value'      => check_plain($val),
+        '#attributes' => array('class' => array('dfp-textarea', 'dfr-tinymce-area')),
+      );
 
     case 'date':
-      return '<input type="date" class="dfp-input" value="' . $val . '">';
+      return array('#markup' => '<input type="date" class="dfp-input" value="' . check_plain($val) . '">');
 
     case 'time':
-      return '<input type="time" class="dfp-input" value="' . $val . '">';
+      return array('#markup' => '<input type="time" class="dfp-input" value="' . check_plain($val) . '">');
 
     case 'radio':
       if (empty($opts)) {
-        return '<p class="dfp-no-options">' . t('No options defined.') . '</p>';
+        return array('#markup' => '<p class="dfp-no-options">' . t('No options defined.') . '</p>');
       }
-      $html = '<div class="dfp-options-list">';
-      foreach ($opts as $opt) {
-        $lbl     = check_plain($opt->option_label);
-        $checked = ($existing_value === $opt->option_label) ? ' checked' : '';
-        $html   .= '<label class="dfp-option-label">'
-          . '<input type="radio" name="dfr-radio-' . $qid . '" value="' . $lbl . '"' . $checked . '>'
-          . $lbl . '</label>';
+      // Pre-expand individual radios — form_expand_radios() is a #process
+      // callback and does not run outside drupal_get_form().
+      $element = array(
+        '#type'       => 'container',
+        '#attributes' => array('class' => array('dfp-options-list')),
+      );
+      foreach ($opts as $idx => $opt) {
+        $key = $opt->option_label;
+        $element['opt_' . $idx] = array(
+          '#type'         => 'radio',
+          '#title'        => check_plain($key),
+          '#return_value' => $key,
+          '#value'        => ($val !== '') ? $val : NULL,
+          '#name'         => 'dfr-radio-' . $qid,
+          '#id'           => drupal_html_id('dfr-radio-' . $qid . '-' . $idx),
+          '#attributes'   => array(),
+        );
       }
-      return $html . '</div>';
+      return $element;
 
     case 'checkbox':
       if (empty($opts)) {
-        return '<p class="dfp-no-options">' . t('No options defined.') . '</p>';
+        return array('#markup' => '<p class="dfp-no-options">' . t('No options defined.') . '</p>');
       }
-      $checked_vals = array();
+      $checked_map = array();
       if ($existing_value !== NULL) {
-        $dec          = @json_decode($existing_value, TRUE);
-        $checked_vals = is_array($dec) ? $dec : array();
+        $dec = @json_decode($existing_value, TRUE);
+        if (is_array($dec)) {
+          $checked_map = array_flip($dec);
+        }
       }
-      $html = '<div class="dfp-options-list">';
-      foreach ($opts as $opt) {
-        $lbl     = check_plain($opt->option_label);
-        $checked = in_array($opt->option_label, $checked_vals) ? ' checked' : '';
-        $html   .= '<label class="dfp-option-label">'
-          . '<input type="checkbox" value="' . $lbl . '"' . $checked . '>'
-          . $lbl . '</label>';
+      // Pre-expand individual checkboxes — same reason as radio above.
+      $element = array(
+        '#type'       => 'container',
+        '#attributes' => array('class' => array('dfp-options-list')),
+      );
+      foreach ($opts as $idx => $opt) {
+        $key        = $opt->option_label;
+        $is_checked = isset($checked_map[$key]);
+        $element['opt_' . $idx] = array(
+          '#type'         => 'checkbox',
+          '#title'        => check_plain($key),
+          '#return_value' => $key,
+          '#value'        => $is_checked ? $key : 0,
+          '#name'         => 'dfr-cb-' . $qid . '[' . $idx . ']',
+          '#id'           => drupal_html_id('dfr-cb-' . $qid . '-' . $idx),
+          '#attributes'   => array(),
+        );
       }
-      return $html . '</div>';
+      return $element;
 
     case 'select':
       if (empty($opts)) {
-        return '<p class="dfp-no-options">' . t('No options defined.') . '</p>';
+        return array('#markup' => '<p class="dfp-no-options">' . t('No options defined.') . '</p>');
       }
-      $allow_multi = !empty($scale['allow_multiple']);
-      $multi_attr  = $allow_multi ? ' multiple' : '';
-      $class       = $allow_multi ? 'dfp-select dfp-select-multi dfp-select2' : 'dfp-select dfp-select2';
-
-      $sel_vals = array();
-      if ($allow_multi && $existing_value !== NULL) {
-        $dec      = @json_decode($existing_value, TRUE);
-        $sel_vals = is_array($dec) ? $dec : array();
-      } elseif (!$allow_multi && $existing_value !== NULL) {
-        $sel_vals = array($existing_value);
-      }
-
-      $html = '<select class="' . $class . '"' . $multi_attr . '>';
-      if (!$allow_multi) {
-        $html .= '<option value="">' . t('— Select an option —') . '</option>';
-      }
-      foreach ($opts as $opt) {
-        $lbl      = check_plain($opt->option_label);
-        $selected = in_array($opt->option_label, $sel_vals) ? ' selected' : '';
-        $html    .= '<option value="' . $lbl . '"' . $selected . '>' . $lbl . '</option>';
-      }
-      $html .= '</select>';
+      $allow_multi    = !empty($scale['allow_multiple']);
+      $select_classes = array('dfp-select', 'dfp-select2');
       if ($allow_multi) {
-        $html .= '<p class="dfp-multi-select-hint">'
+        $select_classes[] = 'dfp-select-multi';
+      }
+      $sel_val = '';
+      if ($allow_multi && $existing_value !== NULL) {
+        $dec     = @json_decode($existing_value, TRUE);
+        $sel_val = is_array($dec) ? $dec : array();
+      }
+      elseif (!$allow_multi && $existing_value !== NULL) {
+        $sel_val = $existing_value;
+      }
+      $options = array();
+      foreach ($opts as $opt) {
+        $options[$opt->option_label] = check_plain($opt->option_label);
+      }
+      $select_options = $allow_multi
+        ? $options
+        : array('' => t('— Select an option —')) + $options;
+      // drupal_render() does not invoke #process callbacks, so form_process_select()
+      // never runs and #multiple has no effect on the HTML output. Add the
+      // multiple attribute directly so Select2 renders as a multi-select widget.
+      $select_attrs = array('class' => $select_classes);
+      if ($allow_multi) {
+        $select_attrs['multiple'] = 'multiple';
+      }
+      $element = $base + array(
+        '#type'       => 'select',
+        '#options'    => $select_options,
+        '#multiple'   => $allow_multi,
+        '#value'      => $sel_val,
+        '#attributes' => $select_attrs,
+      );
+      if ($allow_multi) {
+        $element['#suffix'] = '<p class="dfp-multi-select-hint">'
           . '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"'
           . ' stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">'
           . '<polyline points="9 11 12 14 22 4"/>'
@@ -454,7 +483,7 @@ function _dynamic_form_response_render_input($q, array $opts, array $scale, $exi
           . '</svg>'
           . ' ' . t('Multiple options can be selected') . '</p>';
       }
-      return $html;
+      return $element;
 
     case 'rating':
       $min       = isset($scale['scale_min']) ? (int) $scale['scale_min'] : 1;
@@ -462,23 +491,16 @@ function _dynamic_form_response_render_input($q, array $opts, array $scale, $exi
       $min_label = isset($scale['scale_min_label']) ? check_plain($scale['scale_min_label']) : '';
       $max_label = isset($scale['scale_max_label']) ? check_plain($scale['scale_max_label']) : '';
       $cur       = ($existing_value !== NULL) ? (int) $existing_value : 0;
-
-      $html = '<div class="dfp-rating-wrap">';
-      if ($min_label) {
-        $html .= '<span class="dfp-scale-label dfp-scale-label-min">' . $min_label . '</span>';
-      }
-      $html .= '<div class="dfp-stars">';
+      $stars = array();
       for ($i = $min; $i <= $max; $i++) {
-        $active = ($i <= $cur) ? ' dfp-star-active' : '';
-        $html  .= '<span class="dfp-star' . $active . '" data-value="' . $i . '">&#9733;</span>';
+        $stars[] = array('value' => $i, 'active' => ($i <= $cur));
       }
-      $html .= '</div>';
-      if ($max_label) {
-        $html .= '<span class="dfp-scale-label dfp-scale-label-max">' . $max_label . '</span>';
-      }
-      $html .= '<input type="hidden" class="dfr-rating-value" value="' . $cur . '">';
-      $html .= '</div>';
-      return $html;
+      return array('#markup' => theme('dynamic_form_response_rating_widget', array(
+        'stars'     => $stars,
+        'current'   => $cur,
+        'min_label' => $min_label,
+        'max_label' => $max_label,
+      )));
 
     case 'linear_scale':
       $min       = isset($scale['scale_min']) ? (int) $scale['scale_min'] : 1;
@@ -486,22 +508,16 @@ function _dynamic_form_response_render_input($q, array $opts, array $scale, $exi
       $min_label = isset($scale['scale_min_label']) ? check_plain($scale['scale_min_label']) : '';
       $max_label = isset($scale['scale_max_label']) ? check_plain($scale['scale_max_label']) : '';
       $cur       = ($existing_value !== NULL) ? (int) $existing_value : NULL;
-
-      $html = '<div class="dfp-scale-wrap"><div class="dfp-scale-buttons">';
+      $buttons = array();
       for ($i = $min; $i <= $max; $i++) {
-        $active = ($cur !== NULL && $cur === $i) ? ' dfp-scale-active' : '';
-        $html  .= '<button type="button" class="dfp-scale-btn' . $active . '">' . $i . '</button>';
+        $buttons[] = array('value' => $i, 'active' => ($cur !== NULL && $cur === $i));
       }
-      $html .= '</div>';
-      if ($min_label || $max_label) {
-        $html .= '<div class="dfp-scale-labels">'
-          . '<span class="dfp-scale-label dfp-scale-label-min">' . $min_label . '</span>'
-          . '<span class="dfp-scale-label dfp-scale-label-max">' . $max_label . '</span>'
-          . '</div>';
-      }
-      $html .= '<input type="hidden" class="dfr-scale-value" value="' . ($cur !== NULL ? $cur : '') . '">';
-      $html .= '</div>';
-      return $html;
+      return array('#markup' => theme('dynamic_form_response_linear_scale_widget', array(
+        'buttons'   => $buttons,
+        'current'   => $cur,
+        'min_label' => $min_label,
+        'max_label' => $max_label,
+      )));
 
     case 'tags':
       $ac_url = check_url(url('dynamic-form/ajax/tags/autocomplete'));
@@ -512,12 +528,43 @@ function _dynamic_form_response_render_input($q, array $opts, array $scale, $exi
           $tv = implode(',', array_map('check_plain', $dec));
         }
       }
-      return '<input type="hidden" class="dfp-tags-select2"'
-        . ' data-autocomplete-url="' . $ac_url . '"'
-        . ' value="' . $tv . '" style="width:100%">'
-        . '<p class="dfp-help-text">' . t('Type a tag and press Enter, or search existing tags.') . '</p>';
+      return $base + array(
+        '#type'       => 'hidden',
+        '#value'      => $tv,
+        '#attributes' => array(
+          'class'                 => array('dfp-tags-select2'),
+          'data-autocomplete-url' => $ac_url,
+          'style'                 => 'width:100%',
+        ),
+        '#suffix' => '<p class="dfp-help-text">'
+          . t('Type a tag and press Enter, or search existing tags.') . '</p>',
+      );
 
     case 'file':
+      $file_val_attr  = '';
+      $file_name_disp = '';
+      if ($existing_value !== NULL && $existing_value !== '') {
+        $fdec = @json_decode($existing_value, TRUE);
+        if (is_array($fdec)) {
+          $flist = isset($fdec['fid']) ? array($fdec) : array_values($fdec);
+          $names = array();
+          foreach ($flist as $fitem) {
+            if (!empty($fitem['filename'])) {
+              $names[] = $fitem['filename'];
+            }
+          }
+          if ($names) {
+            $file_val_attr  = check_plain($existing_value);
+            $file_name_disp = check_plain(implode(', ', $names));
+          }
+        }
+      }
+      $accept_list = array();
+      if (!empty($q->allow_file_types)) {
+        foreach (array_filter(array_map('trim', explode(',', $q->allow_file_types))) as $ft) {
+          $accept_list[] = '.' . $ft;
+        }
+      }
       $badges = '';
       if (!empty($q->allow_file_types)) {
         foreach (array_filter(array_map('trim', explode(',', $q->allow_file_types))) as $ft) {
@@ -525,14 +572,10 @@ function _dynamic_form_response_render_input($q, array $opts, array $scale, $exi
         }
       }
       $size_pill  = !empty($q->max_file_size)
-        ? '<span class="dfp-file-size-pill">'
-          . t('Max @mb MB', array('@mb' => round($q->max_file_size / 1048576, 1)))
-          . '</span>'
+        ? '<span class="dfp-file-size-pill">' . t('Max @mb MB', array('@mb' => round($q->max_file_size / 1048576, 1))) . '</span>'
         : '';
       $files_pill = !empty($q->max_files)
-        ? '<span class="dfp-file-size-pill">'
-          . t('Up to @n file(s)', array('@n' => (int) $q->max_files))
-          . '</span>'
+        ? '<span class="dfp-file-size-pill">' . t('Up to @n file(s)', array('@n' => (int) $q->max_files)) . '</span>'
         : '';
       $meta = '';
       if ($badges || $size_pill || $files_pill) {
@@ -540,46 +583,56 @@ function _dynamic_form_response_render_input($q, array $opts, array $scale, $exi
           . ($badges ? '<div class="dfp-file-types">' . $badges . '</div>' : '')
           . $size_pill . $files_pill . '</div>';
       }
-
-      // accept / multiple attributes for the native file picker.
-      $accept_list = array();
-      if (!empty($q->allow_file_types)) {
-        foreach (array_filter(array_map('trim', explode(',', $q->allow_file_types))) as $ft) {
-          $accept_list[] = '.' . $ft;
-        }
+      $file_attrs = array(
+        'class'            => array('dfp-file-hidden'),
+        'data-question-id' => (string) $qid,
+      );
+      if ($accept_list) {
+        $file_attrs['accept'] = implode(',', $accept_list);
       }
-      $accept_attr = $accept_list ? ' accept="' . check_plain(implode(',', $accept_list)) . '"' : '';
-      $multi_attr  = (!empty($q->max_files) && (int) $q->max_files > 1) ? ' multiple' : '';
-
-      // Pre-fill from draft: parse previously stored file JSON.
-      $file_val_attr  = '';
-      $file_name_disp = '';
-      if ($existing_value !== NULL && $existing_value !== '') {
-        $fdec = @json_decode($existing_value, TRUE);
-        if (is_array($fdec) && isset($fdec['filename'])) {
-          $file_val_attr  = check_plain($existing_value);
-          $file_name_disp = check_plain($fdec['filename']);
-        }
+      if (!empty($q->max_files) && (int) $q->max_files > 1) {
+        $file_attrs['multiple'] = 'multiple';
       }
-
       $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"'
         . ' stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'
         . '<path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>'
         . '<polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/></svg>';
-      return '<div class="dfp-file-dropzone' . ($file_name_disp ? ' dfp-file-done' : '') . '">'
-        . '<input type="hidden" class="dfp-file-value" value="' . $file_val_attr . '">'
-        . '<input type="file" class="dfp-file-hidden" data-question-id="' . $qid . '"' . $accept_attr . $multi_attr . '>'
-        . '<div class="dfp-file-dropzone-inner">'
-        . '<div class="dfp-file-upload-icon">' . $svg . '</div>'
-        . '<div class="dfp-file-upload-prompt">'
-        . '<span class="dfp-file-upload-btn">' . t('Click to upload') . '</span>'
-        . '<span class="dfp-file-upload-or"> ' . t('or drag and drop') . '</span></div>'
-        . '<div class="dfp-file-name"' . ($file_name_disp ? '' : ' style="display:none"') . '>'
-        . $file_name_disp . '</div>' . $meta
-        . '</div></div>';
+      $dropzone_classes = array('dfp-file-dropzone');
+      if ($file_name_disp) {
+        $dropzone_classes[] = 'dfp-file-done';
+      }
+      return array(
+        '#type'       => 'container',
+        '#attributes' => array('class' => $dropzone_classes),
+        'file_value'  => array(
+          '#type'       => 'hidden',
+          '#value'      => $file_val_attr,
+          '#attributes' => array('class' => array('dfp-file-value')),
+        ),
+        'file_input'  => $base + array(
+          '#type'       => 'file',
+          '#attributes' => $file_attrs,
+        ),
+        'dropzone_inner' => array(
+          '#markup' => theme('dynamic_form_response_file_dropzone', array(
+            'svg'       => $svg,
+            'has_file'  => (bool) $file_name_disp,
+            'file_name' => $file_name_disp,
+            'meta_html' => $meta,
+          )),
+        ),
+      );
 
     default:
-      return '<input type="text" class="dfp-input"' . $ph . ' value="' . $val . '">';
+      $attrs = array('class' => array('dfp-input'));
+      if (!empty($q->placeholder)) {
+        $attrs['placeholder'] = check_plain($q->placeholder);
+      }
+      return $base + array(
+        '#type'       => 'textfield',
+        '#value'      => check_plain($val),
+        '#attributes' => $attrs,
+      );
   }
 }
 
@@ -608,66 +661,10 @@ function _dynamic_form_response_maybe_load_select2($form_id) {
     return;
   }
 
+  $module_path = drupal_get_path('module', 'dynamic_form_response');
   drupal_add_css($base . '/select2.css');
   drupal_add_js($base . '/select2.min.js', array('weight' => 10));
-
-  $ac_url = url('dynamic-form/ajax/tags/autocomplete');
-  $js     = <<<JS
-(function ($) {
-  Drupal.behaviors.dfrSelect2Init = {
-    attach: function (context, settings) {
-      $('.dfp-select2', context).not('.dfp-tags-select2').once('dfp-s2', function () {
-        if (typeof $.fn.select2 === 'undefined') { return; }
-        var isMulti = $(this).hasClass('dfp-select-multi');
-        $(this).select2({
-          placeholder: isMulti ? 'Select options…' : '— Select —',
-          allowClear: !isMulti,
-          width: '100%',
-          dropdownCssClass: 'dfp-s2-preview-drop'
-        });
-      });
-      $('.dfp-tags-select2', context).once('dfp-tags-s2', function () {
-        if (typeof $.fn.select2 === 'undefined') { return; }
-        var acUrl = $(this).data('autocomplete-url') || '{$ac_url}';
-        $(this).select2({
-          tags: [], tokenSeparators: [','], width: '100%',
-          placeholder: 'Type to search or add tags…', minimumInputLength: 1,
-          dropdownCssClass: 'dfp-s2-preview-drop',
-          ajax: {
-            url: acUrl, dataType: 'json', quietMillis: 250,
-            data: function (term) { return { term: term }; },
-            results: function (data) {
-              // Legacy: plain array (no spellcheck).
-              if ($.isArray(data)) { return { results: data }; }
-              // Exact/prefix results — return directly.
-              if (data.results && data.results.length > 0) {
-                return { results: data.results };
-              }
-              // Spellcheck suggestions — show as a grouped "Did you mean?" set.
-              if (data.spellcheck && data.spellcheck.found && data.spellcheck.suggestions.length) {
-                return { results: [{ text: Drupal.t('Did you mean?'), children: data.spellcheck.suggestions }] };
-              }
-              return { results: [] };
-            }
-          },
-          createSearchChoice: function (term, data) {
-            var termLC = term.toLowerCase();
-            for (var i = 0; i < data.length; i++) {
-              // Handle both flat items and grouped children.
-              var items = data[i].children ? data[i].children : [data[i]];
-              for (var j = 0; j < items.length; j++) {
-                if (items[j].text && items[j].text.toLowerCase() === termLC) { return; }
-              }
-            }
-            return { id: term, text: term };
-          }
-        });
-      });
-    }
-  };
-})(jQuery);
-JS;
-  drupal_add_js($js, array('type' => 'inline', 'scope' => 'footer', 'weight' => 20));
+  drupal_add_js($module_path . '/js/response-select2.js', array('scope' => 'footer', 'weight' => 20));
 }
 
 /**
@@ -691,22 +688,9 @@ function _dynamic_form_response_maybe_load_tinymce($form_id) {
     return;
   }
 
+  $module_path = drupal_get_path('module', 'dynamic_form_response');
   drupal_add_js($tinymce, array('type' => 'file', 'weight' => 10));
-
-  $js = <<<JS
-(function ($) {
-  Drupal.behaviors.dfrTinymceInit = {
-    attach: function (context, settings) {
-      $('.dfr-tinymce-area', context).once('dfr-tinymce', function () {
-        if (typeof tinymce === 'undefined') { return; }
-        tinymce.init({ selector: '#' + this.id, height: 220, menubar: false, statusbar: false,
-          plugins: 'lists link', toolbar: 'bold italic underline | bullist numlist | link' });
-      });
-    }
-  };
-})(jQuery);
-JS;
-  drupal_add_js($js, array('type' => 'inline', 'scope' => 'footer', 'weight' => 20));
+  drupal_add_js($module_path . '/js/response-tinymce.js', array('scope' => 'footer', 'weight' => 20));
 }
 
 /* =====================================================================
@@ -908,23 +892,39 @@ function _dynamic_form_response_do_save() {
     elseif (isset($q_types[$question_id]) && $q_types[$question_id] === 'file') {
       $answer_id = _dynamic_form_response_upsert_answer((int) $response_id, $question_id, (string) $value, $now);
       $fdec = @json_decode($value, TRUE);
-      if ($answer_id && is_array($fdec) && !empty($fdec['fid'])) {
-        $managed = db_select('file_managed', 'fm')
-          ->fields('fm', array('uri', 'filename', 'filemime', 'filesize'))
-          ->condition('fid', (int) $fdec['fid'])
-          ->execute()
-          ->fetchObject();
-        if ($managed) {
-          _dynamic_form_response_upsert_answer_file(
-            $answer_id, $managed->uri, $managed->filename,
-            $managed->filemime, (int) $managed->filesize, $now
-          );
+      if ($answer_id && is_array($fdec)) {
+        // Normalize: old format is {fid,filename,url}, new format is [{fid,...},...]
+        $file_list = isset($fdec['fid']) ? array($fdec) : array_values($fdec);
+        // Replace all existing file records for this answer.
+        db_delete('dynamic_form_answer_files')
+          ->condition('answer_id', $answer_id)
+          ->execute();
+        foreach ($file_list as $fitem) {
+          if (empty($fitem['fid'])) { continue; }
+          $managed = db_select('file_managed', 'fm')
+            ->fields('fm', array('uri', 'filename', 'filemime', 'filesize'))
+            ->condition('fid', (int) $fitem['fid'])
+            ->execute()
+            ->fetchObject();
+          if ($managed) {
+            db_insert('dynamic_form_answer_files')
+              ->fields(array(
+                'answer_id'  => $answer_id,
+                'file_path'  => $managed->uri,
+                'file_name'  => $managed->filename,
+                'file_type'  => $managed->filemime,
+                'file_size'  => (int) $managed->filesize,
+                'created_at' => $now,
+                'updated_at' => $now,
+              ))
+              ->execute();
+          }
         }
       }
     }
     else {
       if (is_array($value)) {
-        $value = json_encode(array_values(array_filter($value, 'strlen')));
+        $value = drupal_json_encode(array_values(array_filter($value, 'strlen')));
       }
       _dynamic_form_response_upsert_answer((int) $response_id, $question_id, (string) $value, $now);
     }
@@ -1234,16 +1234,10 @@ function dynamic_form_response_thankyou_page($slug) {
   $module_path = drupal_get_path('module', 'dynamic_form_response');
   drupal_add_css($module_path . '/css/response-form.css');
 
-  $out  = '<div class="dfr-thankyou">';
-  $out .= '<div class="dfr-check-icon">&#10003;</div>';
-  $out .= '<h2>' . t('Thank you for your response!') . '</h2>';
-  $out .= '<p>' . t('Your response to &ldquo;@title&rdquo; has been submitted successfully.',
-    array('@title' => $record->title)) . '</p>';
-  $out .= l('&larr; ' . t('Back to forms'), 'forms',
-    array('html' => TRUE, 'attributes' => array('class' => array('dfr-btn-back'))));
-  $out .= '</div>';
-
-  return $out;
+  return theme('dynamic_form_response_thankyou', array(
+    'title'    => check_plain($record->title),
+    'back_url' => url('forms'),
+  ));
 }
 
 /* =====================================================================
@@ -1322,7 +1316,7 @@ function _dynamic_form_response_do_upload() {
     'asp', 'aspx', 'cgi', 'pl', 'py', 'rb', 'sh', 'bash',
     'exe', 'htaccess', 'shtml',
   );
-  $_upload_ext = strtolower(pathinfo(drupal_basename($file_name), PATHINFO_EXTENSION));
+  $_upload_ext = drupal_strtolower(pathinfo(drupal_basename($file_name), PATHINFO_EXTENSION));
   if (in_array($_upload_ext, $_dangerous_exts)) {
     return array(
       'status'  => 'error',
@@ -1332,8 +1326,8 @@ function _dynamic_form_response_do_upload() {
 
   // Validate file extension against the configured allowlist.
   if (!empty($question->allow_file_types)) {
-    $allowed = array_filter(array_map('strtolower', array_map('trim', explode(',', $question->allow_file_types))));
-    $ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+    $allowed = array_filter(array_map('drupal_strtolower', array_map('trim', explode(',', $question->allow_file_types))));
+    $ext = drupal_strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
     if (!in_array($ext, $allowed)) {
       return array(
         'status'  => 'error',

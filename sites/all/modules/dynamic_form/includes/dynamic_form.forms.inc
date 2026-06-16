@@ -473,7 +473,7 @@ function dynamic_form_edit_form($form, &$form_state, $form_id)
   // -- Members section --
   // Load existing members to pre-populate on first render.
   $existing_members      = _dynamic_form_load_existing_members($form_id);
-  $existing_members_json = json_encode($existing_members);
+  $existing_members_json = drupal_json_encode($existing_members);
 
   $form['members'] = array(
     '#type'       => 'fieldset',
@@ -592,11 +592,10 @@ function dynamic_form_edit_form_submit($form, &$form_state)
  * @param bool $can_invite  TRUE on edit forms where invitations are supported.
  */
 function _dynamic_form_members_picker_html($can_invite = FALSE) {
-  $role_opts =
-    '<option value="editor">'         . t('Editor')         . '</option>' .
-    '<option value="form_applicant">' . t('Form Applicant') . '</option>' .
-    '<option value="viewer">'         . t('Viewer')         . '</option>' .
-    '<option value="reviewer">'       . t('Reviewer')       . '</option>';
+  $roles = array(
+    'editor'         => t('Editor'),
+    'form_applicant' => t('Form Applicant'),
+  );
 
   $placeholder = $can_invite
     ? t('Search by name, or enter an email to add or invite…')
@@ -604,20 +603,11 @@ function _dynamic_form_members_picker_html($can_invite = FALSE) {
 
   $add_label = $can_invite ? t('Add / Invite') : t('Add Member');
 
-  return
-    '<div class="dfb-member-picker-wrap">' .
-      '<div class="dfb-member-input-row">' .
-        '<div class="dfb-member-search-wrap">' .
-          '<input type="text" id="dfb-members-search" class="dfb-member-search-input"' .
-                 ' placeholder="' . check_plain($placeholder) . '" autocomplete="off" />' .
-          '<div id="dfb-members-results" class="dfb-members-results" style="display:none;"></div>' .
-        '</div>' .
-        '<select id="dfb-member-role-select" class="dfb-member-role-select">' . $role_opts . '</select>' .
-        '<button type="button" id="dfb-member-add-btn" class="dfb-member-add-btn">' .
-          '<span class="dfb-add-btn-icon">+</span> ' . check_plain($add_label) .
-        '</button>' .
-      '</div>' .
-    '</div>';
+  return theme('dynamic_form_member_picker', array(
+    'roles'       => $roles,
+    'placeholder' => $placeholder,
+    'add_label'   => $add_label,
+  ));
 }
 
 /**

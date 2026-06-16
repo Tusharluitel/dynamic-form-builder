@@ -1,13 +1,5 @@
 <?php
 
-/**
- * Builds and registers the responses batch for one or more forms.
- *
- * Each selected form gets its own sheet in the output XLSX.
- * Column layout (mirrors Google Forms export):
- *   Timestamp | Email | Respondent | Q1 | Q2 | … (ordered by section then
- *   question position)
- */
 function _dynamic_form_export_responses_start_batch($form_ids, $from = '', $to = '') {
   $form_ids   = array_values(array_filter(array_map('intval', (array) $form_ids)));
   $operations = array();
@@ -351,7 +343,7 @@ function _dynamic_form_export_format_answer($raw, $type) {
       if ($type === 'file') {
         $names = array();
         foreach ($decoded as $f) {
-          $names[] = is_array($f) ? ($f['filename'] ?? $f['name'] ?? '') : (string) $f;
+          $names[] = is_array($f) ? (isset($f['filename']) ? $f['filename'] : (isset($f['name']) ? $f['name'] : '')) : (string) $f;
         }
         return implode(', ', array_filter($names));
       }

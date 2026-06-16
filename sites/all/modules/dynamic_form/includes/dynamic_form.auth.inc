@@ -219,29 +219,29 @@ function dynamic_form_register_form_submit($form, &$form_state)
   }
 }
 
-//Auth Page Wrapper
-
-
-function _dynamic_form_auth_wrapper($form_html, $type)
-{
+/**
+ * Wraps a login or register form in the auth card template.
+ *
+ * @param string $form_html  Rendered FAPI form markup.
+ * @param string $type       'login' or 'register'.
+ * @return string Rendered template HTML.
+ */
+function _dynamic_form_auth_wrapper($form_html, $type) {
   if ($type === 'login') {
-    $title = t('Welcome back');
+    $title    = t('Welcome back');
     $subtitle = t('Sign in to your account');
-    $footer = t('Don\'t have an account? <a href="!url">Sign up</a>', array('!url' => url('register')));
-  } else {
-    $title = t('Create your account');
+    $footer   = t('Don\'t have an account? <a href="!url">Sign up</a>', array('!url' => url('register')));
+  }
+  else {
+    $title    = t('Create your account');
     $subtitle = t('Start building forms in minutes');
-    $footer = t('Already have an account? <a href="!url">Sign in</a>', array('!url' => url('login')));
+    $footer   = t('Already have an account? <a href="!url">Sign in</a>', array('!url' => url('login')));
   }
 
-  $output  = '<div class="dfb-auth-wrapper">';
-  $output .= '  <div class="dfb-auth-card">';
-  $output .= '    <h2>' . $title . '</h2>';
-  $output .= '    <p class="auth-subtitle">' . $subtitle . '</p>';
-  $output .= '    ' . $form_html;
-  $output .= '    <div class="dfb-auth-footer">' . $footer . '</div>';
-  $output .= '  </div>';
-  $output .= '</div>';
-
-  return $output;
+  return theme('dynamic_form_auth_wrapper', array(
+    'title'     => $title,
+    'subtitle'  => $subtitle,
+    'form_html' => $form_html,
+    'footer'    => $footer,
+  ));
 }

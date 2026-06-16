@@ -38,26 +38,15 @@ function dynamic_form_public_forms_page() {
 
   $forms = $base->extend('PagerDefault')->limit(5)->execute()->fetchAllAssoc('id');
 
-  $output  = '<div class="dfb-public-listing">';
-  $output .= '<div class="dfb-public-listing-header">';
-  $output .= '<h1>' . t('Public Forms') . '</h1>';
-  $output .= '<p>' . t('Browse and respond to publicly available forms.') . '</p>';
-  $output .= '</div>';
-
-  if (empty($forms)) {
-    $output .= '<p class="dfb-empty-note">' . t('No public forms are available at this time.') . '</p>';
-  }
-  else {
-    $output .= '<div class="dfb-public-forms-grid dfb-public-forms-grid--list">';
-    foreach ($forms as $form) {
-      $output .= _dynamic_form_render_public_form_card($form);
-    }
-    $output .= '</div>';
-    $output .= theme('pager');
+  $cards = array();
+  foreach ($forms as $form) {
+    $cards[] = _dynamic_form_render_public_form_card($form);
   }
 
-  $output .= '</div>';
-  return $output;
+  return theme('dynamic_form_public_listing', array(
+    'cards' => $cards,
+    'pager' => empty($cards) ? '' : theme('pager'),
+  ));
 }
 
 /**
@@ -81,17 +70,17 @@ function dynamic_form_public_form_view_page($slug) {
   $now = REQUEST_TIME;
   if ($record->opens_at && $record->opens_at > $now) {
     drupal_set_title(check_plain($record->title));
-    return '<div class="dfb-form-view"><div class="dfb-form-view-body">'
-      . '<p class="dfb-coming-soon-msg">' . t('This form is not open yet.') . '</p>'
-      . '<a href="' . url('forms') . '" class="dfb-btn-back">&larr; ' . t('Back to public forms') . '</a>'
-      . '</div></div>';
+    return theme('dynamic_form_public_form_status', array(
+      'message'  => t('This form is not open yet.'),
+      'back_url' => url('forms'),
+    ));
   }
   if ($record->closes_at && $record->closes_at < $now) {
     drupal_set_title(check_plain($record->title));
-    return '<div class="dfb-form-view"><div class="dfb-form-view-body">'
-      . '<p class="dfb-coming-soon-msg">' . t('This form is closed and no longer accepting responses.') . '</p>'
-      . '<a href="' . url('forms') . '" class="dfb-btn-back">&larr; ' . t('Back to public forms') . '</a>'
-      . '</div></div>';
+    return theme('dynamic_form_public_form_status', array(
+      'message'  => t('This form is closed and no longer accepting responses.'),
+      'back_url' => url('forms'),
+    ));
   }
 
   global $user;
@@ -154,63 +143,38 @@ function dynamic_form_public_form_view_page($slug) {
     ->isNull('r.deleted_at')
     ->countQuery()->execute()->fetchField();
 
-  $output  = '<div class="dfb-form-view">';
-  $output .= '<div class="dfb-form-view-header">';
-  $output .= '<h1>' . check_plain($record->title) . '</h1>';
-  if ($record->description) {
-    $output .= '<p class="dfb-form-view-desc">' . nl2br(check_plain($record->description)) . '</p>';
-  }
-  $output .= '<div class="dfb-form-view-meta">';
-  $output .= '<span>' . format_plural($question_count, '1 question', '@count questions') . '</span>';
-  $output .= '<span class="dfb-dot">&middot;</span>';
-  $output .= '<span>' . format_plural($response_count, '1 response', '@count responses') . '</span>';
-  $output .= '</div>';
-  $output .= '</div>';
-  $output .= '<div class="dfb-form-view-body">';
   if (module_exists('dynamic_form_response')) {
     module_load_include('inc', 'dynamic_form_response', 'includes/dynamic_form_response.submit');
-    $output .= dynamic_form_response_render_form($record);
+    $form_body = dynamic_form_response_render_form($record);
   }
   else {
-    $output .= '<p class="dfb-coming-soon-msg">' . t('Form responses are coming soon.') . '</p>';
+    $form_body = '<p class="dfb-coming-soon-msg">' . t('Form responses are coming soon.') . '</p>';
   }
-  $output .= '</div>';
-  $output .= '</div>';
 
-  return $output;
+  return theme('dynamic_form_public_form_view', array(
+    'title'          => check_plain($record->title),
+    'description'    => $record->description ? nl2br(check_plain($record->description)) : '',
+    'question_label' => format_plural($question_count, '1 question', '@count questions'),
+    'response_label' => format_plural($response_count, '1 response', '@count responses'),
+    'form_body'      => $form_body,
+  ));
 }
 
 /**
- * Renders a single public form card as an HTML string.
+ * Renders a single public form card using the template.
  */
 function _dynamic_form_render_public_form_card($form) {
-  $title = check_plain($form->title);
-  $desc  = !empty($form->description)
-    ? check_plain(truncate_utf8($form->description, 120, TRUE, TRUE))
-    : '';
-  $url   = check_url(url('forms/' . $form->slug));
-  $date  = format_date($form->created_at, 'custom', 'M j, Y');
-  $closes_at = !empty($form->closes_at) ? format_date($form->closes_at, 'custom', 'M j, Y') : NULL;
   $count = isset($form->response_count) ? (int) $form->response_count : 0;
 
-  $html  = '<div class="dfb-public-form-card">';
-  $html .= '<div class="dfb-public-form-card-body">';
-  $html .= '<h3><a href="' . $url . '">' . $title . '</a></h3>';
-  if ($desc) {
-    $html .= '<p class="dfb-public-form-card-desc">' . $desc . '</p>';
-  }
-  $html .= '<div class="dfb-public-form-card-meta">';
-  $html .= '<span>' . format_plural($count, '1 response', '@count responses') . '</span>';
-  if ($closes_at) {
-    $html .= '<span class="dfb-dot">&middot;</span>';
-    $html .= '<span class="dfb-closes-at">Closes at: ' . $closes_at . '</span>';
-  }
-  $html .= '</div>';
-  $html .= '</div>';
-  $html .= '<div class="dfb-public-form-card-footer">';
-  $html .= '<a href="' . $url . '" class="dfb-public-form-btn">' . t('View Form') . '</a>';
-  $html .= '</div>';
-  $html .= '</div>';
-
-  return $html;
+  return theme('dynamic_form_public_form_card', array(
+    'title'          => check_plain($form->title),
+    'url'            => check_url(url('forms/' . $form->slug)),
+    'desc'           => !empty($form->description)
+                          ? check_plain(truncate_utf8($form->description, 120, TRUE, TRUE))
+                          : '',
+    'response_label' => format_plural($count, '1 response', '@count responses'),
+    'closes_at'      => !empty($form->closes_at)
+                          ? format_date($form->closes_at, 'custom', 'M j, Y')
+                          : NULL,
+  ));
 }

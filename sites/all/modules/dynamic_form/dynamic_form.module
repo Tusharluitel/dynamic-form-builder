@@ -2,26 +2,12 @@
 
 /**
  * Implements hook_init().
- *
- * Enforces per-IP / per-user rate limits on restws JSON API requests
- * before restws's own hook_init() has a chance to produce output.
  */
 function dynamic_form_init() {
   _dynamic_form_api_rate_limit();
 }
 
-/**
- * Enforces per-IP and per-user rate limits on restws JSON API requests.
- *
- * Only fires when the request path ends with ".json" (all restws endpoints).
- * Uses Drupal core's flood API ({flood} table) — no extra dependencies.
- *
- * Default limits (override via variable_set in settings.php or the DB):
- *   dynamic_form_rate_limit_ip_threshold   = 60  (requests)
- *   dynamic_form_rate_limit_ip_window      = 60  (seconds)
- *   dynamic_form_rate_limit_user_threshold = 120 (requests, authenticated only)
- *   dynamic_form_rate_limit_user_window    = 60  (seconds)
- */
+
 function _dynamic_form_api_rate_limit() {
   // Strip the query string and check the path suffix.
   $path = strtok($_SERVER['REQUEST_URI'], '?');
@@ -807,11 +793,167 @@ function dynamic_form_menu()
  */
 function dynamic_form_theme($existing, $type, $theme, $path)
 {
+  $tpl_path = drupal_get_path('module', 'dynamic_form') . '/templates';
+
   return array(
     'dynamic_form_dashboard' => array(
       'variables' => array('sidebar' => '', 'content' => ''),
-      'template' => 'dashboard',
-      'path' => drupal_get_path('theme', 'dynamic_form') . '/template',
+      'template'  => 'dashboard',
+      'path'      => drupal_get_path('theme', 'dynamic_form') . '/template',
+    ),
+    'dynamic_form_builder_page' => array(
+      'variables' => array(
+        'form_record'         => NULL,
+        'preview_url'         => '',
+        'sections_form'       => '',
+        'question_modal_form' => '',
+      ),
+      'template' => 'dynamic-form-builder-page',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_builder_section_card' => array(
+      'variables' => array('section' => NULL, 'questions_html' => ''),
+      'template'  => 'dynamic-form-builder-section-card',
+      'path'      => $tpl_path,
+    ),
+    'dynamic_form_builder_question_card' => array(
+      'variables' => array('question' => NULL),
+      'template'  => 'dynamic-form-builder-question-card',
+      'path'      => $tpl_path,
+    ),
+    'dynamic_form_builder_width_picker' => array(
+      'variables' => array('current_width' => 'full', 'options' => array()),
+      'template'  => 'dynamic-form-builder-width-picker',
+      'path'      => $tpl_path,
+    ),
+    'dynamic_form_preview_page' => array(
+      'variables' => array('form_record' => NULL, 'back_url' => '', 'body_html' => ''),
+      'template'  => 'dynamic-form-preview-page',
+      'path'      => $tpl_path,
+    ),
+    'dynamic_form_preview_section_header' => array(
+      'variables' => array('section' => NULL),
+      'template'  => 'dynamic-form-preview-section-header',
+      'path'      => $tpl_path,
+    ),
+    'dynamic_form_preview_question' => array(
+      'variables' => array('question' => NULL, 'input_html' => ''),
+      'template'  => 'dynamic-form-preview-question',
+      'path'      => $tpl_path,
+    ),
+    'dynamic_form_dashboard_sidebar' => array(
+      'variables' => array('items' => array(), 'create_url' => ''),
+      'template'  => 'dynamic-form-dashboard-sidebar',
+      'path'      => $tpl_path,
+    ),
+    'dynamic_form_dashboard_page_header' => array(
+      'variables' => array(
+        'title'        => '',
+        'subtitle'     => '',
+        'with_row'     => FALSE,
+        'action_url'   => NULL,
+        'action_label' => NULL,
+      ),
+      'template' => 'dynamic-form-dashboard-page-header',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_dashboard_filter_panel' => array(
+      'variables' => array('questions' => array()),
+      'template'  => 'dynamic-form-dashboard-filter-toggle-panel',
+      'path'      => $tpl_path,
+    ),
+    'dynamic_form_dashboard_delete_modal' => array(
+      'variables' => array(),
+      'template'  => 'dynamic-form-dashboard-delete-modal',
+      'path'      => $tpl_path,
+    ),
+    'dynamic_form_auth_wrapper' => array(
+      'variables' => array(
+        'title'     => '',
+        'subtitle'  => '',
+        'form_html' => '',
+        'footer'    => '',
+      ),
+      'template' => 'dynamic-form-auth-wrapper',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_public_listing' => array(
+      'variables' => array('cards' => array(), 'pager' => ''),
+      'template'  => 'dynamic-form-public-listing',
+      'path'      => $tpl_path,
+    ),
+    'dynamic_form_public_form_card' => array(
+      'variables' => array(
+        'title'          => '',
+        'url'            => '',
+        'desc'           => '',
+        'response_label' => '',
+        'closes_at'      => NULL,
+      ),
+      'template' => 'dynamic-form-public-form-card',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_public_form_view' => array(
+      'variables' => array(
+        'title'          => '',
+        'description'    => '',
+        'question_label' => '',
+        'response_label' => '',
+        'form_body'      => '',
+      ),
+      'template' => 'dynamic-form-public-form-view',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_public_form_status' => array(
+      'variables' => array('message' => '', 'back_url' => ''),
+      'template'  => 'dynamic-form-public-form-status',
+      'path'      => $tpl_path,
+    ),
+    'dynamic_form_profile_page' => array(
+      'variables' => array(
+        'initials'   => '',
+        'name'       => '',
+        'mail'       => '',
+        'role_label' => '',
+        'edit_url'   => '',
+        'stats'      => array(),
+      ),
+      'template' => 'dynamic-form-profile-page',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_trash_section' => array(
+      'variables' => array(
+        'title'      => '',
+        'icon'       => '',
+        'count'      => 0,
+        'table_html' => '',
+      ),
+      'template' => 'dynamic-form-trash-section',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_trash_restore_modal' => array(
+      'variables' => array(),
+      'template'  => 'dynamic-form-trash-restore-modal',
+      'path'      => $tpl_path,
+    ),
+    'dynamic_form_dashboard_empty_state' => array(
+      'variables' => array(
+        'icon'         => '',
+        'message'      => '',
+        'action_url'   => '',
+        'action_label' => '',
+      ),
+      'template' => 'dynamic-form-dashboard-empty-state',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_member_picker' => array(
+      'variables' => array(
+        'roles'       => array(),
+        'placeholder' => '',
+        'add_label'   => '',
+      ),
+      'template' => 'dynamic-form-member-picker',
+      'path'     => $tpl_path,
     ),
   );
 }

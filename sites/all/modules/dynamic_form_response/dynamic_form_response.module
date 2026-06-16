@@ -290,6 +290,136 @@ function _dynamic_form_response_view_access($form_id) {
 }
 
 /**
+ * Implements hook_theme().
+ */
+function dynamic_form_response_theme($existing, $type, $theme, $path) {
+  $tpl_path = drupal_get_path('module', 'dynamic_form_response') . '/templates';
+  return array(
+    'dynamic_form_response_question' => array(
+      'variables' => array(
+        'question'         => NULL,
+        'input_html'       => '',
+        'validations_json' => NULL,
+      ),
+      'template' => 'dynamic-form-response-question',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_response_already_submitted' => array(
+      'variables' => array(),
+      'template'  => 'dynamic-form-response-already-submitted',
+      'path'      => $tpl_path,
+    ),
+    'dynamic_form_response_step_nav' => array(
+      'variables' => array(
+        'is_first'  => TRUE,
+        'is_last'   => TRUE,
+        'prev_step' => 0,
+        'next_step' => 0,
+      ),
+      'template' => 'dynamic-form-response-step-nav',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_response_rating_widget' => array(
+      'variables' => array(
+        'stars'     => array(),
+        'current'   => 0,
+        'min_label' => '',
+        'max_label' => '',
+      ),
+      'template' => 'dynamic-form-response-rating-widget',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_response_linear_scale_widget' => array(
+      'variables' => array(
+        'buttons'   => array(),
+        'current'   => NULL,
+        'min_label' => '',
+        'max_label' => '',
+      ),
+      'template' => 'dynamic-form-response-linear-scale-widget',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_response_file_dropzone' => array(
+      'variables' => array(
+        'svg'       => '',
+        'has_file'  => FALSE,
+        'file_name' => '',
+        'meta_html' => '',
+      ),
+      'template' => 'dynamic-form-response-file-dropzone',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_response_thankyou' => array(
+      'variables' => array('title' => '', 'back_url' => ''),
+      'template'  => 'dynamic-form-response-thankyou',
+      'path'      => $tpl_path,
+    ),
+    'dynamic_form_response_form_container' => array(
+      'variables' => array(
+        'form_id'         => 0,
+        'token'           => '',
+        'save_url'        => '',
+        'submit_url'      => '',
+        'upload_url'      => '',
+        'thanks_url'      => '',
+        'guest_email_url' => '',
+        'total'           => 1,
+        'is_anonymous'    => '0',
+        'response_id'     => 0,
+        'has_progress'    => FALSE,
+        'inner_html'      => '',
+      ),
+      'template' => 'dynamic-form-response-form-container',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_response_responses_header' => array(
+      'variables' => array(
+        'back_url'         => '',
+        'form_id'          => 0,
+        'form_title'       => '',
+        'form_builder_url' => '',
+        'has_filters'      => FALSE,
+        'filtered_total'   => 0,
+        'total_all'        => 0,
+        'solr_error'       => FALSE,
+      ),
+      'template' => 'dynamic-form-response-responses-header',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_response_answer_card' => array(
+      'variables' => array('label' => '', 'value_html' => ''),
+      'template'  => 'dynamic-form-response-answer-card',
+      'path'      => $tpl_path,
+    ),
+    'dynamic_form_response_detail_meta' => array(
+      'variables' => array(
+        'form_title'   => '',
+        'resp_name'    => '',
+        'resp_mail'    => '',
+        'submitted_at' => '',
+      ),
+      'template' => 'dynamic-form-response-detail-meta',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_response_detail_panel' => array(
+      'variables' => array(
+        'answered_q'        => 0,
+        'total_q'           => 0,
+        'pct'               => 0,
+        'prev_url'          => FALSE,
+        'next_url'          => FALSE,
+        'current_pos'       => 0,
+        'total_responses'   => 0,
+        'all_responses_url' => '',
+        'form_builder_url'  => '',
+      ),
+      'template' => 'dynamic-form-response-detail-panel',
+      'path'     => $tpl_path,
+    ),
+  );
+}
+
+/**
  * Access callback for dashboard/forms/%/responses/% (single response detail).
  *
  * Extends the list-level check by also granting access to the user who

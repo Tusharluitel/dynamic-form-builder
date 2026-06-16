@@ -121,69 +121,10 @@ function dynamic_form_analytics_radar_ajax() {
 // ---------------------------------------------------------------------------
 
 /**
- * Builds the radar page HTML — full-height chart with minimal header.
+ * Builds the radar page HTML via the theme system.
  */
 function _dynamic_form_analytics_radar_html() {
-  $output  = '<div class="dfb-analytics-page">';
-
-  $output .= '<div class="dfb-analytics-header dfb-analytics-header--split">';
-  $output .= '<div class="dfb-analytics-header-text">';
-  $output .= '<h2>' . t('Form Radar') . '</h2>';
-  $output .= '<p class="dfb-dashboard-subtitle">'
-    . t('Dot position: segment = visibility, ring = submission volume. Dot color = completion rate.')
-    . '</p>';
-  $output .= '</div>';
-  $output .= '<a href="' . url('dashboard/analytics') . '" class="dfb-btn dfb-btn-ghost">'
-    . '&larr; ' . t('Back to Analytics') . '</a>';
-  $output .= '</div>';
-
-  // Filter bar.
-  $output .= '<div id="dfa-radar-filters" class="dfa-radar-filters">';
-
-  // Visibility toggles.
-  $output .= '<div class="dfa-filter-group">';
-  $output .= '<span class="dfa-filter-label">' . t('Visibility') . '</span>';
-  $output .= '<div class="dfa-filter-toggles">';
-  $output .= '<button class="dfa-filter-toggle active" data-filter="visibility" data-key="p" style="--toggle-color:#4f6ef7">' . t('Public') . '</button>';
-  $output .= '<button class="dfa-filter-toggle active" data-filter="visibility" data-key="r" style="--toggle-color:#f59e0b">' . t('Restricted') . '</button>';
-  $output .= '<button class="dfa-filter-toggle active" data-filter="visibility" data-key="m" style="--toggle-color:#8b5cf6">' . t('Members Only') . '</button>';
-  $output .= '</div></div>';
-
-  // Ring toggles.
-  $output .= '<div class="dfa-filter-group">';
-  $output .= '<span class="dfa-filter-label">' . t('Volume Ring') . '</span>';
-  $output .= '<div class="dfa-filter-toggles">';
-  foreach (array('Emerging', 'Growing', 'Active', 'Popular') as $ring) {
-    $output .= '<button class="dfa-filter-toggle active" data-filter="ring" data-key="' . $ring . '">' . t($ring) . '</button>';
-  }
-  $output .= '</div></div>';
-
-  // Completion rate slider.
-  $output .= '<div class="dfa-filter-group">';
-  $output .= '<span class="dfa-filter-label">' . t('Min Completion') . '</span>';
-  $output .= '<div class="dfa-filter-range">';
-  $output .= '<input type="range" id="dfa-completion-min" min="0" max="100" value="0" step="5">';
-  $output .= '<span id="dfa-completion-val">0%</span>';
-  $output .= '</div></div>';
-
-  // Date range.
-  $output .= '<div class="dfa-filter-group">';
-  $output .= '<span class="dfa-filter-label">' . t('Response Date') . '</span>';
-  $output .= '<div class="dfa-filter-date-group">';
-  $output .= '<input type="date" id="dfa-date-from" class="dfa-date-input">';
-  $output .= '<span class="dfa-date-sep">' . t('to') . '</span>';
-  $output .= '<input type="date" id="dfa-date-to" class="dfa-date-input">';
-  $output .= '<button id="dfa-date-apply" class="dfa-filter-apply-btn">' . t('Apply') . '</button>';
-  $output .= '<button id="dfa-date-clear" class="dfa-filter-clear-btn">' . t('Clear') . '</button>';
-  $output .= '</div></div>';
-
-  $output .= '</div>'; // .dfa-radar-filters
-
-  $output .= '<div class="dfb-chart-card">';
-  $output .= '<div id="dfa-chart-radar" class="dfb-chart-container dfb-chart-container--radar"></div>';
-  $output .= '</div>';
-
-  $output .= '</div>'; // .dfb-analytics-page
-
-  return $output;
+  return theme('dynamic_form_analytics_radar_page', array(
+    'back_url' => check_url(url('dashboard/analytics')),
+  ));
 }
