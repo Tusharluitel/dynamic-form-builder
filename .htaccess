@@ -160,4 +160,39 @@ DirectoryIndex index.php index.html index.htm
   Header always set X-Content-Type-Options nosniff
   # Disable Proxy header, since it's an attack vector.
   RequestHeader unset Proxy
+  # Prevent clickjacking.
+  Header always set X-Frame-Options SAMEORIGIN
+  # Force browsers to use the declared Content-Type.
+  Header always set X-XSS-Protection "1; mode=block"
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# DDoS / abuse hardening
+# ---------------------------------------------------------------------------
+
+# Cap request body size: 10 MB for most requests; AJAX upload endpoint is
+# handled separately in PHP via file_save_upload() validators.
+LimitRequestBody 10485760
+
+# Reject suspiciously large or malformed request headers early (before PHP).
+LimitRequestFields 50
+LimitRequestFieldSize 8190
+LimitRequestLine 4094
+
+# Block common scanner and bot user-agents that drive volumetric probes.
+# Legitimate browsers never send empty User-Agent strings.
+<IfModule mod_rewrite.c>
+  RewriteCond %{HTTP_USER_AGENT} ^-?$ [NC,OR]
+  RewriteCond %{HTTP_USER_AGENT} (sqlmap|nikto|nmap|masscan|zgrab|go-http-client/1\.1) [NC]
+  RewriteRule .* - [F,L]
+</IfModule>
+
+# Rate-limit the AJAX endpoints most vulnerable to flood abuse.
+# Requires mod_ratelimit (Apache 2.4+). Caps sustained bandwidth per connection
+# to reduce the value of holding connections open with slow-POST attacks.
+<IfModule mod_ratelimit.c>
+  <LocationMatch "^/dynamic-form/ajax/">
+    SetOutputFilter RATE_LIMIT
+    SetEnv rate-limit 400
+  </LocationMatch>
 </IfModule>

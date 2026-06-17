@@ -24,6 +24,17 @@
  * }
  */
 function dynamic_form_solr_tags_autocomplete() {
+  $ip = ip_address();
+
+  // 60 requests per 60 seconds per IP.
+  if (!flood_is_allowed('dynamic_form_solr_autocomplete', 60, 60, $ip)) {
+    drupal_add_http_header('Status', '429 Too Many Requests');
+    drupal_add_http_header('Retry-After', '60');
+    drupal_json_output(array('error' => TRUE, 'message' => t('Too many requests. Please wait a moment.')));
+    drupal_exit();
+  }
+  flood_register_event('dynamic_form_solr_autocomplete', 60, $ip);
+
   $term = isset($_GET['term']) ? trim($_GET['term']) : '';
 
   $results    = array();

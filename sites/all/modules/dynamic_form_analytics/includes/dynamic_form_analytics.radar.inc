@@ -3,10 +3,6 @@
 /**
  * @file
  * Radar visualization page for Dynamic Form Analytics.
- *
- * Plots all forms on a 3-segment radar (visibility: public / restricted /
- * members-only) where radial distance reflects submission volume and dot
- * color reflects completion rate.
  */
 
 // ---------------------------------------------------------------------------
@@ -111,6 +107,15 @@ function _dynamic_form_analytics_radar_data($from = NULL, $to = NULL) {
  * Accepts optional GET params: from (YYYY-MM-DD), to (YYYY-MM-DD).
  */
 function dynamic_form_analytics_radar_ajax() {
+  // 30 radar data refreshes per hour per IP (cross-form aggregation is expensive).
+  $ip = ip_address();
+  if (!flood_is_allowed('dfa_radar', 30, 3600, $ip)) {
+    drupal_add_http_header('Status', '429 Too Many Requests');
+    drupal_json_output(array('error' => t('Too many requests.')));
+    drupal_exit();
+  }
+  flood_register_event('dfa_radar', 3600, $ip);
+
   $from = isset($_GET['from']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['from']) ? $_GET['from'] : NULL;
   $to   = isset($_GET['to'])   && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['to'])   ? $_GET['to']   : NULL;
   drupal_json_output(_dynamic_form_analytics_radar_data($from, $to));

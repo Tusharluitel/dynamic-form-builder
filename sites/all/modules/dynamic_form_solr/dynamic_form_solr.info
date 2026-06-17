@@ -4,3 +4,4 @@ core = 7.x
 package = Dynamic Form
 
 dependencies[] = dynamic_form
+dependencies[] = apachesolr

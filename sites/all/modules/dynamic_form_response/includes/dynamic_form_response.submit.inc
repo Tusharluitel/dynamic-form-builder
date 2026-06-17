@@ -706,6 +706,15 @@ function _dynamic_form_response_maybe_load_tinymce($form_id) {
  * save requests so it can be persisted in dynamic_form_response_sessions.
  */
 function dynamic_form_response_ajax_guest_email() {
+  // 5 guest-email lookups per hour per IP — prevents email harvesting.
+  $ip = ip_address();
+  if (!flood_is_allowed('dfr_guest_email', 5, 3600, $ip)) {
+    drupal_add_http_header('Status', '429 Too Many Requests');
+    drupal_add_http_header('Retry-After', '3600');
+    drupal_json_output(array('status' => 'error', 'message' => t('Too many requests. Please try again later.')));
+    drupal_exit();
+  }
+  flood_register_event('dfr_guest_email', 3600, $ip);
   drupal_json_output(_dynamic_form_response_do_guest_email());
 }
 
@@ -734,6 +743,15 @@ function _dynamic_form_response_do_guest_email() {
  * Returns JSON: { status: 'ok', response_id: N } or { status: 'error', message: '...' }
  */
 function dynamic_form_response_ajax_save() {
+  // 120 auto-saves per hour per IP (one every 30 s is normal usage).
+  $ip = ip_address();
+  if (!flood_is_allowed('dfr_response_save', 120, 3600, $ip)) {
+    drupal_add_http_header('Status', '429 Too Many Requests');
+    drupal_add_http_header('Retry-After', '60');
+    drupal_json_output(array('status' => 'error', 'message' => t('Too many requests. Please try again later.')));
+    drupal_exit();
+  }
+  flood_register_event('dfr_response_save', 3600, $ip);
   drupal_json_output(_dynamic_form_response_do_save());
 }
 
@@ -940,6 +958,15 @@ function _dynamic_form_response_do_save() {
  * Returns JSON: { status: 'ok' } or { status: 'error', errors: { qid: msg, … } }
  */
 function dynamic_form_response_ajax_submit() {
+  // 10 final submissions per hour per IP — genuine users rarely resubmit.
+  $ip = ip_address();
+  if (!flood_is_allowed('dfr_response_submit', 10, 3600, $ip)) {
+    drupal_add_http_header('Status', '429 Too Many Requests');
+    drupal_add_http_header('Retry-After', '3600');
+    drupal_json_output(array('status' => 'error', 'message' => t('Too many submissions. Please try again later.')));
+    drupal_exit();
+  }
+  flood_register_event('dfr_response_submit', 3600, $ip);
   drupal_json_output(_dynamic_form_response_do_submit());
 }
 
@@ -1252,6 +1279,15 @@ function dynamic_form_response_thankyou_page($slug) {
  * JSON: { status:'ok', fid:N, filename:'...', url:'...' }
  */
 function dynamic_form_response_ajax_upload() {
+  // 30 uploads per hour per IP — file I/O is the most expensive operation.
+  $ip = ip_address();
+  if (!flood_is_allowed('dfr_response_upload', 30, 3600, $ip)) {
+    drupal_add_http_header('Status', '429 Too Many Requests');
+    drupal_add_http_header('Retry-After', '3600');
+    drupal_json_output(array('status' => 'error', 'message' => t('Too many uploads. Please try again later.')));
+    drupal_exit();
+  }
+  flood_register_event('dfr_response_upload', 3600, $ip);
   drupal_json_output(_dynamic_form_response_do_upload());
 }
 
