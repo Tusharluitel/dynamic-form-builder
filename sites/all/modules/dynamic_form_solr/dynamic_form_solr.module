@@ -178,8 +178,10 @@ function _dynamic_form_solr_build_tag_doc($tag_id, $standardized_value, $created
  * @return ApacheSolrDocument
  */
 function _dynamic_form_solr_build_response_doc($response, array $answers, array $question_types = array()) {
-  $text_types = array('text', 'textarea', 'text_editor');
-  $tm_answers = array();
+  $text_types    = array('text', 'textarea', 'text_editor');
+  // Types with a finite, enumerable set of values — worth faceting on.
+  $facet_types   = array('radio', 'select', 'checkbox', 'rating', 'linear_scale');
+  $tm_answers    = array();
 
   $doc = new ApacheSolrDocument();
   $doc->id              = 'response-' . (int) $response->id;
@@ -225,17 +227,23 @@ function _dynamic_form_solr_build_response_doc($response, array $answers, array 
     else {
       $decoded = @json_decode($raw, TRUE);
       if (is_array($decoded)) {
-        $vals = array_values(array_filter(array_map('strval', $decoded), 'strlen'));
-        if (!empty($vals)) {
+        // JSON arrays: checkbox / multi-select. Only facet-worthy types get sm_.
+        if (in_array($type, $facet_types)) {
+          $vals = array_values(array_filter(array_map('strval', $decoded), 'strlen'));
           foreach ($vals as $v) {
             $doc->addField('sm_' . $fk, $v);
           }
         }
       }
       elseif ($raw !== '') {
+        // Single scalar value. Always store as ss_ for exact-match filter queries.
         $doc->{'ss_' . $fk} = $raw;
-        // Also store as multi-string for faceting (radio, single-select, etc.).
-        $doc->addField('sm_' . $fk, $raw);
+        // Only add sm_ for types with finite option sets (radio, select, rating,
+        // linear_scale) — these are worth faceting. Date, time, number, and file
+        // have high cardinality and waste index space as sm_ fields.
+        if (in_array($type, $facet_types)) {
+          $doc->addField('sm_' . $fk, $raw);
+        }
       }
     }
   }
