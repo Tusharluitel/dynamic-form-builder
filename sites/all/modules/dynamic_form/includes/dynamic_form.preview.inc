@@ -434,19 +434,7 @@ function _dynamic_form_render_preview_question($q, array $opts, array $scale) {
   ));
 }
 
-/**
- * Builds a Drupal Form API element array for one preview question.
- *
- * Returns a standalone renderable FAPI element — no title, description, or
- * required marker (those are handled by dynamic-form-preview-question.tpl.php).
- * Callers pass the result to drupal_render() to get HTML.
- *
- * For question types with no FAPI equivalent (rating, linear_scale) the
- * element falls back to '#markup' with the custom widget HTML.
- *
- * @param object $q     Question DB row.
- * @param array  $opts  Option rows for this question.
- * @param array  $scale Scale / flag meta keyed by rule_type.
+/*
  *
  * @return array Renderable FAPI element.
  */
@@ -459,8 +447,6 @@ function _dynamic_form_preview_build_fapi_element($q, array $opts, array $scale)
     $options[$opt->option_label] = check_plain($opt->option_label);
   }
 
-  // Base properties shared by all input elements: suppress label/description
-  // since the question template renders those independently.
   $base = array(
     '#title'         => '',
     '#title_display' => 'invisible',
@@ -494,19 +480,50 @@ function _dynamic_form_preview_build_fapi_element($q, array $opts, array $scale)
       if (empty($options)) {
         return array('#markup' => '<p class="dfp-no-options">' . t('No options defined.') . '</p>');
       }
-      return $base + array(
-        '#type'    => 'radios',
-        '#options' => $options,
+      // form_process_radios() is a #process callback that never runs outside
+      // drupal_get_form(), so #type=>'radios' renders empty. Pre-expand instead.
+      $element = array(
+        '#type'       => 'container',
+        '#attributes' => array('class' => array('dfp-options-list')),
       );
+      $idx = 0;
+      foreach ($options as $value => $label) {
+        $element['opt_' . $idx] = array(
+          '#type'         => 'radio',
+          '#title'        => $label,
+          '#return_value' => $value,
+          '#value'        => FALSE,
+          '#name'         => 'dfp-preview-radio-' . (int) $q->id,
+          '#id'           => drupal_html_id('dfp-preview-radio-' . (int) $q->id . '-' . $idx),
+          '#attributes'   => array(),
+        );
+        $idx++;
+      }
+      return $element;
 
     case 'checkbox':
       if (empty($options)) {
         return array('#markup' => '<p class="dfp-no-options">' . t('No options defined.') . '</p>');
       }
-      return $base + array(
-        '#type'    => 'checkboxes',
-        '#options' => $options,
+      // form_process_checkboxes() has the same #process constraint as radios.
+      $element = array(
+        '#type'       => 'container',
+        '#attributes' => array('class' => array('dfp-options-list')),
       );
+      $idx = 0;
+      foreach ($options as $value => $label) {
+        $element['opt_' . $idx] = array(
+          '#type'         => 'checkbox',
+          '#title'        => $label,
+          '#return_value' => $value,
+          '#value'        => 0,
+          '#name'         => 'dfp-preview-cb-' . (int) $q->id . '[' . $idx . ']',
+          '#id'           => drupal_html_id('dfp-preview-cb-' . (int) $q->id . '-' . $idx),
+          '#attributes'   => array(),
+        );
+        $idx++;
+      }
+      return $element;
 
     case 'select':
       if (empty($options)) {
@@ -520,11 +537,15 @@ function _dynamic_form_preview_build_fapi_element($q, array $opts, array $scale)
       $select_options = $allow_multi
         ? $options
         : array('' => t('— Select an option —')) + $options;
+      $select_attrs = array('class' => $select_classes);
+      if ($allow_multi) {
+        $select_attrs['multiple'] = 'multiple';
+      }
       $element = $base + array(
         '#type'       => 'select',
         '#options'    => $select_options,
         '#multiple'   => $allow_multi,
-        '#attributes' => array('class' => $select_classes),
+        '#attributes' => $select_attrs,
       );
       if ($allow_multi) {
         $element['#suffix'] = '<p class="dfp-multi-select-hint">'
@@ -558,38 +579,30 @@ function _dynamic_form_preview_build_fapi_element($q, array $opts, array $scale)
         }
         $meta_html .= $size_pill . $files_pill . '</div>';
       }
+      $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"'
+        . ' stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'
+        . '<path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>'
+        . '<polyline points="16 16 12 12 8 16"/>'
+        . '<line x1="12" y1="12" x2="12" y2="21"/>'
+        . '</svg>';
       return $base + array(
         '#type'       => 'file',
         '#attributes' => array('class' => array('dfp-file-hidden')),
-        '#prefix'     => '<div class="dfp-file-dropzone">'
-          . '<div class="dfp-file-dropzone-inner">'
-          . '<div class="dfp-file-upload-icon">'
-          . '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"'
-          . ' stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'
-          . '<path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>'
-          . '<polyline points="16 16 12 12 8 16"/>'
-          . '<line x1="12" y1="12" x2="12" y2="21"/>'
-          . '</svg></div>'
-          . '<div class="dfp-file-upload-prompt">'
-          . '<span class="dfp-file-upload-btn">' . t('Click to upload') . '</span>'
-          . '<span class="dfp-file-upload-or"> ' . t('or drag and drop') . '</span>'
-          . '</div>'
-          . '<div class="dfp-file-name"></div>'
-          . $meta_html
-          . '</div>',
+        '#prefix'     => theme('dynamic_form_preview_file_dropzone', array(
+          'svg'       => $svg,
+          'meta_html' => $meta_html,
+        )),
         '#suffix'     => '</div>',
       );
 
     case 'date':
-      return $base + array(
-        '#type'       => 'textfield',
-        '#attributes' => array('type' => 'date', 'class' => array('dfp-input')),
+      return array(
+        '#markup' => '<input type="date" class="dfp-input">',
       );
 
     case 'time':
-      return $base + array(
-        '#type'       => 'textfield',
-        '#attributes' => array('type' => 'time', 'class' => array('dfp-input')),
+      return array(
+        '#markup' => '<input type="time" class="dfp-input">',
       );
 
     case 'rating':
@@ -597,37 +610,28 @@ function _dynamic_form_preview_build_fapi_element($q, array $opts, array $scale)
       $max       = isset($scale['scale_max']) ? (int) $scale['scale_max'] : 5;
       $min_label = isset($scale['scale_min_label']) ? check_plain($scale['scale_min_label']) : '';
       $max_label = isset($scale['scale_max_label']) ? check_plain($scale['scale_max_label']) : '';
-      $html = '<div class="dfp-rating-wrap">';
-      if ($min_label) {
-        $html .= '<span class="dfp-scale-label dfp-scale-label-min">' . $min_label . '</span>';
-      }
-      $html .= '<div class="dfp-stars">';
-      for ($i = $min; $i <= $max; $i++) {
-        $html .= '<span class="dfp-star" title="' . $i . '"><i class="fa-solid fa-star"></i></span>';
-      }
-      $html .= '</div>';
-      if ($max_label) {
-        $html .= '<span class="dfp-scale-label dfp-scale-label-max">' . $max_label . '</span>';
-      }
-      return array('#markup' => $html . '</div>');
+      $stars = range($min, $max);
+      return array(
+        '#markup' => theme('dynamic_form_preview_rating_widget', array(
+          'stars'     => $stars,
+          'min_label' => $min_label,
+          'max_label' => $max_label,
+        )),
+      );
 
     case 'linear_scale':
       $min       = isset($scale['scale_min']) ? (int) $scale['scale_min'] : 1;
       $max       = isset($scale['scale_max']) ? (int) $scale['scale_max'] : 5;
       $min_label = isset($scale['scale_min_label']) ? check_plain($scale['scale_min_label']) : '';
       $max_label = isset($scale['scale_max_label']) ? check_plain($scale['scale_max_label']) : '';
-      $html = '<div class="dfp-scale-wrap"><div class="dfp-scale-buttons">';
-      for ($i = $min; $i <= $max; $i++) {
-        $html .= '<button type="button" class="dfp-scale-btn">' . $i . '</button>';
-      }
-      $html .= '</div>';
-      if ($min_label || $max_label) {
-        $html .= '<div class="dfp-scale-labels">'
-          . '<span class="dfp-scale-label dfp-scale-label-min">' . $min_label . '</span>'
-          . '<span class="dfp-scale-label dfp-scale-label-max">' . $max_label . '</span>'
-          . '</div>';
-      }
-      return array('#markup' => $html . '</div>');
+      $buttons = range($min, $max);
+      return array(
+        '#markup' => theme('dynamic_form_preview_linear_scale_widget', array(
+          'buttons'   => $buttons,
+          'min_label' => $min_label,
+          'max_label' => $max_label,
+        )),
+      );
 
     case 'tags':
       return $base + array(

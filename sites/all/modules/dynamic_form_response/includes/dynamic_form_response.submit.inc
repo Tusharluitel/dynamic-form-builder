@@ -1,13 +1,10 @@
 <?php
 
 /**
- * @file
  * Public-facing form rendering, AJAX save/submit endpoints, and thank-you page.
  */
 
-/* =====================================================================
-   PUBLIC FORM RENDERING — called from dynamic_form.front.inc
-   ===================================================================== */
+
 
 /**
  * Returns the HTML for the fillable form body.
@@ -15,9 +12,6 @@
  * Called by dynamic_form_public_form_view_page() when this module is enabled.
  * The surrounding header (title, description, meta counts) is rendered by
  * the main module; this function provides the interactive form content.
- *
- * @param object $record  A dynamic_form_forms DB row.
- * @return string         HTML to insert inside .dfb-form-view-body.
  */
 function dynamic_form_response_render_form($record) {
   global $user;
@@ -312,21 +306,6 @@ function _dynamic_form_response_render_input($q, array $opts, array $scale, $exi
 
 /**
  * Returns a Drupal Form API element array for one interactive response input.
- *
- * Rendered via drupal_render() outside of drupal_get_form(), so #process
- * callbacks (form_expand_radios etc.) are not invoked automatically.
- * Radio and checkbox options are therefore pre-expanded into individual
- * child elements with #value / #return_value set directly.
- *
- * date / time / rating / linear_scale have no Drupal 7 FAPI equivalent and
- * fall back to #markup.
- *
- * @param object      $q              Question DB row.
- * @param array       $opts           Option rows.
- * @param array       $scale          Scale / allow_multiple meta values.
- * @param string|null $existing_value Stored draft answer to pre-fill.
- *
- * @return array Renderable FAPI element.
  */
 function _dynamic_form_response_build_fapi_element($q, array $opts, array $scale, $existing_value = NULL) {
   $qid  = (int) $q->id;
@@ -342,8 +321,6 @@ function _dynamic_form_response_build_fapi_element($q, array $opts, array $scale
   switch ($type) {
 
     case 'text':
-    case 'email':
-    case 'number':
       $attrs = array('class' => array('dfp-input'));
       if (!empty($q->placeholder)) {
         $attrs['placeholder'] = check_plain($q->placeholder);

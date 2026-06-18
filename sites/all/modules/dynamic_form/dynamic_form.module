@@ -841,6 +841,21 @@ function dynamic_form_theme($existing, $type, $theme, $path)
       'template'  => 'dynamic-form-preview-question',
       'path'      => $tpl_path,
     ),
+    'dynamic_form_preview_file_dropzone' => array(
+      'variables' => array('svg' => '', 'meta_html' => ''),
+      'template'  => 'dynamic-form-preview-file-dropzone',
+      'path'      => $tpl_path,
+    ),
+    'dynamic_form_preview_rating_widget' => array(
+      'variables' => array('stars' => array(), 'min_label' => '', 'max_label' => ''),
+      'template'  => 'dynamic-form-preview-rating-widget',
+      'path'      => $tpl_path,
+    ),
+    'dynamic_form_preview_linear_scale_widget' => array(
+      'variables' => array('buttons' => array(), 'min_label' => '', 'max_label' => ''),
+      'template'  => 'dynamic-form-preview-linear-scale-widget',
+      'path'      => $tpl_path,
+    ),
     'dynamic_form_dashboard_sidebar' => array(
       'variables' => array('items' => array(), 'create_url' => ''),
       'template'  => 'dynamic-form-dashboard-sidebar',
