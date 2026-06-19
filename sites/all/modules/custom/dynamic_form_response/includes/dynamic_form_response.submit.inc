@@ -7,79 +7,25 @@
 
 
 /**
- * Returns the HTML for the fillable form body.
+ * Entry point: returns the rendered fillable form for a given form record.
  *
  * Called by dynamic_form_public_form_view_page() when this module is enabled.
- * The surrounding header (title, description, meta counts) is rendered by
- * the main module; this function provides the interactive form content.
+ * Assets are added here; the form itself is built via drupal_get_form() so
+ * every question input is a proper FAPI element in a shared $form array.
  */
 function dynamic_form_response_render_form($record) {
   global $user;
 
-  // Issue/read a persistent guest token cookie for anonymous visitors.
   $guest_token = $user->uid ? NULL : _dynamic_form_response_get_guest_token();
 
   // Already-submitted check — skipped when the form allows multiple submissions.
   if (empty($record->allow_multiple_submissions)) {
-    if ($user->uid) {
-      $already = db_select('dynamic_form_responses', 'r')
-        ->condition('form_id', $record->id)
-        ->condition('user_id', $user->uid)
-        ->condition('status', 1)
-        ->isNull('deleted_at')
-        ->countQuery()->execute()->fetchField();
-    }
-    else {
-      $already_q = db_select('dynamic_form_responses', 'r');
-      $already_q->join('dynamic_form_response_sessions', 's', 's.response_id = r.id');
-      $already = $already_q
-        ->condition('r.form_id', $record->id)
-        ->condition('r.status', 1)
-        ->condition('s.guest_token', $guest_token)
-        ->isNull('r.deleted_at')
-        ->countQuery()->execute()->fetchField();
-    }
+    $already = $user->uid
+      ? DynamicFormResponseEntityController::hasSubmittedByUser($record->id, $user->uid)
+      : DynamicFormResponseEntityController::hasSubmittedByGuest($record->id, $guest_token);
 
     if ($already) {
       return theme('dynamic_form_response_already_submitted', array());
-    }
-  }
-
-  // Draft recovery — pre-fill answers from any existing draft.
-  $response_id      = 0;
-  $existing_answers = array();
-  if ($user->uid) {
-    $draft_id = db_select('dynamic_form_responses', 'r')
-      ->fields('r', array('id'))
-      ->condition('form_id', $record->id)
-      ->condition('user_id', $user->uid)
-      ->condition('status', 0)
-      ->isNull('deleted_at')
-      ->execute()
-      ->fetchField();
-  }
-  else {
-    $draft_q = db_select('dynamic_form_responses', 'r');
-    $draft_q->join('dynamic_form_response_sessions', 's', 's.response_id = r.id');
-    $draft_id = $draft_q
-      ->fields('r', array('id'))
-      ->condition('r.form_id', $record->id)
-      ->condition('r.status', 0)
-      ->condition('s.guest_token', $guest_token)
-      ->isNull('r.deleted_at')
-      ->execute()
-      ->fetchField();
-  }
-
-  if ($draft_id) {
-    $response_id = (int) $draft_id;
-    $rows = db_select('dynamic_form_answers', 'a')
-      ->fields('a', array('question_id', 'value'))
-      ->condition('response_id', $response_id)
-      ->execute()
-      ->fetchAll();
-    foreach ($rows as $row) {
-      $existing_answers[(int) $row->question_id] = $row->value;
     }
   }
 
@@ -90,6 +36,53 @@ function dynamic_form_response_render_form($record) {
   _dynamic_form_response_maybe_load_tinymce($record->id);
   drupal_add_css(drupal_get_path('module', 'dynamic_form') . '/css/preview.css');
 
+  return drupal_render(drupal_get_form('dynamic_form_response_form', $record, $guest_token));
+}
+
+/**
+ * FAPI form builder for the public response form.
+ *
+ * Builds the complete multi-step response form as a $form array.
+ * All question inputs are proper FAPI elements nested under their step,
+ * section, and column containers. JS (response-form.js) handles AJAX
+ * save/submit by reading CSS classes on the rendered elements.
+ *
+ * @param array  $form
+ * @param array &$form_state
+ * @param object $record      dynamic_form_forms DB row.
+ * @param string $guest_token Guest cookie token, or NULL for logged-in users.
+ */
+function dynamic_form_response_form($form, &$form_state, $record, $guest_token = NULL) {
+  global $user;
+
+  $form_state['build_info']['files'][] = array(
+    'type'   => 'inc',
+    'module' => 'dynamic_form_response',
+    'name'   => 'includes/dynamic_form_response.submit',
+  );
+
+  // Load draft + answers once; cache in form state for any AJAX rebuilds.
+  if (!isset($form_state['dfr_loaded'])) {
+    $response_id      = 0;
+    $existing_answers = array();
+    $draft = $user->uid
+      ? DynamicFormResponseEntityController::findDraftByUser($record->id, $user->uid)
+      : DynamicFormResponseEntityController::findDraftByGuest($record->id, $guest_token);
+    if ($draft) {
+      $response_id      = (int) $draft->id;
+      $existing_answers = DynamicFormResponseEntityController::getAnswersMap($response_id);
+    }
+
+    $form_state['dfr_record']           = $record;
+    $form_state['dfr_response_id']      = $response_id;
+    $form_state['dfr_existing_answers'] = $existing_answers;
+    $form_state['dfr_loaded']           = TRUE;
+  }
+
+  $record           = $form_state['dfr_record'];
+  $response_id      = $form_state['dfr_response_id'];
+  $existing_answers = $form_state['dfr_existing_answers'];
+
   // Load sections ordered by position.
   $sections = db_select('dynamic_form_sections', 's')
     ->fields('s')
@@ -99,11 +92,13 @@ function dynamic_form_response_render_form($record) {
     ->execute()
     ->fetchAll();
 
-  // Load questions ordered by position.
+  // Load questions.
   $questions = dynamic_form_get_questions($record->id);
-
   if (empty($questions)) {
-    return '<p class="dfr-empty">' . t('This form has no questions yet.') . '</p>';
+    $form['empty'] = array(
+      '#markup' => '<p class="dfr-empty">' . t('This form has no questions yet.') . '</p>',
+    );
+    return $form;
   }
 
   $question_ids = array();
@@ -129,7 +124,7 @@ function dynamic_form_response_render_form($record) {
     }
   }
 
-  // Load scale / allow_multiple meta rules, grouped by question.
+  // Load scale / allow_multiple meta rules and custom validation rules.
   $scale_by_q = array();
   $rules_by_q = array();
   if (!empty($question_ids)) {
@@ -143,7 +138,8 @@ function dynamic_form_response_render_form($record) {
       $qid = (int) $m->question_id;
       if (in_array($m->rule_type, $scale_keys)) {
         $scale_by_q[$qid][$m->rule_type] = $m->rule_value;
-      } else {
+      }
+      else {
         $rules_by_q[$qid][] = array(
           'rule_type'     => $m->rule_type,
           'rule_value'    => $m->rule_value,
@@ -170,7 +166,10 @@ function dynamic_form_response_render_form($record) {
   }
 
   if (empty($ordered_questions)) {
-    return '<p class="dfr-empty">' . t('This form has no questions yet.') . '</p>';
+    $form['empty'] = array(
+      '#markup' => '<p class="dfr-empty">' . t('This form has no questions yet.') . '</p>',
+    );
+    return $form;
   }
 
   // Divide into steps. question_per_page = 0 means "show all at once".
@@ -188,135 +187,211 @@ function dynamic_form_response_render_form($record) {
 
   $col_map = array('full' => 12, 'half' => 6, 'third' => 4, 'quarter' => 3);
 
-  $inner_html = '';
+  // -----------------------------------------------------------------
+  // Outer card wrapper: .dfp-form-card > .dfr-form-container
+  // The JS (response-form.js) attaches to .dfr-form-container and reads
+  // the data-* attributes to configure itself.
+  // -----------------------------------------------------------------
+  $form['card'] = array(
+    '#type'       => 'container',
+    '#attributes' => array('class' => array('dfp-form-card')),
+  );
+  $form['card']['inner'] = array(
+    '#type'       => 'container',
+    '#attributes' => array(
+      'class'                => array('dfr-form-container'),
+      'data-form-id'         => (string) (int) $record->id,
+      'data-token'           => check_plain($token),
+      'data-save-url'        => check_url($save_url),
+      'data-submit-url'      => check_url($submit_url),
+      'data-upload-url'      => check_url($upload_url),
+      'data-thankyou-url'    => check_url($thanks_url),
+      'data-total-steps'     => (string) $total,
+      'data-is-anonymous'    => $user->uid ? '0' : '1',
+      'data-guest-email-url' => check_url($guest_email_url),
+    ),
+  );
+
+  // Response ID — JS updates this via $('#dfr-response-id').val(n) as
+  // drafts are created; using #markup keeps the id stable across rebuilds.
+  $form['card']['inner']['response_id'] = array(
+    '#markup' => '<input type="hidden" id="dfr-response-id" value="' . (int) $response_id . '">',
+  );
+
+  // Progress bar (only shown when there is more than one step).
+  if ($total > 1) {
+    $form['card']['inner']['progress'] = array(
+      '#markup' => '<div class="dfr-progress-wrap"><div class="dfr-progress-fill"></div></div>'
+        . '<div class="dfr-progress-text"></div>',
+    );
+  }
+
+  // -----------------------------------------------------------------
+  // Steps
+  // -----------------------------------------------------------------
   foreach ($steps as $step_idx => $step_items) {
     $step_num = $step_idx + 1;
     $is_first = ($step_num === 1);
     $is_last  = ($step_num === $total);
-    $active   = $is_first ? ' dfr-step-active' : '';
+    $step_key = 'step_' . $step_num;
 
-    $inner_html .= '<div class="dfr-step' . $active . '" data-step="' . $step_num . '">';
+    $step_classes = array('dfr-step');
+    if ($is_first) {
+      $step_classes[] = 'dfr-step-active';
+    }
+
+    $form['card']['inner'][$step_key] = array(
+      '#type'       => 'container',
+      '#attributes' => array(
+        'class'     => $step_classes,
+        'data-step' => (string) $step_num,
+      ),
+    );
 
     $prev_sid = -1;
-    $row_open = FALSE;
+    $sec_key  = NULL;
+    $row_idx  = 0;
+    $row_key  = NULL;
     $row_cols = 0;
 
     foreach ($step_items as $item) {
       $q   = $item['q'];
       $sec = $item['section'];
       $sid = $sec ? (int) $sec->id : 0;
+      $qid = (int) $q->id;
 
       $width  = (!empty($q->width) && isset($col_map[$q->width])) ? $q->width : 'full';
       $q_cols = $col_map[$width];
 
-      // Section boundary.
+      // ---- Section boundary ----------------------------------------
       if ($sid !== $prev_sid) {
-        if ($row_open) {
-          $inner_html .= '</div>'; // .dfr-question-row
-          $row_open = FALSE;
-          $row_cols = 0;
-        }
-        if ($prev_sid !== -1) {
-          $inner_html .= '</div>'; // .dfr-response-section
-        }
-        $inner_html .= '<div class="dfp-section">';
+        // Unique key: section ID + step number avoids clashes when the
+        // same section spans two steps after chunking.
+        $sec_key = 'sec_' . ($sid ?: 'none') . '_s' . $step_num;
+        $form['card']['inner'][$step_key][$sec_key] = array(
+          '#type'       => 'container',
+          '#attributes' => array('class' => array('dfp-section')),
+        );
         if ($sec) {
-          $inner_html .= theme('dynamic_form_preview_section_header', array('section' => $sec));
+          $form['card']['inner'][$step_key][$sec_key]['header'] = array(
+            '#markup' => theme('dynamic_form_preview_section_header', array('section' => $sec)),
+          );
         }
         $prev_sid = $sid;
+        $row_idx  = 0;
+        $row_key  = NULL;
+        $row_cols = 0;
       }
 
-      // Column row management.
-      if (!$row_open) {
-        $inner_html .= '<div class="dfp-question-row">';
-        $row_open = TRUE;
+      // ---- Column row management -----------------------------------
+      if ($row_key === NULL) {
+        $row_key = 'row_' . $row_idx;
+        $form['card']['inner'][$step_key][$sec_key][$row_key] = array(
+          '#type'       => 'container',
+          '#attributes' => array('class' => array('dfp-question-row')),
+        );
         $row_cols = 0;
-      } elseif ($row_cols + $q_cols > 12) {
-        $inner_html .= '</div><div class="dfp-question-row">';
+      }
+      elseif ($row_cols + $q_cols > 12) {
+        $row_idx++;
+        $row_key = 'row_' . $row_idx;
+        $form['card']['inner'][$step_key][$sec_key][$row_key] = array(
+          '#type'       => 'container',
+          '#attributes' => array('class' => array('dfp-question-row')),
+        );
         $row_cols = 0;
       }
       $row_cols += $q_cols;
 
-      $qid   = (int) $q->id;
       $opts  = isset($options_by_q[$qid]) ? $options_by_q[$qid] : array();
       $scale = isset($scale_by_q[$qid])   ? $scale_by_q[$qid]   : array();
       $rules = isset($rules_by_q[$qid])   ? $rules_by_q[$qid]   : array();
       $val   = isset($existing_answers[$qid]) ? $existing_answers[$qid] : NULL;
 
-      $inner_html .= '<div class="dfp-question-col dfp-col-' . check_plain($width) . '">';
-      $inner_html .= _dynamic_form_response_render_question($q, $opts, $scale, $val, $rules);
-      $inner_html .= '</div>';
+      // ---- Column container ----------------------------------------
+      $form['card']['inner'][$step_key][$sec_key][$row_key]['col_' . $qid] = array(
+        '#type'       => 'container',
+        '#attributes' => array('class' => array('dfp-question-col', 'dfp-col-' . check_plain($width))),
+      );
+
+      // ---- Question wrapper (.dfp-question) ------------------------
+      // JS reads data-question-id, data-type, data-required, and the
+      // optional data-validations JSON to drive client-side behaviour.
+      $q_attrs = array(
+        'class'            => array('dfp-question'),
+        'data-question-id' => (string) $qid,
+        'data-type'        => check_plain($q->type),
+        'data-required'    => $q->is_required ? '1' : '0',
+      );
+      if (!empty($rules)) {
+        $q_attrs['data-validations'] = check_plain(drupal_json_encode($rules));
+      }
+
+      $form['card']['inner'][$step_key][$sec_key][$row_key]['col_' . $qid]['question'] = array(
+        '#type'       => 'container',
+        '#attributes' => $q_attrs,
+      );
+
+      // Question label and optional description.
+      $label_html = '<div class="dfp-question-label">'
+        . check_plain($q->label)
+        . ($q->is_required
+            ? ' <span class="dfp-req" title="' . t('Required') . '">*</span>'
+            : '')
+        . '</div>';
+      if (!empty($q->description)) {
+        $label_html .= '<p class="dfp-help-text">' . check_plain($q->description) . '</p>';
+      }
+      $form['card']['inner'][$step_key][$sec_key][$row_key]['col_' . $qid]['question']['label'] = array(
+        '#markup' => $label_html,
+      );
+
+      // Input wrapper — merge the named sub-elements returned by the
+      // builder directly into the container using PHP's + operator so
+      // each question type's keys (input, options, widget, …) sit as
+      // immediate children without an extra wrapping key.
+      $form['card']['inner'][$step_key][$sec_key][$row_key]['col_' . $qid]['question']['input_wrap'] = array(
+        '#type'       => 'container',
+        '#attributes' => array('class' => array('dfp-question-input')),
+      ) + _dynamic_form_response_build_fapi_element($q, $opts, $scale, $val);
+
+      // Error placeholder — JS populates via .text(msg).show().
+      $form['card']['inner'][$step_key][$sec_key][$row_key]['col_' . $qid]['question']['error'] = array(
+        '#markup' => '<div class="dfr-field-error"></div>',
+      );
     }
 
-    if ($row_open) {
-      $inner_html .= '</div>'; // .dfr-question-row
-    }
-    if ($prev_sid !== -1) {
-      $inner_html .= '</div>'; // .dfr-response-section
-    }
-
-    $inner_html .= theme('dynamic_form_response_step_nav', array(
-      'is_first'  => $is_first,
-      'is_last'   => $is_last,
-      'prev_step' => $step_num - 1,
-      'next_step' => $step_num + 1,
-    ));
-
-    $inner_html .= '</div>'; // .dfr-step
+    // ---- Step navigation -----------------------------------------
+    $form['card']['inner'][$step_key]['nav'] = array(
+      '#markup' => theme('dynamic_form_response_step_nav', array(
+        'is_first'  => $is_first,
+        'is_last'   => $is_last,
+        'prev_step' => $step_num - 1,
+        'next_step' => $step_num + 1,
+      )),
+    );
   }
 
-  return theme('dynamic_form_response_form_container', array(
-    'form_id'         => (int) $record->id,
-    'token'           => check_plain($token),
-    'save_url'        => check_url($save_url),
-    'submit_url'      => check_url($submit_url),
-    'upload_url'      => check_url($upload_url),
-    'thanks_url'      => check_url($thanks_url),
-    'guest_email_url' => check_url($guest_email_url),
-    'total'           => $total,
-    'is_anonymous'    => $user->uid ? '0' : '1',
-    'response_id'     => (int) $response_id,
-    'has_progress'    => $total > 1,
-    'inner_html'      => $inner_html,
-  ));
+  return $form;
 }
 
 /* =====================================================================
-   QUESTION RENDERERS
+   QUESTION INPUT BUILDER
    ===================================================================== */
 
 /**
- * Renders a question's outer container with all accessibility / data attributes.
- */
-function _dynamic_form_response_render_question($q, array $opts, array $scale, $existing_value = NULL, array $rules = array()) {
-  return theme('dynamic_form_response_question', array(
-    'question'         => $q,
-    'input_html'       => _dynamic_form_response_render_input($q, $opts, $scale, $existing_value),
-    'validations_json' => !empty($rules) ? drupal_json_encode($rules) : NULL,
-  ));
-}
-
-/**
- * Thin wrapper: renders the FAPI element for one question type.
- */
-function _dynamic_form_response_render_input($q, array $opts, array $scale, $existing_value = NULL) {
-  $element = _dynamic_form_response_build_fapi_element($q, $opts, $scale, $existing_value);
-  return drupal_render($element);
-}
-
-/**
- * Returns a Drupal Form API element array for one interactive response input.
+ * Builds a $form sub-array of named FAPI elements for one question input.
+ *
+ * Returns an associative array of child elements (e.g. 'input', 'options',
+ * 'widget') that the caller merges directly into the question's input_wrap
+ * container using PHP's + operator. Each question type uses descriptive
+ * keys so the purpose of each child is self-evident in the form tree.
  */
 function _dynamic_form_response_build_fapi_element($q, array $opts, array $scale, $existing_value = NULL) {
+  $form = array();
   $qid  = (int) $q->id;
   $type = $q->type;
   $val  = ($existing_value !== NULL) ? $existing_value : '';
-
-  $base = array(
-    '#title'         => '',
-    '#title_display' => 'invisible',
-    '#required'      => FALSE,
-  );
 
   switch ($type) {
 
@@ -325,52 +400,73 @@ function _dynamic_form_response_build_fapi_element($q, array $opts, array $scale
       if (!empty($q->placeholder)) {
         $attrs['placeholder'] = check_plain($q->placeholder);
       }
-      return $base + array(
-        '#type'       => 'textfield',
-        '#value'      => check_plain($val),
-        '#attributes' => $attrs,
+      $form['input'] = array(
+        '#type'          => 'textfield',
+        '#title'         => '',
+        '#title_display' => 'invisible',
+        '#required'      => FALSE,
+        '#value'         => check_plain($val),
+        '#attributes'    => $attrs,
       );
+      break;
 
     case 'textarea':
       $attrs = array('class' => array('dfp-textarea'));
       if (!empty($q->placeholder)) {
         $attrs['placeholder'] = check_plain($q->placeholder);
       }
-      return $base + array(
-        '#type'       => 'textarea',
-        '#rows'       => 4,
-        '#value'      => check_plain($val),
-        '#attributes' => $attrs,
+      $form['input'] = array(
+        '#type'          => 'textarea',
+        '#title'         => '',
+        '#title_display' => 'invisible',
+        '#required'      => FALSE,
+        '#rows'          => 4,
+        '#value'         => check_plain($val),
+        '#attributes'    => $attrs,
       );
+      break;
 
     case 'text_editor':
-      return $base + array(
-        '#type'       => 'textarea',
-        '#rows'       => 6,
-        '#id'         => 'dfr-tinymce-' . $qid,
-        '#value'      => check_plain($val),
-        '#attributes' => array('class' => array('dfp-textarea', 'dfr-tinymce-area')),
+      $form['input'] = array(
+        '#type'          => 'textarea',
+        '#title'         => '',
+        '#title_display' => 'invisible',
+        '#required'      => FALSE,
+        '#rows'          => 6,
+        '#id'            => 'dfr-tinymce-' . $qid,
+        '#value'         => check_plain($val),
+        '#attributes'    => array('class' => array('dfp-textarea', 'dfr-tinymce-area')),
       );
+      break;
 
     case 'date':
-      return array('#markup' => '<input type="date" class="dfp-input" value="' . check_plain($val) . '">');
+      $form['input'] = array(
+        '#markup' => '<input type="date" class="dfp-input" value="' . check_plain($val) . '">',
+      );
+      break;
 
     case 'time':
-      return array('#markup' => '<input type="time" class="dfp-input" value="' . check_plain($val) . '">');
+      $form['input'] = array(
+        '#markup' => '<input type="time" class="dfp-input" value="' . check_plain($val) . '">',
+      );
+      break;
 
     case 'radio':
       if (empty($opts)) {
-        return array('#markup' => '<p class="dfp-no-options">' . t('No options defined.') . '</p>');
+        $form['no_options'] = array(
+          '#markup' => '<p class="dfp-no-options">' . t('No options defined.') . '</p>',
+        );
+        break;
       }
       // Pre-expand individual radios — form_expand_radios() is a #process
-      // callback and does not run outside drupal_get_form().
-      $element = array(
+      // callback that does not run outside drupal_get_form().
+      $form['options'] = array(
         '#type'       => 'container',
         '#attributes' => array('class' => array('dfp-options-list')),
       );
       foreach ($opts as $idx => $opt) {
         $key = $opt->option_label;
-        $element['opt_' . $idx] = array(
+        $form['options']['opt_' . $idx] = array(
           '#type'         => 'radio',
           '#title'        => check_plain($key),
           '#return_value' => $key,
@@ -380,11 +476,14 @@ function _dynamic_form_response_build_fapi_element($q, array $opts, array $scale
           '#attributes'   => array(),
         );
       }
-      return $element;
+      break;
 
     case 'checkbox':
       if (empty($opts)) {
-        return array('#markup' => '<p class="dfp-no-options">' . t('No options defined.') . '</p>');
+        $form['no_options'] = array(
+          '#markup' => '<p class="dfp-no-options">' . t('No options defined.') . '</p>',
+        );
+        break;
       }
       $checked_map = array();
       if ($existing_value !== NULL) {
@@ -394,14 +493,14 @@ function _dynamic_form_response_build_fapi_element($q, array $opts, array $scale
         }
       }
       // Pre-expand individual checkboxes — same reason as radio above.
-      $element = array(
+      $form['options'] = array(
         '#type'       => 'container',
         '#attributes' => array('class' => array('dfp-options-list')),
       );
       foreach ($opts as $idx => $opt) {
         $key        = $opt->option_label;
         $is_checked = isset($checked_map[$key]);
-        $element['opt_' . $idx] = array(
+        $form['options']['opt_' . $idx] = array(
           '#type'         => 'checkbox',
           '#title'        => check_plain($key),
           '#return_value' => $key,
@@ -411,11 +510,14 @@ function _dynamic_form_response_build_fapi_element($q, array $opts, array $scale
           '#attributes'   => array(),
         );
       }
-      return $element;
+      break;
 
     case 'select':
       if (empty($opts)) {
-        return array('#markup' => '<p class="dfp-no-options">' . t('No options defined.') . '</p>');
+        $form['no_options'] = array(
+          '#markup' => '<p class="dfp-no-options">' . t('No options defined.') . '</p>',
+        );
+        break;
       }
       $allow_multi    = !empty($scale['allow_multiple']);
       $select_classes = array('dfp-select', 'dfp-select2');
@@ -444,23 +546,28 @@ function _dynamic_form_response_build_fapi_element($q, array $opts, array $scale
       if ($allow_multi) {
         $select_attrs['multiple'] = 'multiple';
       }
-      $element = $base + array(
-        '#type'       => 'select',
-        '#options'    => $select_options,
-        '#multiple'   => $allow_multi,
-        '#value'      => $sel_val,
-        '#attributes' => $select_attrs,
+      $form['input'] = array(
+        '#type'          => 'select',
+        '#title'         => '',
+        '#title_display' => 'invisible',
+        '#required'      => FALSE,
+        '#options'       => $select_options,
+        '#multiple'      => $allow_multi,
+        '#value'         => $sel_val,
+        '#attributes'    => $select_attrs,
       );
       if ($allow_multi) {
-        $element['#suffix'] = '<p class="dfp-multi-select-hint">'
-          . '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"'
-          . ' stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">'
-          . '<polyline points="9 11 12 14 22 4"/>'
-          . '<path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>'
-          . '</svg>'
-          . ' ' . t('Multiple options can be selected') . '</p>';
+        $form['multi_hint'] = array(
+          '#markup' => '<p class="dfp-multi-select-hint">'
+            . '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"'
+            . ' stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">'
+            . '<polyline points="9 11 12 14 22 4"/>'
+            . '<path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>'
+            . '</svg>'
+            . ' ' . t('Multiple options can be selected') . '</p>',
+        );
       }
-      return $element;
+      break;
 
     case 'rating':
       $min       = isset($scale['scale_min']) ? (int) $scale['scale_min'] : 1;
@@ -468,16 +575,19 @@ function _dynamic_form_response_build_fapi_element($q, array $opts, array $scale
       $min_label = isset($scale['scale_min_label']) ? check_plain($scale['scale_min_label']) : '';
       $max_label = isset($scale['scale_max_label']) ? check_plain($scale['scale_max_label']) : '';
       $cur       = ($existing_value !== NULL) ? (int) $existing_value : 0;
-      $stars = array();
+      $stars     = array();
       for ($i = $min; $i <= $max; $i++) {
         $stars[] = array('value' => $i, 'active' => ($i <= $cur));
       }
-      return array('#markup' => theme('dynamic_form_response_rating_widget', array(
-        'stars'     => $stars,
-        'current'   => $cur,
-        'min_label' => $min_label,
-        'max_label' => $max_label,
-      )));
+      $form['widget'] = array(
+        '#markup' => theme('dynamic_form_response_rating_widget', array(
+          'stars'     => $stars,
+          'current'   => $cur,
+          'min_label' => $min_label,
+          'max_label' => $max_label,
+        )),
+      );
+      break;
 
     case 'linear_scale':
       $min       = isset($scale['scale_min']) ? (int) $scale['scale_min'] : 1;
@@ -485,16 +595,19 @@ function _dynamic_form_response_build_fapi_element($q, array $opts, array $scale
       $min_label = isset($scale['scale_min_label']) ? check_plain($scale['scale_min_label']) : '';
       $max_label = isset($scale['scale_max_label']) ? check_plain($scale['scale_max_label']) : '';
       $cur       = ($existing_value !== NULL) ? (int) $existing_value : NULL;
-      $buttons = array();
+      $buttons   = array();
       for ($i = $min; $i <= $max; $i++) {
         $buttons[] = array('value' => $i, 'active' => ($cur !== NULL && $cur === $i));
       }
-      return array('#markup' => theme('dynamic_form_response_linear_scale_widget', array(
-        'buttons'   => $buttons,
-        'current'   => $cur,
-        'min_label' => $min_label,
-        'max_label' => $max_label,
-      )));
+      $form['widget'] = array(
+        '#markup' => theme('dynamic_form_response_linear_scale_widget', array(
+          'buttons'   => $buttons,
+          'current'   => $cur,
+          'min_label' => $min_label,
+          'max_label' => $max_label,
+        )),
+      );
+      break;
 
     case 'tags':
       $ac_url = check_url(url('dynamic-form/ajax/tags/autocomplete'));
@@ -505,17 +618,23 @@ function _dynamic_form_response_build_fapi_element($q, array $opts, array $scale
           $tv = implode(',', array_map('check_plain', $dec));
         }
       }
-      return $base + array(
-        '#type'       => 'hidden',
-        '#value'      => $tv,
-        '#attributes' => array(
+      $form['input'] = array(
+        '#type'          => 'hidden',
+        '#title'         => '',
+        '#title_display' => 'invisible',
+        '#required'      => FALSE,
+        '#value'         => $tv,
+        '#attributes'    => array(
           'class'                 => array('dfp-tags-select2'),
           'data-autocomplete-url' => $ac_url,
           'style'                 => 'width:100%',
         ),
-        '#suffix' => '<p class="dfp-help-text">'
+      );
+      $form['hint'] = array(
+        '#markup' => '<p class="dfp-help-text">'
           . t('Type a tag and press Enter, or search existing tags.') . '</p>',
       );
+      break;
 
     case 'file':
       $file_val_attr  = '';
@@ -578,7 +697,7 @@ function _dynamic_form_response_build_fapi_element($q, array $opts, array $scale
       if ($file_name_disp) {
         $dropzone_classes[] = 'dfp-file-done';
       }
-      return array(
+      $form['dropzone'] = array(
         '#type'       => 'container',
         '#attributes' => array('class' => $dropzone_classes),
         'file_value'  => array(
@@ -586,9 +705,12 @@ function _dynamic_form_response_build_fapi_element($q, array $opts, array $scale
           '#value'      => $file_val_attr,
           '#attributes' => array('class' => array('dfp-file-value')),
         ),
-        'file_input'  => $base + array(
-          '#type'       => 'file',
-          '#attributes' => $file_attrs,
+        'file_input'  => array(
+          '#type'          => 'file',
+          '#title'         => '',
+          '#title_display' => 'invisible',
+          '#required'      => FALSE,
+          '#attributes'    => $file_attrs,
         ),
         'dropzone_inner' => array(
           '#markup' => theme('dynamic_form_response_file_dropzone', array(
@@ -599,18 +721,25 @@ function _dynamic_form_response_build_fapi_element($q, array $opts, array $scale
           )),
         ),
       );
+      break;
 
     default:
       $attrs = array('class' => array('dfp-input'));
       if (!empty($q->placeholder)) {
         $attrs['placeholder'] = check_plain($q->placeholder);
       }
-      return $base + array(
-        '#type'       => 'textfield',
-        '#value'      => check_plain($val),
-        '#attributes' => $attrs,
+      $form['input'] = array(
+        '#type'          => 'textfield',
+        '#title'         => '',
+        '#title_display' => 'invisible',
+        '#required'      => FALSE,
+        '#value'         => check_plain($val),
+        '#attributes'    => $attrs,
       );
+      break;
   }
+
+  return $form;
 }
 
 /* =====================================================================
@@ -754,15 +883,8 @@ function _dynamic_form_response_do_save() {
     return array('status' => 'error', 'message' => t('Missing form ID.'));
   }
 
-  $form = db_select('dynamic_form_forms', 'f')
-    ->fields('f', array('id', 'status', 'closes_at', 'opens_at', 'visibility'))
-    ->condition('id', $form_id)
-    ->condition('status', 1)
-    ->isNull('deleted_at')
-    ->execute()
-    ->fetchObject();
-
-  if (!$form) {
+  $form = DynamicFormResponseEntityController::loadForm($form_id);
+  if (!$form || $form->status != 1) {
     return array('status' => 'error', 'message' => t('Form not found or not accepting responses.'));
   }
 
@@ -782,17 +904,8 @@ function _dynamic_form_response_do_save() {
   }
 
   if ($response_id) {
-    // Verify the caller owns this draft.
-    $draft = db_select('dynamic_form_responses', 'r')
-      ->fields('r', array('id', 'user_id'))
-      ->condition('id', $response_id)
-      ->condition('form_id', $form_id)
-      ->condition('status', 0)
-      ->isNull('deleted_at')
-      ->execute()
-      ->fetchObject();
-
-    if (!$draft) {
+    $draft = DynamicFormResponseEntityController::load($response_id);
+    if (!$draft || (int) $draft->form_id !== $form_id || $draft->status != 0) {
       return array('status' => 'error', 'message' => t('Draft not found.'));
     }
 
@@ -802,52 +915,25 @@ function _dynamic_form_response_do_save() {
       }
     } else {
       $guest_token = _dynamic_form_response_get_guest_token();
-      $match = db_select('dynamic_form_response_sessions', 's')
-        ->condition('response_id', $response_id)
-        ->condition('guest_token', $guest_token)
-        ->countQuery()->execute()->fetchField();
-      if (!$match) {
+      if (!DynamicFormResponseEntityController::isGuestSessionOwner($response_id, $guest_token)) {
         return array('status' => 'error', 'message' => t('Access denied.'));
       }
     }
 
-    db_update('dynamic_form_responses')
-      ->fields(array('updated_at' => $now))
-      ->condition('id', $response_id)
-      ->execute();
+    DynamicFormResponseEntityController::touch($response_id, $now);
   } else {
     // Create a new draft response.
-    $response_id = db_insert('dynamic_form_responses')
-      ->fields(array(
-        'form_id'     => $form_id,
-        'user_id'     => (int) $user->uid,
-        'status'      => 0,
-        'guest_email' => $guest_email,
-        'created_at'  => $now,
-        'updated_at'  => $now,
-      ))
-      ->execute();
-
-    db_insert('dynamic_form_response_sessions')
-      ->fields(array(
-        'response_id' => (int) $response_id,
-        'ip_address'  => ip_address(),
-        'user_agent'  => isset($_SERVER['HTTP_USER_AGENT'])
-          ? substr($_SERVER['HTTP_USER_AGENT'], 0, 512) : '',
-        'session_id'  => hash('sha256', session_id()),
-        'guest_token' => $user->uid ? NULL : _dynamic_form_response_get_guest_token(),
-        'created_at'  => $now,
-      ))
-      ->execute();
+    $response_id = DynamicFormResponseEntityController::createDraft($form_id, $user->uid, $guest_email, $now);
+    DynamicFormResponseEntityController::createSession(
+      $response_id,
+      $user->uid ? NULL : _dynamic_form_response_get_guest_token(),
+      $now
+    );
   }
 
   // Persist the guest email whenever it arrives on an existing draft.
   if (!$user->uid && $guest_email && $response_id) {
-    db_update('dynamic_form_responses')
-      ->fields(array('guest_email' => $guest_email))
-      ->condition('id', $response_id)
-      ->isNull('guest_email')
-      ->execute();
+    DynamicFormResponseEntityController::setGuestEmail($response_id, $guest_email);
   }
 
   // Fetch question types for all answers being saved so tags can be routed
@@ -963,28 +1049,14 @@ function _dynamic_form_response_do_submit() {
 
   // Anonymous users may only submit public forms.
   if (!$user->uid) {
-    $form = db_select('dynamic_form_forms', 'f')
-      ->fields('f', array('visibility'))
-      ->condition('id', $form_id)
-      ->condition('status', 1)
-      ->isNull('deleted_at')
-      ->execute()
-      ->fetchObject();
-    if (!$form || $form->visibility !== 'p') {
+    $form = DynamicFormResponseEntityController::loadForm($form_id);
+    if (!$form || $form->status != 1 || $form->visibility !== 'p') {
       return array('status' => 'error', 'message' => t('You must be logged in to submit this form.'));
     }
   }
 
-  $response = db_select('dynamic_form_responses', 'r')
-    ->fields('r')
-    ->condition('id', $response_id)
-    ->condition('form_id', $form_id)
-    ->condition('status', 0)
-    ->isNull('deleted_at')
-    ->execute()
-    ->fetchObject();
-
-  if (!$response) {
+  $response = DynamicFormResponseEntityController::load($response_id);
+  if (!$response || (int) $response->form_id !== $form_id || $response->status != 0) {
     return array('status' => 'error', 'message' => t('Response not found or already submitted.'));
   }
 
@@ -995,11 +1067,7 @@ function _dynamic_form_response_do_submit() {
     }
   } else {
     $guest_token = _dynamic_form_response_get_guest_token();
-    $match = db_select('dynamic_form_response_sessions', 's')
-      ->condition('response_id', $response_id)
-      ->condition('guest_token', $guest_token)
-      ->countQuery()->execute()->fetchField();
-    if (!$match) {
+    if (!DynamicFormResponseEntityController::isGuestSessionOwner($response_id, $guest_token)) {
       return array('status' => 'error', 'message' => t('Access denied.'));
     }
   }
@@ -1012,11 +1080,7 @@ function _dynamic_form_response_do_submit() {
     }
   }
 
-  $answers = db_select('dynamic_form_answers', 'a')
-    ->fields('a', array('question_id', 'value'))
-    ->condition('response_id', $response_id)
-    ->execute()
-    ->fetchAllKeyed(0, 1);
+  $answers = DynamicFormResponseEntityController::getAnswersMap($response_id);
 
   $errors = array();
   foreach ($required as $qid => $q) {
@@ -1052,14 +1116,7 @@ function _dynamic_form_response_do_submit() {
   }
 
   $now = REQUEST_TIME;
-  db_update('dynamic_form_responses')
-    ->fields(array(
-      'status'       => 1,
-      'submitted_at' => $now,
-      'updated_at'   => $now,
-    ))
-    ->condition('id', $response_id)
-    ->execute();
+  DynamicFormResponseEntityController::submit($response_id, $now);
 
   _dynamic_form_audit_log(
     'response', (int) $response_id, 'submitted',
@@ -1148,30 +1205,7 @@ function _dynamic_form_response_upsert_answer($response_id, $question_id, $value
     $now = REQUEST_TIME;
   }
 
-  $existing_id = db_select('dynamic_form_answers', 'a')
-    ->fields('a', array('id'))
-    ->condition('response_id', $response_id)
-    ->condition('question_id', $question_id)
-    ->execute()
-    ->fetchField();
-
-  if ($existing_id) {
-    db_update('dynamic_form_answers')
-      ->fields(array('value' => $value, 'updated_at' => $now))
-      ->condition('id', $existing_id)
-      ->execute();
-    return (int) $existing_id;
-  } else {
-    return (int) db_insert('dynamic_form_answers')
-      ->fields(array(
-        'response_id' => $response_id,
-        'question_id' => $question_id,
-        'value'       => $value,
-        'created_at'  => $now,
-        'updated_at'  => $now,
-      ))
-      ->execute();
-  }
+  return DynamicFormResponseEntityController::upsertAnswer($response_id, $question_id, $value, $now);
 }
 
 /**
@@ -1295,27 +1329,14 @@ function _dynamic_form_response_do_upload() {
   }
 
   // Confirm form is active.
-  $form = db_select('dynamic_form_forms', 'f')
-    ->fields('f', array('id', 'status'))
-    ->condition('id', $form_id)
-    ->condition('status', 1)
-    ->isNull('deleted_at')
-    ->execute()
-    ->fetchObject();
-  if (!$form) {
+  $form = DynamicFormResponseEntityController::loadForm($form_id);
+  if (!$form || $form->status != 1) {
     return array('status' => 'error', 'message' => t('Form not found.'));
   }
 
   // Load question constraints.
-  $question = db_select('dynamic_form_questions', 'q')
-    ->fields('q', array('id', 'type', 'allow_file_types', 'max_file_size'))
-    ->condition('id', $question_id)
-    ->condition('form_id', $form_id)
-    ->condition('type', 'file')
-    ->isNull('deleted_at')
-    ->execute()
-    ->fetchObject();
-  if (!$question) {
+  $question = entity_load_single('dynamic_form_question', $question_id);
+  if (!$question || (int) $question->form_id !== $form_id || $question->type !== 'file') {
     return array('status' => 'error', 'message' => t('File question not found.'));
   }
 

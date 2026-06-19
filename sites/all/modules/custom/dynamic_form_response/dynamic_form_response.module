@@ -267,17 +267,11 @@ function _dynamic_form_response_view_access($form_id) {
 
   $form_id = (int) $form_id;
 
-  $created_by = db_select('dynamic_form_forms', 'f')
-    ->fields('f', array('created_by'))
-    ->condition('id', $form_id)
-    ->isNull('deleted_at')
-    ->execute()
-    ->fetchField();
-
-  if ($created_by === FALSE) {
+  $form = DynamicFormResponseEntityController::loadForm($form_id);
+  if (!$form) {
     return FALSE;
   }
-  if ((int) $created_by === (int) $user->uid) {
+  if ((int) $form->created_by === (int) $user->uid) {
     return TRUE;
   }
 
@@ -440,13 +434,8 @@ function _dynamic_form_response_detail_access($form_id, $response_id) {
   }
 
   // Also grant access to the respondent who owns this specific response.
-  $owner = db_select('dynamic_form_responses', 'r')
-    ->fields('r', array('user_id'))
-    ->condition('id', (int) $response_id)
-    ->condition('form_id', (int) $form_id)
-    ->isNull('deleted_at')
-    ->execute()
-    ->fetchField();
-
-  return ($owner !== FALSE && (int) $owner === (int) $user->uid);
+  $response = DynamicFormResponseEntityController::load($response_id);
+  return $response
+    && (int) $response->form_id === (int) $form_id
+    && (int) $response->user_id === (int) $user->uid;
 }

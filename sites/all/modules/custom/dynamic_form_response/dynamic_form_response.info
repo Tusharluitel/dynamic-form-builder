@@ -5,3 +5,5 @@ package     = Dynamic Form
 dependencies[] = dynamic_form
 dependencies[] = entity
 dependencies[] = restws
+
+files[] = includes/dynamic_form_response.entity_controller.inc
