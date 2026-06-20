@@ -675,7 +675,6 @@ function _dynamic_form_delete_confirm_modal() {
  */
 function dynamic_form_ajax_entity_delete($entity_type, $entity_id) {
   global $user;
-
   if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     drupal_json_output(array('status' => 'error', 'message' => t('Invalid request method.')));
     drupal_exit();
@@ -693,14 +692,13 @@ function dynamic_form_ajax_entity_delete($entity_type, $entity_id) {
   }
 
   $entity_id = (int) $entity_id;
-  $table     = _dynamic_form_dashboard_entity_table($entity_type);
 
-  $record = db_select($table, 'e')
-    ->fields('e')
-    ->condition('id', $entity_id)
-    ->condition('deleted_at', NULL, 'IS NULL')
-    ->execute()
-    ->fetchObject();
+  if ($entity_type === 'response') {
+    $record = DynamicFormResponseEntityController::load($entity_id);
+  }
+  else {
+    $record = entity_get_controller('dynamic_form_' . $entity_type)->loadSingle($entity_id);
+  }
 
   if (!$record) {
     drupal_json_output(array('status' => 'error', 'message' => t('Item not found.')));
@@ -718,12 +716,8 @@ function dynamic_form_ajax_entity_delete($entity_type, $entity_id) {
         ->execute()
         ->fetchField();
       if (!$member_role) {
-        $form_owner = db_select('dynamic_form_forms', 'f')
-          ->fields('f', array('created_by'))
-          ->condition('id', $record->form_id)
-          ->execute()
-          ->fetchField();
-        if ((int) $form_owner === (int) $user->uid) {
+        $form_entity = entity_get_controller('dynamic_form_form')->loadSingle($record->form_id);
+        if ($form_entity && (int) $form_entity->created_by === (int) $user->uid) {
           $member_role = 'owner';
         }
       }
@@ -742,14 +736,12 @@ function dynamic_form_ajax_entity_delete($entity_type, $entity_id) {
   }
 
   $now = REQUEST_TIME;
-  db_update($table)
-    ->fields(array(
-      'deleted_at' => $now,
-      'deleted_by' => $user->uid,
-      'updated_at' => $now,
-    ))
-    ->condition('id', $entity_id)
-    ->execute();
+  if ($entity_type === 'response') {
+    DynamicFormResponseEntityController::softDelete($entity_id, $user->uid, $now);
+  }
+  else {
+    entity_get_controller('dynamic_form_' . $entity_type)->softDelete($entity_id, $user->uid, $now);
+  }
 
   _dynamic_form_audit_log($entity_type, $entity_id, 'deleted', (array) $record, NULL);
 
@@ -770,19 +762,6 @@ function dynamic_form_ajax_entity_delete($entity_type, $entity_id) {
     'message' => t('"@label" has been deleted.', array('@label' => $label)),
   ));
   drupal_exit();
-}
-
-/**
- * Maps entity type string to its database table name.
- */
-function _dynamic_form_dashboard_entity_table($entity_type) {
-  $map = array(
-    'form'     => 'dynamic_form_forms',
-    'section'  => 'dynamic_form_sections',
-    'question' => 'dynamic_form_questions',
-    'response' => 'dynamic_form_responses',
-  );
-  return isset($map[$entity_type]) ? $map[$entity_type] : NULL;
 }
 
 /* =====================================================================

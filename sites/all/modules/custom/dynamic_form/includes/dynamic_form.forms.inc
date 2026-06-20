@@ -233,9 +233,8 @@ function dynamic_form_create_form_submit($form, &$form_state)
     $fields['published_by'] = $user->uid;
   }
 
-  $id = db_insert('dynamic_form_forms')
-    ->fields($fields)
-    ->execute();
+  $entity = entity_get_controller('dynamic_form_form')->create($fields, $now);
+  $id = (int) $entity->id;
 
   _dynamic_form_audit_log('form', $id, 'created', NULL, $fields);
 
@@ -355,13 +354,7 @@ function dynamic_form_edit_form($form, &$form_state, $form_id)
     'type' => 'inline',
   );
 
-  $record = db_select('dynamic_form_forms', 'f')
-    ->fields('f')
-    ->condition('id', $form_id)
-    ->condition('deleted_at', NULL, 'IS NULL')
-    ->execute()
-    ->fetchObject();
-
+  $record = entity_get_controller('dynamic_form_form')->loadSingle($form_id);
   if (!$record) {
     drupal_set_message(t('Form not found.'), 'error');
     drupal_goto('dashboard/forms');
@@ -566,10 +559,7 @@ function dynamic_form_edit_form_submit($form, &$form_state)
     $fields['published_by'] = $user->uid;
   }
 
-  db_update('dynamic_form_forms')
-    ->fields($fields)
-    ->condition('id', $record->id)
-    ->execute();
+  entity_get_controller('dynamic_form_form')->update((int) $record->id, $fields, $now);
 
   _dynamic_form_audit_log('form', $record->id, 'updated', (array) $record, $fields);
 
@@ -615,13 +605,7 @@ function _dynamic_form_members_picker_html($can_invite = FALSE) {
  */
 function dynamic_form_delete_confirm($form, &$form_state, $form_id)
 {
-  $record = db_select('dynamic_form_forms', 'f')
-    ->fields('f', array('id', 'title'))
-    ->condition('id', $form_id)
-    ->condition('deleted_at', NULL, 'IS NULL')
-    ->execute()
-    ->fetchObject();
-
+  $record = entity_get_controller('dynamic_form_form')->loadSingle($form_id);
   if (!$record) {
     drupal_set_message(t('Form not found.'), 'error');
     drupal_goto('form/list');
@@ -648,14 +632,7 @@ function dynamic_form_delete_confirm_submit($form, &$form_state)
   $record = $form_state['dynamic_form_record'];
   $now = REQUEST_TIME;
 
-  db_update('dynamic_form_forms')
-    ->fields(array(
-      'deleted_at' => $now,
-      'deleted_by' => $user->uid,
-      'updated_at' => $now,
-    ))
-    ->condition('id', $record->id)
-    ->execute();
+  entity_get_controller('dynamic_form_form')->softDelete($record->id, $user->uid, $now);
 
   _dynamic_form_audit_log('form', $record->id, 'deleted', (array) $record, NULL);
 

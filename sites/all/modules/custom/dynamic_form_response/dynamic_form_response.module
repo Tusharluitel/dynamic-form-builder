@@ -15,15 +15,13 @@
  * Both use DynamicFormSoftDeleteEntityController (declared in dynamic_form).
  */
 function dynamic_form_response_entity_info() {
-  $controller = 'DynamicFormSoftDeleteEntityController';
-
   $info['dynamic_form_response'] = array(
     'label'             => t('Dynamic Form Response'),
     'plural label'      => t('Dynamic Form Responses'),
     'base table'        => 'dynamic_form_responses',
     'entity keys'       => array('id' => 'id'),
     'module'            => 'dynamic_form_response',
-    'controller class'  => $controller,
+    'controller class'  => 'DynamicFormResponseController',
     'access callback'   => '_dynamic_form_response_entity_access',
   );
 
@@ -33,7 +31,7 @@ function dynamic_form_response_entity_info() {
     'base table'        => 'dynamic_form_answers',
     'entity keys'       => array('id' => 'id'),
     'module'            => 'dynamic_form_response',
-    'controller class'  => $controller,
+    'controller class'  => 'DynamicFormAnswerController',
     'access callback'   => '_dynamic_form_answer_entity_access',
   );
 
@@ -267,7 +265,7 @@ function _dynamic_form_response_view_access($form_id) {
 
   $form_id = (int) $form_id;
 
-  $form = DynamicFormResponseEntityController::loadForm($form_id);
+  $form = entity_get_controller('dynamic_form_form')->loadSingle($form_id);
   if (!$form) {
     return FALSE;
   }
@@ -434,7 +432,7 @@ function _dynamic_form_response_detail_access($form_id, $response_id) {
   }
 
   // Also grant access to the respondent who owns this specific response.
-  $response = DynamicFormResponseEntityController::load($response_id);
+  $response = entity_get_controller('dynamic_form_response')->loadSingle($response_id);
   return $response
     && (int) $response->form_id === (int) $form_id
     && (int) $response->user_id === (int) $user->uid;

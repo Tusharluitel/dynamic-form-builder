@@ -22,12 +22,7 @@ function dynamic_form_edit_question_form($form, &$form_state, $question_id) {
 
   // --- Load record on first build only ---
   if (!isset($form_state['dfb_edit_question'])) {
-    $record = db_select('dynamic_form_questions', 'q')
-      ->fields('q')
-      ->condition('id', $question_id)
-      ->condition('deleted_at', NULL, 'IS NULL')
-      ->execute()->fetchObject();
-
+    $record = entity_get_controller('dynamic_form_question')->loadSingle($question_id);
     if (!$record) {
       drupal_set_message(t('Question not found.'), 'error');
       drupal_goto('dashboard/questions');
@@ -466,7 +461,9 @@ function dynamic_form_edit_question_form_submit($form, &$form_state) {
   $now     = REQUEST_TIME;
   $values  = $form_state['values'];
   $record  = $form_state['dfb_edit_question'];
-  $qid     = (int) $record->id;
+  $q_ctrl   = entity_get_controller('dynamic_form_question');
+  $opt_ctrl = entity_get_controller('dynamic_form_question_option');
+  $qid      = (int) $record->id;
 
   // If the form has responses, enforce the original type regardless of input.
   $type = !empty($form_state['dfb_type_locked']) ? $record->type : $values['type'];
@@ -502,34 +499,23 @@ function dynamic_form_edit_question_form_submit($form, &$form_state) {
     'updated_at'       => $now,
   );
 
-  db_update('dynamic_form_questions')
-    ->fields($new_q_fields)
-    ->condition('id', $qid)
-    ->execute();
-
-  dynamic_form_invalidate_questions_cache((int) $record->form_id);
+  $q_ctrl->update($qid, $new_q_fields, $now);
   _dynamic_form_audit_log('question', $qid, 'updated', (array) $record, $new_q_fields);
 
   // --- Options: soft-delete old, re-insert ---
-  db_update('dynamic_form_question_options')
-    ->fields(array('deleted_at' => $now, 'deleted_by' => $user->uid, 'updated_at' => $now))
-    ->condition('question_id', $qid)
-    ->condition('deleted_at', NULL, 'IS NULL')
-    ->execute();
+  $opt_ctrl->softDeleteForQuestion($qid, $user->uid, $now);
 
   $choice_types = array('radio', 'checkbox', 'select', 'rating', 'linear_scale');
   if (in_array($type, $choice_types)) {
     foreach ($form_state['options'] as $i => $opt) {
       $label = isset($values['option_' . $i]) ? trim($values['option_' . $i]) : '';
       if ($label !== '') {
-        db_insert('dynamic_form_question_options')->fields(array(
+        $opt_ctrl->create(array(
           'question_id'  => $qid,
           'option_label' => $label,
           'position'     => $i,
           'created_by'   => $user->uid,
-          'created_at'   => $now,
-          'updated_at'   => $now,
-        ))->execute();
+        ), $now);
       }
     }
   }
@@ -608,12 +594,7 @@ function dynamic_form_edit_question_form_submit($form, &$form_state) {
 function dynamic_form_delete_question_confirm($form, &$form_state, $question_id) {
   global $user;
 
-  $record = db_select('dynamic_form_questions', 'q')
-    ->fields('q', array('id', 'form_id', 'label', 'created_by'))
-    ->condition('id', $question_id)
-    ->condition('deleted_at', NULL, 'IS NULL')
-    ->execute()->fetchObject();
-
+  $record = entity_get_controller('dynamic_form_question')->loadSingle($question_id);
   if (!$record) {
     drupal_set_message(t('Question not found.'), 'error');
     drupal_goto('dashboard/questions');
@@ -639,12 +620,8 @@ function dynamic_form_delete_question_confirm_submit($form, &$form_state) {
   $record = $form_state['dynamic_form_question'];
   $now    = REQUEST_TIME;
 
-  db_update('dynamic_form_questions')
-    ->fields(array('deleted_at' => $now, 'deleted_by' => $user->uid, 'updated_at' => $now))
-    ->condition('id', $record->id)
-    ->execute();
+  entity_get_controller('dynamic_form_question')->softDelete($record->id, $user->uid, $now);
 
-  dynamic_form_invalidate_questions_cache((int) $record->form_id);
   _dynamic_form_audit_log('question', $record->id, 'deleted', (array) $record, NULL);
 
   drupal_set_message(t('Question "@label" has been deleted.', array('@label' => $record->label)));

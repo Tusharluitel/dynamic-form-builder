@@ -2,46 +2,59 @@
 
 /**
  * @file
- * Data-access layer for dynamic_form_response and dynamic_form_answer entities.
+ * Entity controllers for the dynamic_form_response and dynamic_form_answer
+ * entity types.
  *
- * All entity loads/saves and the small number of db_* calls that cannot be
- * expressed through entity_load_single() (joins to the sessions table, single-
- * column updates) live here.  submit.inc and the module file call these static
- * methods instead of touching the database directly.
+ * Each controller extends EntityAPIController, overrides buildQuery() to
+ * exclude soft-deleted rows from every entity_load() call, and provides
+ * create/update/softDelete and type-specific helpers.
+ *
+ * create() / update()-style methods use entity_save() so entity hooks fire
+ * correctly and the static cache is reset automatically.
+ *
+ * softDelete() uses entity_save() because the response entity already uses
+ * EntityAPIController; touch() and setGuestEmail() keep db_update because
+ * they are single-column partial updates (loading the full entity would be
+ * wasteful or would lose atomic IS NULL guarantees).
+ *
+ * db_* is retained only where entity API cannot reach:
+ *   - JOINs to the non-entity dynamic_form_response_sessions table
+ *     (hasSubmittedByGuest, findDraftByGuest, isGuestSessionOwner, createSession)
+ *   - COUNT aggregates (hasSubmittedByUser, hasSubmittedByGuest)
+ *   - Key-value mapping queries (getAnswersMap)
+ *   - Single-column partial updates (touch, setGuestEmail)
+ *   - upsert() existence check — intentionally finds soft-deleted rows so a
+ *     re-submitted answer updates in place rather than creating a duplicate
+ *
+ * Retrieve a controller instance via entity_get_controller():
+ *   entity_get_controller('dynamic_form_response')->loadSingle($id);
+ *   entity_get_controller('dynamic_form_answer')->upsert($r, $q, $v, $now);
  */
-class DynamicFormResponseEntityController {
 
-  /* ==================================================================
-     FORM
-     ================================================================== */
+/* ==================================================================
+   RESPONSE
+   ================================================================== */
 
-  /**
-   * Loads a dynamic_form_form entity by ID.
-   *
-   * Soft-deleted forms return FALSE (filtered by DynamicFormSoftDeleteEntityController).
-   */
-  static function loadForm($form_id) {
-    return entity_load_single('dynamic_form_form', (int) $form_id);
+class DynamicFormResponseController extends EntityAPIController {
+
+  protected function buildQuery($ids, $conditions = array(), $revision_id = FALSE) {
+    $query = parent::buildQuery($ids, $conditions, $revision_id);
+    $query->isNull('base.deleted_at');
+    return $query;
   }
 
-  /* ==================================================================
-     RESPONSE — reads
-     ================================================================== */
-
-  /**
-   * Loads a dynamic_form_response entity by ID.
-   *
-   * Soft-deleted responses return FALSE.
-   */
-  static function load($response_id) {
-    return entity_load_single('dynamic_form_response', (int) $response_id);
+  public function loadSingle($id) {
+    $entities = $this->load(array((int) $id));
+    return $entities ? reset($entities) : FALSE;
   }
+
+  // ---- reads ---------------------------------------------------------------
 
   /**
    * Returns TRUE if the authenticated user already has a submitted response
    * for this form.
    */
-  static function hasSubmittedByUser($form_id, $user_id) {
+  public function hasSubmittedByUser($form_id, $user_id) {
     return (bool) db_select('dynamic_form_responses', 'r')
       ->condition('form_id', (int) $form_id)
       ->condition('user_id', (int) $user_id)
@@ -51,10 +64,10 @@ class DynamicFormResponseEntityController {
   }
 
   /**
-   * Returns TRUE if the anonymous guest (identified by $guest_token) already
-   * has a submitted response for this form.
+   * Returns TRUE if the anonymous guest already has a submitted response
+   * for this form.
    */
-  static function hasSubmittedByGuest($form_id, $guest_token) {
+  public function hasSubmittedByGuest($form_id, $guest_token) {
     $q = db_select('dynamic_form_responses', 'r');
     $q->join('dynamic_form_response_sessions', 's', 's.response_id = r.id');
     return (bool) $q
@@ -66,26 +79,26 @@ class DynamicFormResponseEntityController {
   }
 
   /**
-   * Finds and returns the active draft entity for an authenticated user,
-   * or NULL if none exists.
+   * Finds the active draft for an authenticated user, or NULL if none.
+   *
+   * entity_load() goes through buildQuery(), which adds isNull('deleted_at').
    */
-  static function findDraftByUser($form_id, $user_id) {
-    $id = db_select('dynamic_form_responses', 'r')
-      ->fields('r', array('id'))
-      ->condition('form_id', (int) $form_id)
-      ->condition('user_id', (int) $user_id)
-      ->condition('status', 0)
-      ->isNull('deleted_at')
-      ->execute()
-      ->fetchField();
-    return $id ? entity_load_single('dynamic_form_response', (int) $id) : NULL;
+  public function findDraftByUser($form_id, $user_id) {
+    $entities = entity_load('dynamic_form_response', FALSE, array(
+      'form_id' => (int) $form_id,
+      'user_id' => (int) $user_id,
+      'status'  => 0,
+    ));
+    return $entities ? reset($entities) : NULL;
   }
 
   /**
-   * Finds and returns the active draft entity for an anonymous guest,
-   * or NULL if none exists.
+   * Finds the active draft for an anonymous guest, or NULL if none.
+   *
+   * Requires a JOIN to the non-entity sessions table, so db_select is used
+   * to get the ID before loading the entity.
    */
-  static function findDraftByGuest($form_id, $guest_token) {
+  public function findDraftByGuest($form_id, $guest_token) {
     $q = db_select('dynamic_form_responses', 'r');
     $q->join('dynamic_form_response_sessions', 's', 's.response_id = r.id');
     $id = $q
@@ -96,27 +109,25 @@ class DynamicFormResponseEntityController {
       ->isNull('r.deleted_at')
       ->execute()
       ->fetchField();
-    return $id ? entity_load_single('dynamic_form_response', (int) $id) : NULL;
+    return $id ? $this->loadSingle((int) $id) : NULL;
   }
 
   /**
    * Returns TRUE if the given guest token has a session record for this response.
    */
-  static function isGuestSessionOwner($response_id, $guest_token) {
+  public function isGuestSessionOwner($response_id, $guest_token) {
     return (bool) db_select('dynamic_form_response_sessions', 's')
       ->condition('response_id', (int) $response_id)
       ->condition('guest_token', $guest_token)
       ->countQuery()->execute()->fetchField();
   }
 
-  /* ==================================================================
-     RESPONSE — writes
-     ================================================================== */
+  // ---- writes --------------------------------------------------------------
 
   /**
-   * Creates a new draft response entity and returns its ID.
+   * Creates a new draft response entity and returns it.
    */
-  static function createDraft($form_id, $user_id, $guest_email, $now) {
+  public function createDraft($form_id, $user_id, $guest_email, $now) {
     $entity = (object) array(
       'form_id'     => (int) $form_id,
       'user_id'     => (int) $user_id,
@@ -126,17 +137,15 @@ class DynamicFormResponseEntityController {
       'updated_at'  => $now,
     );
     entity_save('dynamic_form_response', $entity);
-    return (int) $entity->id;
+    return $this->loadSingle((int) $entity->id);
   }
 
   /**
    * Inserts a session/device context row for a newly-created draft.
    *
-   * @param int         $response_id  Primary key of the draft response.
-   * @param string|null $guest_token  NULL for authenticated users.
-   * @param int         $now          REQUEST_TIME.
+   * dynamic_form_response_sessions is not an entity type, so db_insert is used.
    */
-  static function createSession($response_id, $guest_token, $now) {
+  public function createSession($response_id, $guest_token, $now) {
     db_insert('dynamic_form_response_sessions')
       ->fields(array(
         'response_id' => (int) $response_id,
@@ -151,37 +160,38 @@ class DynamicFormResponseEntityController {
   }
 
   /**
-   * Bumps the updated_at timestamp on an existing draft.
+   * Bumps updated_at on an existing draft.
    *
-   * A single-column update; loading the full entity for this alone would be wasteful.
+   * Single-column update; loading the full entity for this alone would be
+   * wasteful.
    */
-  static function touch($response_id, $now) {
+  public function touch($id, $now) {
     db_update('dynamic_form_responses')
       ->fields(array('updated_at' => $now))
-      ->condition('id', (int) $response_id)
+      ->condition('id', (int) $id)
       ->execute();
   }
 
   /**
    * Persists the guest email on an existing draft when it first arrives.
-   * The isNull guard prevents overwriting an email that was already stored.
+   *
+   * The isNull guard on the UPDATE is atomic and prevents overwriting an
+   * email that was already stored.  A load+save approach would have a race
+   * condition.
    */
-  static function setGuestEmail($response_id, $email) {
+  public function setGuestEmail($id, $email) {
     db_update('dynamic_form_responses')
       ->fields(array('guest_email' => $email))
-      ->condition('id', (int) $response_id)
+      ->condition('id', (int) $id)
       ->isNull('guest_email')
       ->execute();
   }
 
   /**
-   * Marks a draft as submitted (status = 1) via entity_save so the entity
-   * cache is invalidated automatically.
-   *
-   * @return bool  FALSE if the entity could not be loaded.
+   * Marks a draft as submitted and returns the updated entity, or FALSE.
    */
-  static function submit($response_id, $now) {
-    $entity = entity_load_single('dynamic_form_response', (int) $response_id);
+  public function submit($id, $now) {
+    $entity = $this->loadSingle($id);
     if (!$entity) {
       return FALSE;
     }
@@ -189,20 +199,49 @@ class DynamicFormResponseEntityController {
     $entity->submitted_at = $now;
     $entity->updated_at   = $now;
     entity_save('dynamic_form_response', $entity);
-    return TRUE;
+    return $this->loadSingle($id);
   }
 
-  /* ==================================================================
-     ANSWER
-     ================================================================== */
+  /**
+   * Soft-deletes a response.
+   */
+  public function softDelete($id, $uid, $now = NULL) {
+    $now = $now ?: REQUEST_TIME;
+    $entity = $this->loadSingle($id);
+    if (!$entity) {
+      return;
+    }
+    $entity->deleted_at = $now;
+    $entity->deleted_by = (int) $uid;
+    $entity->updated_at = $now;
+    entity_save('dynamic_form_response', $entity);
+  }
+}
+
+/* ==================================================================
+   ANSWER
+   ================================================================== */
+
+class DynamicFormAnswerController extends EntityAPIController {
+
+  protected function buildQuery($ids, $conditions = array(), $revision_id = FALSE) {
+    $query = parent::buildQuery($ids, $conditions, $revision_id);
+    $query->isNull('base.deleted_at');
+    return $query;
+  }
+
+  public function loadSingle($id) {
+    $entities = $this->load(array((int) $id));
+    return $entities ? reset($entities) : FALSE;
+  }
 
   /**
-   * Returns a question_id => value map for all answers on a response.
+   * Returns a question_id => value map for all answers in a response.
    *
-   * db_select with fetchAllKeyed is more efficient than loading full entities
-   * when we only need the two columns.
+   * Uses db_select for the key-value result; entity_load would return full
+   * objects requiring an extra loop with no benefit.
    */
-  static function getAnswersMap($response_id) {
+  public function getAnswersMap($response_id) {
     return db_select('dynamic_form_answers', 'a')
       ->fields('a', array('question_id', 'value'))
       ->condition('response_id', (int) $response_id)
@@ -211,15 +250,15 @@ class DynamicFormResponseEntityController {
   }
 
   /**
-   * Inserts a new answer entity or updates an existing one.
+   * Inserts or updates one answer for a given response + question pair.
    *
-   * The composite key (response_id + question_id) is not the primary key,
-   * so we still use db_select to find the existing row id, then delegate
-   * the actual write to entity_save.
+   * The existence check uses db_select without an isNull('deleted_at') filter
+   * — intentionally — so that a re-submitted answer revives a soft-deleted row
+   * in place rather than creating a duplicate.
    *
-   * @return int  Primary key of the inserted or updated answer row.
+   * Returns the answer entity ID (int).
    */
-  static function upsertAnswer($response_id, $question_id, $value, $now = NULL) {
+  public function upsert($response_id, $question_id, $value, $now = NULL) {
     $now = $now ?: REQUEST_TIME;
 
     $existing_id = db_select('dynamic_form_answers', 'a')
@@ -230,10 +269,12 @@ class DynamicFormResponseEntityController {
       ->fetchField();
 
     if ($existing_id) {
-      $entity = entity_load_single('dynamic_form_answer', (int) $existing_id);
-      $entity->value      = $value;
-      $entity->updated_at = $now;
-      entity_save('dynamic_form_answer', $entity);
+      $entity = $this->loadSingle((int) $existing_id);
+      if ($entity) {
+        $entity->value      = $value;
+        $entity->updated_at = $now;
+        entity_save('dynamic_form_answer', $entity);
+      }
       return (int) $existing_id;
     }
 

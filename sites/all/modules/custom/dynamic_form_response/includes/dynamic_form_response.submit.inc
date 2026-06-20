@@ -20,9 +20,10 @@ function dynamic_form_response_render_form($record) {
 
   // Already-submitted check — skipped when the form allows multiple submissions.
   if (empty($record->allow_multiple_submissions)) {
+    $r_ctrl  = entity_get_controller('dynamic_form_response');
     $already = $user->uid
-      ? DynamicFormResponseEntityController::hasSubmittedByUser($record->id, $user->uid)
-      : DynamicFormResponseEntityController::hasSubmittedByGuest($record->id, $guest_token);
+      ? $r_ctrl->hasSubmittedByUser($record->id, $user->uid)
+      : $r_ctrl->hasSubmittedByGuest($record->id, $guest_token);
 
     if ($already) {
       return theme('dynamic_form_response_already_submitted', array());
@@ -65,12 +66,13 @@ function dynamic_form_response_form($form, &$form_state, $record, $guest_token =
   if (!isset($form_state['dfr_loaded'])) {
     $response_id      = 0;
     $existing_answers = array();
-    $draft = $user->uid
-      ? DynamicFormResponseEntityController::findDraftByUser($record->id, $user->uid)
-      : DynamicFormResponseEntityController::findDraftByGuest($record->id, $guest_token);
+    $r_ctrl = entity_get_controller('dynamic_form_response');
+    $draft  = $user->uid
+      ? $r_ctrl->findDraftByUser($record->id, $user->uid)
+      : $r_ctrl->findDraftByGuest($record->id, $guest_token);
     if ($draft) {
       $response_id      = (int) $draft->id;
-      $existing_answers = DynamicFormResponseEntityController::getAnswersMap($response_id);
+      $existing_answers = entity_get_controller('dynamic_form_answer')->getAnswersMap($response_id);
     }
 
     $form_state['dfr_record']           = $record;
@@ -883,7 +885,7 @@ function _dynamic_form_response_do_save() {
     return array('status' => 'error', 'message' => t('Missing form ID.'));
   }
 
-  $form = DynamicFormResponseEntityController::loadForm($form_id);
+  $form = entity_get_controller('dynamic_form_form')->loadSingle($form_id);
   if (!$form || $form->status != 1) {
     return array('status' => 'error', 'message' => t('Form not found or not accepting responses.'));
   }
@@ -903,8 +905,10 @@ function _dynamic_form_response_do_save() {
     return array('status' => 'error', 'message' => t('You must be logged in to submit this form.'));
   }
 
+  $r_ctrl = entity_get_controller('dynamic_form_response');
+
   if ($response_id) {
-    $draft = DynamicFormResponseEntityController::load($response_id);
+    $draft = $r_ctrl->loadSingle($response_id);
     if (!$draft || (int) $draft->form_id !== $form_id || $draft->status != 0) {
       return array('status' => 'error', 'message' => t('Draft not found.'));
     }
@@ -915,16 +919,17 @@ function _dynamic_form_response_do_save() {
       }
     } else {
       $guest_token = _dynamic_form_response_get_guest_token();
-      if (!DynamicFormResponseEntityController::isGuestSessionOwner($response_id, $guest_token)) {
+      if (!$r_ctrl->isGuestSessionOwner($response_id, $guest_token)) {
         return array('status' => 'error', 'message' => t('Access denied.'));
       }
     }
 
-    DynamicFormResponseEntityController::touch($response_id, $now);
+    $r_ctrl->touch($response_id, $now);
   } else {
     // Create a new draft response.
-    $response_id = DynamicFormResponseEntityController::createDraft($form_id, $user->uid, $guest_email, $now);
-    DynamicFormResponseEntityController::createSession(
+    $draft       = $r_ctrl->createDraft($form_id, $user->uid, $guest_email, $now);
+    $response_id = (int) $draft->id;
+    $r_ctrl->createSession(
       $response_id,
       $user->uid ? NULL : _dynamic_form_response_get_guest_token(),
       $now
@@ -933,7 +938,7 @@ function _dynamic_form_response_do_save() {
 
   // Persist the guest email whenever it arrives on an existing draft.
   if (!$user->uid && $guest_email && $response_id) {
-    DynamicFormResponseEntityController::setGuestEmail($response_id, $guest_email);
+    $r_ctrl->setGuestEmail($response_id, $guest_email);
   }
 
   // Fetch question types for all answers being saved so tags can be routed
@@ -1048,14 +1053,16 @@ function _dynamic_form_response_do_submit() {
   global $user;
 
   // Anonymous users may only submit public forms.
+  $r_ctrl = entity_get_controller('dynamic_form_response');
+
   if (!$user->uid) {
-    $form = DynamicFormResponseEntityController::loadForm($form_id);
+    $form = entity_get_controller('dynamic_form_form')->loadSingle($form_id);
     if (!$form || $form->status != 1 || $form->visibility !== 'p') {
       return array('status' => 'error', 'message' => t('You must be logged in to submit this form.'));
     }
   }
 
-  $response = DynamicFormResponseEntityController::load($response_id);
+  $response = $r_ctrl->loadSingle($response_id);
   if (!$response || (int) $response->form_id !== $form_id || $response->status != 0) {
     return array('status' => 'error', 'message' => t('Response not found or already submitted.'));
   }
@@ -1067,7 +1074,7 @@ function _dynamic_form_response_do_submit() {
     }
   } else {
     $guest_token = _dynamic_form_response_get_guest_token();
-    if (!DynamicFormResponseEntityController::isGuestSessionOwner($response_id, $guest_token)) {
+    if (!$r_ctrl->isGuestSessionOwner($response_id, $guest_token)) {
       return array('status' => 'error', 'message' => t('Access denied.'));
     }
   }
@@ -1080,7 +1087,7 @@ function _dynamic_form_response_do_submit() {
     }
   }
 
-  $answers = DynamicFormResponseEntityController::getAnswersMap($response_id);
+  $answers = entity_get_controller('dynamic_form_answer')->getAnswersMap($response_id);
 
   $errors = array();
   foreach ($required as $qid => $q) {
@@ -1116,7 +1123,7 @@ function _dynamic_form_response_do_submit() {
   }
 
   $now = REQUEST_TIME;
-  DynamicFormResponseEntityController::submit($response_id, $now);
+  entity_get_controller('dynamic_form_response')->submit($response_id, $now);
 
   _dynamic_form_audit_log(
     'response', (int) $response_id, 'submitted',
@@ -1205,7 +1212,7 @@ function _dynamic_form_response_upsert_answer($response_id, $question_id, $value
     $now = REQUEST_TIME;
   }
 
-  return DynamicFormResponseEntityController::upsertAnswer($response_id, $question_id, $value, $now);
+  return entity_get_controller('dynamic_form_answer')->upsert($response_id, $question_id, $value, $now);
 }
 
 /**
@@ -1329,7 +1336,7 @@ function _dynamic_form_response_do_upload() {
   }
 
   // Confirm form is active.
-  $form = DynamicFormResponseEntityController::loadForm($form_id);
+  $form = entity_get_controller('dynamic_form_form')->loadSingle($form_id);
   if (!$form || $form->status != 1) {
     return array('status' => 'error', 'message' => t('Form not found.'));
   }

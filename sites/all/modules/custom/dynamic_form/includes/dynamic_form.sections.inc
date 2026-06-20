@@ -130,9 +130,8 @@ function dynamic_form_create_section_form_submit($form, &$form_state)
     'updated_at' => $now,
   );
 
-  $id = db_insert('dynamic_form_sections')
-    ->fields($fields)
-    ->execute();
+  $entity = entity_get_controller('dynamic_form_section')->create($fields, $now);
+  $id = (int) $entity->id;
 
   _dynamic_form_audit_log('section', $id, 'created', NULL, $fields);
 
@@ -151,13 +150,7 @@ function dynamic_form_edit_section_form($form, &$form_state, $section_id)
 {
   global $user;
 
-  $record = db_select('dynamic_form_sections', 's')
-    ->fields('s')
-    ->condition('id', $section_id)
-    ->condition('deleted_at', NULL, 'IS NULL')
-    ->execute()
-    ->fetchObject();
-
+  $record = entity_get_controller('dynamic_form_section')->loadSingle($section_id);
   if (!$record) {
     drupal_set_message(t('Section not found.'), 'error');
     drupal_goto('dashboard/sections');
@@ -287,10 +280,7 @@ function dynamic_form_edit_section_form_submit($form, &$form_state)
     'updated_at' => $now,
   );
 
-  db_update('dynamic_form_sections')
-    ->fields($fields)
-    ->condition('id', $record->id)
-    ->execute();
+  entity_get_controller('dynamic_form_section')->update((int) $record->id, $fields, $now);
 
   _dynamic_form_audit_log('section', $record->id, 'updated', (array) $record, $fields);
 
@@ -309,13 +299,7 @@ function dynamic_form_delete_section_confirm($form, &$form_state, $section_id)
 {
   global $user;
 
-  $record = db_select('dynamic_form_sections', 's')
-    ->fields('s', array('id', 'name', 'created_by'))
-    ->condition('id', $section_id)
-    ->condition('deleted_at', NULL, 'IS NULL')
-    ->execute()
-    ->fetchObject();
-
+  $record = entity_get_controller('dynamic_form_section')->loadSingle($section_id);
   if (!$record) {
     drupal_set_message(t('Section not found.'), 'error');
     drupal_goto('dashboard/sections');
@@ -348,14 +332,7 @@ function dynamic_form_delete_section_confirm_submit($form, &$form_state)
   $record = $form_state['dynamic_form_record'];
   $now = REQUEST_TIME;
 
-  db_update('dynamic_form_sections')
-    ->fields(array(
-      'deleted_at' => $now,
-      'deleted_by' => $user->uid,
-      'updated_at' => $now,
-    ))
-    ->condition('id', $record->id)
-    ->execute();
+  entity_get_controller('dynamic_form_section')->softDelete($record->id, $user->uid, $now);
 
   _dynamic_form_audit_log('section', $record->id, 'deleted', (array) $record, NULL);
 

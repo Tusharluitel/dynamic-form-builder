@@ -10,4 +10,5 @@ dependencies[] = entity
 dependencies[] = restws
 
 files[] = includes/dynamic_form.entity.inc
+files[] = includes/dynamic_form.entity_controller.inc
 

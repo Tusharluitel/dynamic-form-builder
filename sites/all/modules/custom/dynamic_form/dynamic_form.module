@@ -110,46 +110,44 @@ function ajax_command_dfb_toast($type, $message) {
  * hidden from entity_load() and therefore from the API.
  */
 function dynamic_form_entity_info() {
-  $controller = 'DynamicFormSoftDeleteEntityController';
-
   $info['dynamic_form_form'] = array(
-    'label'             => t('Dynamic Form'),
-    'plural label'      => t('Dynamic Forms'),
-    'base table'        => 'dynamic_form_forms',
-    'entity keys'       => array('id' => 'id', 'label' => 'title'),
-    'module'            => 'dynamic_form',
-    'controller class'  => $controller,
-    'access callback'   => '_dynamic_form_form_entity_access',
+    'label'            => t('Dynamic Form'),
+    'plural label'     => t('Dynamic Forms'),
+    'base table'       => 'dynamic_form_forms',
+    'entity keys'      => array('id' => 'id', 'label' => 'title'),
+    'module'           => 'dynamic_form',
+    'controller class' => 'DynamicFormFormController',
+    'access callback'  => '_dynamic_form_form_entity_access',
   );
 
   $info['dynamic_form_section'] = array(
-    'label'             => t('Dynamic Form Section'),
-    'plural label'      => t('Dynamic Form Sections'),
-    'base table'        => 'dynamic_form_sections',
-    'entity keys'       => array('id' => 'id', 'label' => 'name'),
-    'module'            => 'dynamic_form',
-    'controller class'  => $controller,
-    'access callback'   => '_dynamic_form_section_entity_access',
+    'label'            => t('Dynamic Form Section'),
+    'plural label'     => t('Dynamic Form Sections'),
+    'base table'       => 'dynamic_form_sections',
+    'entity keys'      => array('id' => 'id', 'label' => 'name'),
+    'module'           => 'dynamic_form',
+    'controller class' => 'DynamicFormSectionController',
+    'access callback'  => '_dynamic_form_section_entity_access',
   );
 
   $info['dynamic_form_question'] = array(
-    'label'             => t('Dynamic Form Question'),
-    'plural label'      => t('Dynamic Form Questions'),
-    'base table'        => 'dynamic_form_questions',
-    'entity keys'       => array('id' => 'id', 'label' => 'label'),
-    'module'            => 'dynamic_form',
-    'controller class'  => $controller,
-    'access callback'   => '_dynamic_form_question_entity_access',
+    'label'            => t('Dynamic Form Question'),
+    'plural label'     => t('Dynamic Form Questions'),
+    'base table'       => 'dynamic_form_questions',
+    'entity keys'      => array('id' => 'id', 'label' => 'label'),
+    'module'           => 'dynamic_form',
+    'controller class' => 'DynamicFormQuestionController',
+    'access callback'  => '_dynamic_form_question_entity_access',
   );
 
   $info['dynamic_form_question_option'] = array(
-    'label'             => t('Dynamic Form Question Option'),
-    'plural label'      => t('Dynamic Form Question Options'),
-    'base table'        => 'dynamic_form_question_options',
-    'entity keys'       => array('id' => 'id', 'label' => 'option_label'),
-    'module'            => 'dynamic_form',
-    'controller class'  => $controller,
-    'access callback'   => '_dynamic_form_question_option_entity_access',
+    'label'            => t('Dynamic Form Question Option'),
+    'plural label'     => t('Dynamic Form Question Options'),
+    'base table'       => 'dynamic_form_question_options',
+    'entity keys'      => array('id' => 'id', 'label' => 'option_label'),
+    'module'           => 'dynamic_form',
+    'controller class' => 'DynamicFormQuestionOptionController',
+    'access callback'  => '_dynamic_form_question_option_entity_access',
   );
 
   return $info;
@@ -282,17 +280,11 @@ function _dynamic_form_api_can_view_form($form_id, $account) {
     return FALSE;
   }
 
-  $created_by = db_select('dynamic_form_forms', 'f')
-    ->fields('f', array('created_by'))
-    ->condition('id', $form_id)
-    ->isNull('deleted_at')
-    ->execute()
-    ->fetchField();
-
-  if ($created_by === FALSE) {
+  $form = entity_get_controller('dynamic_form_form')->loadSingle($form_id);
+  if (!$form) {
     return FALSE;
   }
-  if ((int) $created_by === (int) $account->uid) {
+  if ((int) $form->created_by === (int) $account->uid) {
     return TRUE;
   }
 
@@ -1072,13 +1064,8 @@ function _dynamic_form_edit_access($form_id)
   }
 
   if (user_access('edit own form')) {
-    $created_by = db_select('dynamic_form_forms', 'f')
-      ->fields('f', array('created_by'))
-      ->condition('id', $form_id)
-      ->condition('deleted_at', NULL, 'IS NULL')
-      ->execute()
-      ->fetchField();
-    if ($created_by && (int) $created_by === (int) $user->uid) {
+    $form = entity_get_controller('dynamic_form_form')->loadSingle($form_id);
+    if ($form && (int) $form->created_by === (int) $user->uid) {
       return TRUE;
     }
   }
@@ -1114,13 +1101,8 @@ function _dynamic_form_delete_access($form_id)
   }
 
   if (user_access('delete own form')) {
-    $created_by = db_select('dynamic_form_forms', 'f')
-      ->fields('f', array('created_by'))
-      ->condition('id', $form_id)
-      ->condition('deleted_at', NULL, 'IS NULL')
-      ->execute()
-      ->fetchField();
-    return $created_by && (int) $created_by === (int) $user->uid;
+    $form = entity_get_controller('dynamic_form_form')->loadSingle($form_id);
+    return $form && (int) $form->created_by === (int) $user->uid;
   }
 
   return FALSE;

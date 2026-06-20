@@ -40,13 +40,7 @@ function _dfb_width_picker_markup($current_width = 'full') {
    ===================================================================== */
 
 function dynamic_form_builder_page($form_id) {
-  $form_record = db_select('dynamic_form_forms', 'f')
-    ->fields('f')
-    ->condition('id', $form_id)
-    ->condition('deleted_at', NULL, 'IS NULL')
-    ->execute()
-    ->fetchObject();
-
+  $form_record = entity_get_controller('dynamic_form_form')->loadSingle($form_id);
   if (!$form_record) {
     drupal_set_message(t('Form not found.'), 'error');
     drupal_goto('dashboard/forms');
@@ -252,14 +246,13 @@ function dynamic_form_builder_sections_form_submit($form, &$form_state) {
     'updated_at'  => $now,
   );
 
-  $section_id = db_insert('dynamic_form_sections')
-    ->fields($fields)
-    ->execute();
+  $section_entity = $entity_get_controller('dynamic_form_section')->create($fields, $now);
+  $section_id     = (int) $section_entity->id;
 
   // Append the new section to in-memory state so the form builder
   // renders it on the next pass without a DB round-trip.
-  $new_section       = (object) $fields;
-  $new_section->id   = (int) $section_id;
+  $new_section     = (object) $fields;
+  $new_section->id = $section_id;
   $form_state['sections'][] = $new_section;
 
   // Clear the add-section input fields for the next render.
@@ -841,9 +834,9 @@ function dynamic_form_builder_question_form_submit($form, &$form_state) {
     'updated_at'       => $now,
   );
 
-  $question_id = db_insert('dynamic_form_questions')->fields($q_fields)->execute();
+  $q_entity    = $entity_get_controller('dynamic_form_question')->create($q_fields, $now);
+  $question_id = (int) $q_entity->id;
 
-  dynamic_form_invalidate_questions_cache($form_id);
   _dynamic_form_audit_log('question', $question_id, 'created', NULL, $q_fields);
 
   // Options for choice types.
@@ -852,14 +845,12 @@ function dynamic_form_builder_question_form_submit($form, &$form_state) {
     foreach ($form_state['options'] as $i => $opt) {
       $label = isset($values['option_' . $i]) ? trim($values['option_' . $i]) : '';
       if ($label !== '') {
-        db_insert('dynamic_form_question_options')->fields(array(
-          'question_id'  => (int) $question_id,
+        $entity_get_controller('dynamic_form_question_option')->create(array(
+          'question_id'  => $question_id,
           'option_label' => $label,
           'position'     => $i,
           'created_by'   => (int) $user->uid,
-          'created_at'   => $now,
-          'updated_at'   => $now,
-        ))->execute();
+        ), $now);
       }
     }
   }
@@ -1056,13 +1047,7 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
   );
 
   if (!isset($form_state['dfb_eq_loaded'])) {
-    $q = db_select('dynamic_form_questions', 'q')
-      ->fields('q')
-      ->condition('id', $question_id)
-      ->condition('deleted_at', NULL, 'IS NULL')
-      ->execute()
-      ->fetchObject();
-
+    $q = $entity_get_controller('dynamic_form_question')->loadSingle($question_id);
     if (!$q) {
       $form['error'] = array(
         '#markup' => '<div class="dfb-modal-header">'
@@ -1075,11 +1060,8 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
 
     $section_name = '';
     if ($q->section_id) {
-      $section_name = db_select('dynamic_form_sections', 's')
-        ->fields('s', array('name'))
-        ->condition('id', $q->section_id)
-        ->execute()
-        ->fetchField();
+      $sec = $entity_get_controller('dynamic_form_section')->loadSingle($q->section_id);
+      $section_name = $sec ? $sec->name : '';
     }
 
     // Existing options.
@@ -1582,34 +1564,23 @@ function dynamic_form_builder_question_edit_form_submit($form, &$form_state) {
     'updated_at'       => $now,
   );
 
-  db_update('dynamic_form_questions')
-    ->fields($new_q_fields)
-    ->condition('id', $question_id)
-    ->execute();
-
-  dynamic_form_invalidate_questions_cache((int) $form_state['dfb_eq_question']->form_id);
+  $entity_get_controller('dynamic_form_question')->update($question_id, $new_q_fields, $now);
   _dynamic_form_audit_log('question', $question_id, 'updated', (array) $form_state['dfb_eq_question'], $new_q_fields);
 
   // Soft-delete existing options then re-insert survivors.
-  db_update('dynamic_form_question_options')
-    ->fields(array('deleted_at' => $now, 'deleted_by' => (int) $user->uid))
-    ->condition('question_id', $question_id)
-    ->condition('deleted_at', NULL, 'IS NULL')
-    ->execute();
+  $entity_get_controller('dynamic_form_question_option')->softDeleteForQuestion($question_id, (int) $user->uid, $now);
 
   $choice_types = array('radio', 'checkbox', 'select', 'rating', 'linear_scale');
   if (in_array($type, $choice_types)) {
     foreach ($form_state['options'] as $i => $opt) {
       $label = isset($values['option_' . $i]) ? trim($values['option_' . $i]) : '';
       if ($label !== '') {
-        db_insert('dynamic_form_question_options')->fields(array(
+        $entity_get_controller('dynamic_form_question_option')->create(array(
           'question_id'  => $question_id,
           'option_label' => $label,
           'position'     => $i,
           'created_by'   => (int) $user->uid,
-          'created_at'   => $now,
-          'updated_at'   => $now,
-        ))->execute();
+        ), $now);
       }
     }
   }
@@ -1667,11 +1638,7 @@ function dynamic_form_builder_question_edit_form_submit($form, &$form_state) {
   }
 
   // Fetch the updated row so the AJAX callback can re-render the card.
-  $form_state['dfb_eq_saved_question'] = db_select('dynamic_form_questions', 'q')
-    ->fields('q')
-    ->condition('id', $question_id)
-    ->execute()
-    ->fetchObject();
+  $form_state['dfb_eq_saved_question'] = $entity_get_controller('dynamic_form_question')->loadSingle($question_id);
 
   $form_state['rebuild'] = TRUE;
 }
@@ -1730,22 +1697,13 @@ function dynamic_form_ajax_section_rename($section_id) {
     drupal_exit();
   }
 
-  $section = db_select('dynamic_form_sections', 's')
-    ->fields('s', array('id', 'form_id', 'name'))
-    ->condition('s.id', $section_id)
-    ->isNull('s.deleted_at')
-    ->execute()
-    ->fetchObject();
-
+  $section = $entity_get_controller('dynamic_form_section')->loadSingle($section_id);
   if (!$section) {
     drupal_json_output(array('status' => 'error', 'message' => t('Section not found.')));
     drupal_exit();
   }
 
-  db_update('dynamic_form_sections')
-    ->fields(array('name' => $name, 'updated_at' => REQUEST_TIME))
-    ->condition('id', $section_id)
-    ->execute();
+  $entity_get_controller('dynamic_form_section')->rename($section_id, $name, REQUEST_TIME);
 
   _dynamic_form_audit_log(
     'section',
