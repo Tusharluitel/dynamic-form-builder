@@ -9,11 +9,20 @@
  * AJAX endpoint: returns matching tags for Select2 autocomplete.
  */
 function dynamic_form_ajax_tags_autocomplete() {
+  $ip = ip_address();
+  if (!flood_is_allowed('dfb_tags_autocomplete', 60, 60, $ip)) {
+    drupal_add_http_header('Status', '429 Too Many Requests');
+    drupal_add_http_header('Retry-After', '60');
+    drupal_json_output(array());
+    drupal_exit();
+  }
+  flood_register_event('dfb_tags_autocomplete', 60, $ip);
+
   $term = isset($_GET['term']) ? trim($_GET['term']) : '';
 
   $results = array();
 
-  if (drupal_strlen($term) >= 1) {
+  if (drupal_strlen($term) >= 3) {
     $query = db_select('dynamic_form_tags', 't')
       ->fields('t', array('standardized_value'))
       ->condition('standardized_value', db_like($term) . '%', 'LIKE')

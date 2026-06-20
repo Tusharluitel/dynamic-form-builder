@@ -104,7 +104,7 @@
             tokenSeparators:    [','],
             width:              '100%',
             placeholder:        'Type to search or add tags…',
-            minimumInputLength: 1,
+            minimumInputLength: 3,
             ajax: {
               url:         autocompleteUrl,
               dataType:    'json',

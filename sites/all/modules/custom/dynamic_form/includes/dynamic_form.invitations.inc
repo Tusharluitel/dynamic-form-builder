@@ -111,6 +111,15 @@ function dynamic_form_ajax_invitation_send() {
     return;
   }
 
+  // 20 invites per form per user per hour.
+  $flood_key = 'dfb_invite_send_' . (int) $user->uid . '_' . $form_id;
+  if (!flood_is_allowed($flood_key, 20, 3600)) {
+    drupal_add_http_header('Status', '429 Too Many Requests');
+    drupal_json_output(array('status' => 'error', 'message' => t('Too many invitations sent. Please wait before sending more.')));
+    return;
+  }
+  flood_register_event($flood_key, 3600);
+
   if (!_dynamic_form_edit_access($form_id)) {
     drupal_json_output(array('status' => 'error', 'message' => t('Access denied.')));
     return;
@@ -297,6 +306,7 @@ function _dynamic_form_invite_new_email($email_norm, $form_id, $form_title, $rol
       'role_label'      => _dynamic_form_role_label($role),
       'status'          => 'pending',
       'created_at'      => $now,
+      'expires_at'      => $expires,
       'invited_by_name' => $GLOBALS['user']->name,
     ),
   ));
@@ -312,6 +322,17 @@ function _dynamic_form_invite_new_email($email_norm, $form_id, $form_title, $rol
  * Route: dynamic-form/ajax/invitations/{id}/resend
  */
 function dynamic_form_ajax_invitation_resend($id) {
+  global $user;
+
+  // 10 resends per user per hour.
+  $flood_key = 'dfb_invite_resend_' . (int) $user->uid;
+  if (!flood_is_allowed($flood_key, 10, 3600)) {
+    drupal_add_http_header('Status', '429 Too Many Requests');
+    drupal_json_output(array('status' => 'error', 'message' => t('Too many resend requests. Please wait before retrying.')));
+    return;
+  }
+  flood_register_event($flood_key, 3600);
+
   $invitation = _dynamic_form_load_invitation_by_id((int) $id);
 
   if (!$invitation) {
@@ -561,6 +582,11 @@ function _dynamic_form_queue_invite_notification($invite_id, $form_title) {
     'invite_id'  => (int) $invite_id,
     'form_title' => $form_title,
   ));
+  $claimed = $queue->claimItem(60);
+  if ($claimed) {
+    _dynamic_form_send_invite_notification($claimed->data);
+    $queue->deleteItem($claimed);
+  }
 }
 
 /**

@@ -7,6 +7,15 @@
  * Route: dynamic-form/ajax/members/search?q=<query>
  */
 function dynamic_form_ajax_member_search() {
+  global $user;
+  $uid = (int) $user->uid;
+  if (!flood_is_allowed('dfb_member_search', 60, 3600, $uid)) {
+    drupal_add_http_header('Status', '429 Too Many Requests');
+    drupal_json_output(array());
+    drupal_exit();
+  }
+  flood_register_event('dfb_member_search', 3600, $uid);
+
   $q = isset($_GET['s']) ? trim($_GET['s']) : '';
 
   if (drupal_strlen($q) < 2) {
@@ -166,7 +175,7 @@ function _dynamic_form_save_members($form_id, $members_json, $is_new = TRUE) {
 }
 
 /**
- * Queues email notifications for newly-added form members.
+ * Queues email notifications for newly-added form members and sends them immediately.
  */
 function _dynamic_form_queue_member_notifications($form_id, $form_title, array $newly_added) {
   if (empty($newly_added)) {
@@ -184,6 +193,11 @@ function _dynamic_form_queue_member_notifications($form_id, $form_title, array $
       'role'       => $m['role'],
       'form_url'   => $form_url,
     ));
+    $claimed = $queue->claimItem(60);
+    if ($claimed) {
+      _dynamic_form_send_member_notification($claimed->data);
+      $queue->deleteItem($claimed);
+    }
   }
 }
 

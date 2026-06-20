@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?php print $base_path; ?>sites/all/libraries/fontawesome/css/all.min.css">
-  <link rel="stylesheet" href="<?php print $base_path; ?>sites/all/modules/dynamic_form/css/toast.css">
+  <link rel="stylesheet" href="<?php print $base_path; ?>sites/all/modules/custom/dynamic_form/css/toast.css">
   <?php print $styles; ?>
   <?php print $scripts; ?>
 </head>
@@ -113,6 +113,6 @@
 </div>
 
 <?php print $page_bottom; ?>
-<script src="<?php print $base_path; ?>sites/all/modules/dynamic_form/js/toast.js"></script>
+<script src="<?php print $base_path; ?>sites/all/modules/custom/dynamic_form/js/toast.js"></script>
 </body>
 </html>

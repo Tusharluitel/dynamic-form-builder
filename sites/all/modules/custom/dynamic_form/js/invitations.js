@@ -23,7 +23,8 @@
         var resendBase = s.resendBase || '';
         var revokeBase = s.revokeBase || '';
 
-        Drupal.dfbReloadInvitations = function () { _loadInvitations(); };
+        Drupal.dfbReloadInvitations  = function ()    { _loadInvitations(); };
+        Drupal.dfbAppendInvitation  = function (inv) { _appendInviteRow(inv); };
 
         // Small delay so members.js finishes building the table first.
         setTimeout(function () { _loadInvitations(); }, 50);
@@ -84,6 +85,51 @@
           });
         }
 
+        function _buildInviteRow(inv) {
+          var expiresIn  = _expiresIn(inv.expires_at);
+          var nearExpiry = (inv.expires_at - _now()) < 86400;
+          return $(
+            '<tr class="dfb-member-row dfb-invite-row" data-invite-id="' + inv.id + '">' +
+              '<td class="dfb-col-member">' +
+                '<div class="dfb-member-identity">' +
+                  '<div class="dfb-member-info">' +
+                    '<span class="dfb-member-mail dfb-invite-email">' + _esc(inv.email) + '</span>' +
+                    '<span class="dfb-invite-meta">' +
+                      Drupal.t('Invited by @name · @ago', {
+                        '@name': inv.invited_by_name,
+                        '@ago':  _timeAgo(inv.created_at)
+                      }) +
+                    '</span>' +
+                  '</div>' +
+                '</div>' +
+              '</td>' +
+              '<td class="dfb-col-role">' +
+                '<span class="dfb-role-text">' + _esc(inv.role_label) + '</span>' +
+              '</td>' +
+              '<td class="dfb-col-status">' +
+                '<span class="dfb-status-pill dfb-status-pending">' + Drupal.t('Pending') + '</span>' +
+                '<span class="dfb-expires-note' + (nearExpiry ? ' dfb-expires-soon' : '') + '">' +
+                  Drupal.t('Expires @when', { '@when': expiresIn }) +
+                '</span>' +
+              '</td>' +
+              '<td class="dfb-col-actions">' +
+                '<button type="button" class="dfb-invite-resend-btn" data-id="' + inv.id + '">' +
+                  Drupal.t('Resend') +
+                '</button>' +
+                '<button type="button" class="dfb-invite-revoke-btn" data-id="' + inv.id + '">' +
+                  Drupal.t('Revoke') +
+                '</button>' +
+              '</td>' +
+            '</tr>'
+          );
+        }
+
+        function _appendInviteRow(inv) {
+          var $tbody = $('#dfb-invites-tbody');
+          if (!$tbody.length) { return; }
+          $tbody.prepend(_buildInviteRow(inv));
+        }
+
         function _renderInviteRows(invitations) {
           var $tbody = $('#dfb-invites-tbody');
           if (!$tbody.length) { return; }
@@ -97,46 +143,7 @@
           if (!pending.length) { return; }
 
           $.each(pending, function (i, inv) {
-            var expiresIn  = _expiresIn(inv.expires_at);
-            var nearExpiry = (inv.expires_at - _now()) < 86400;
-
-            var $row = $(
-              '<tr class="dfb-member-row dfb-invite-row" data-invite-id="' + inv.id + '">' +
-                '<td class="dfb-col-member">' +
-                  '<div class="dfb-member-identity">' +
-          
-                    '<div class="dfb-member-info">' +
-                      '<span class="dfb-member-mail dfb-invite-email">' + _esc(inv.email) + '</span>' +
-                      '<span class="dfb-invite-meta">' +
-                        Drupal.t('Invited by @name · @ago', {
-                          '@name': inv.invited_by_name,
-                          '@ago':  _timeAgo(inv.created_at)
-                        }) +
-                      '</span>' +
-                    '</div>' +
-                  '</div>' +
-                '</td>' +
-                '<td class="dfb-col-role">' +
-                  '<span class="dfb-role-text">' + _esc(inv.role_label) + '</span>' +
-                '</td>' +
-                '<td class="dfb-col-status">' +
-                  '<span class="dfb-status-pill dfb-status-pending">' + Drupal.t('Pending') + '</span>' +
-                  '<span class="dfb-expires-note' + (nearExpiry ? ' dfb-expires-soon' : '') + '">' +
-                    Drupal.t('Expires @when', { '@when': expiresIn }) +
-                  '</span>' +
-                '</td>' +
-                '<td class="dfb-col-actions">' +
-                  '<button type="button" class="dfb-invite-resend-btn" data-id="' + inv.id + '">' +
-                    Drupal.t('Resend') +
-                  '</button>' +
-                  '<button type="button" class="dfb-invite-revoke-btn" data-id="' + inv.id + '">' +
-                    Drupal.t('Revoke') +
-                  '</button>' +
-                '</td>' +
-              '</tr>'
-            );
-
-            $tbody.append($row);
+            $tbody.append(_buildInviteRow(inv));
           });
         }
 

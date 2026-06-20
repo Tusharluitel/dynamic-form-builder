@@ -40,7 +40,7 @@ function dynamic_form_solr_tags_autocomplete() {
   $results    = array();
   $spellcheck = array('found' => FALSE, 'suggestions' => array());
 
-  if (drupal_strlen($term) >= 1) {
+  if (drupal_strlen($term) >= 3) {
     // 1. Solr prefix match — returns FALSE when Solr is unreachable.
     $results = dynamic_form_solr_search_tags($term, 20);
 

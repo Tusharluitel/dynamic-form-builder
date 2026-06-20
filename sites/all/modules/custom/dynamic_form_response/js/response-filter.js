@@ -101,7 +101,7 @@
             tokenSeparators:    [','],
             width:              '100%',
             placeholder:        $el.data('placeholder') || Drupal.t('Type to search tags…'),
-            minimumInputLength: 1,
+            minimumInputLength: 3,
             ajax: {
               url:          acUrl,
               dataType:     'json',

@@ -305,7 +305,9 @@
             success: function (resp) {
               if (resp.status === 'error') { _toast('error', resp.message); return; }
               _toast('success', resp.message);
-              if (typeof Drupal.dfbReloadInvitations === 'function') {
+              if (resp.invite && typeof Drupal.dfbAppendInvitation === 'function') {
+                Drupal.dfbAppendInvitation(resp.invite);
+              } else if (typeof Drupal.dfbReloadInvitations === 'function') {
                 Drupal.dfbReloadInvitations();
               }
             },
