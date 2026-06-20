@@ -16,7 +16,7 @@
  *
  * Retrieve a controller instance via entity_get_controller():
  *   entity_get_controller('dynamic_form_form')->loadSingle($id);
- *   entity_get_controller('dynamic_form_question')->create($fields, $now);
+ *   entity_get_controller('dynamic_form_question')->insert($fields, $now);
  */
 
 /* ==================================================================
@@ -36,7 +36,7 @@ class DynamicFormFormController extends EntityAPIController {
     return $entities ? reset($entities) : FALSE;
   }
 
-  public function create(array $fields, $now) {
+  public function insert(array $fields, $now) {
     $fields['created_at'] = $now;
     $fields['updated_at'] = $now;
     $entity = (object) $fields;
@@ -83,7 +83,7 @@ class DynamicFormSectionController extends EntityAPIController {
     return $entities ? reset($entities) : FALSE;
   }
 
-  public function create(array $fields, $now) {
+  public function insert(array $fields, $now) {
     $fields['created_at'] = $now;
     $fields['updated_at'] = $now;
     $entity = (object) $fields;
@@ -149,7 +149,7 @@ class DynamicFormQuestionController extends EntityAPIController {
     return $entities ? reset($entities) : FALSE;
   }
 
-  public function create(array $fields, $now) {
+  public function insert(array $fields, $now) {
     $fields['created_at'] = $now;
     $fields['updated_at'] = $now;
     $entity = (object) $fields;
@@ -203,7 +203,7 @@ class DynamicFormQuestionOptionController extends EntityAPIController {
     return $entities ? reset($entities) : FALSE;
   }
 
-  public function create(array $fields, $now) {
+  public function insert(array $fields, $now) {
     $fields['created_at'] = $now;
     $fields['updated_at'] = $now;
     $entity = (object) $fields;

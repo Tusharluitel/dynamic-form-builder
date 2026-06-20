@@ -246,7 +246,7 @@ function dynamic_form_builder_sections_form_submit($form, &$form_state) {
     'updated_at'  => $now,
   );
 
-  $section_entity = $entity_get_controller('dynamic_form_section')->create($fields, $now);
+  $section_entity = $entity_get_controller('dynamic_form_section')->insert($fields, $now);
   $section_id     = (int) $section_entity->id;
 
   // Append the new section to in-memory state so the form builder
@@ -834,7 +834,7 @@ function dynamic_form_builder_question_form_submit($form, &$form_state) {
     'updated_at'       => $now,
   );
 
-  $q_entity    = $entity_get_controller('dynamic_form_question')->create($q_fields, $now);
+  $q_entity    = $entity_get_controller('dynamic_form_question')->insert($q_fields, $now);
   $question_id = (int) $q_entity->id;
 
   _dynamic_form_audit_log('question', $question_id, 'created', NULL, $q_fields);
@@ -845,7 +845,7 @@ function dynamic_form_builder_question_form_submit($form, &$form_state) {
     foreach ($form_state['options'] as $i => $opt) {
       $label = isset($values['option_' . $i]) ? trim($values['option_' . $i]) : '';
       if ($label !== '') {
-        $entity_get_controller('dynamic_form_question_option')->create(array(
+        $entity_get_controller('dynamic_form_question_option')->insert(array(
           'question_id'  => $question_id,
           'option_label' => $label,
           'position'     => $i,
@@ -1575,7 +1575,7 @@ function dynamic_form_builder_question_edit_form_submit($form, &$form_state) {
     foreach ($form_state['options'] as $i => $opt) {
       $label = isset($values['option_' . $i]) ? trim($values['option_' . $i]) : '';
       if ($label !== '') {
-        $entity_get_controller('dynamic_form_question_option')->create(array(
+        $entity_get_controller('dynamic_form_question_option')->insert(array(
           'question_id'  => $question_id,
           'option_label' => $label,
           'position'     => $i,

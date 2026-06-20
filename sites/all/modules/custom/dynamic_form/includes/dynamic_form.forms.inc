@@ -233,7 +233,7 @@ function dynamic_form_create_form_submit($form, &$form_state)
     $fields['published_by'] = $user->uid;
   }
 
-  $entity = entity_get_controller('dynamic_form_form')->create($fields, $now);
+  $entity = entity_get_controller('dynamic_form_form')->insert($fields, $now);
   $id = (int) $entity->id;
 
   _dynamic_form_audit_log('form', $id, 'created', NULL, $fields);
