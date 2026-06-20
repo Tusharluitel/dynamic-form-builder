@@ -130,7 +130,7 @@ function dynamic_form_create_section_form_submit($form, &$form_state)
     'updated_at' => $now,
   );
 
-  $entity = entity_get_controller('dynamic_form_section')->insert($fields, $now);
+  $entity = entity_get_controller('dynamic_form_section')->create($fields, $now);
   $id = (int) $entity->id;
 
   _dynamic_form_audit_log('section', $id, 'created', NULL, $fields);

@@ -1,29 +1,12 @@
 <?php
 
-/**
- * @file
- * Entity controllers for the four core Dynamic Form entity types.
- *
- * Each controller extends EntityAPIController (contrib entity module), overrides
- * buildQuery() to exclude soft-deleted rows from every entity_load() call,
- * and provides create(), update(), softDelete(), and type-specific helpers.
- *
- * create() and update() use entity_save() so entity hooks (insert/update) fire
- * correctly and the static cache is reset automatically by EntityAPIController.
- *
- * softDelete() keeps db_update + resetCache() because EntityAPIController::delete()
- * performs a hard delete, which is not what we want.
- *
- * Retrieve a controller instance via entity_get_controller():
- *   entity_get_controller('dynamic_form_form')->loadSingle($id);
- *   entity_get_controller('dynamic_form_question')->insert($fields, $now);
- */
+
 
 /* ==================================================================
    FORM
    ================================================================== */
 
-class DynamicFormFormController extends EntityAPIController {
+class DynamicFormFormController extends DrupalDefaultEntityController {
 
   protected function buildQuery($ids, $conditions = array(), $revision_id = FALSE) {
     $query = parent::buildQuery($ids, $conditions, $revision_id);
@@ -33,14 +16,14 @@ class DynamicFormFormController extends EntityAPIController {
 
   public function loadSingle($id) {
     $entities = $this->load(array((int) $id));
-    return $entities ? reset($entities) : FALSE;
+    return $entities ? reset($entities) : NULL;
   }
 
-  public function insert(array $fields, $now) {
+  public function create(array $fields, $now) {
     $fields['created_at'] = $now;
     $fields['updated_at'] = $now;
     $entity = (object) $fields;
-    entity_save('dynamic_form_form', $entity);
+    drupal_write_record('dynamic_form_forms', $entity);
     return $this->loadSingle((int) $entity->id);
   }
 
@@ -53,7 +36,8 @@ class DynamicFormFormController extends EntityAPIController {
     foreach ($fields as $key => $value) {
       $entity->$key = $value;
     }
-    entity_save('dynamic_form_form', $entity);
+    drupal_write_record('dynamic_form_forms', $entity, array('id'));
+    $this->resetCache(array((int) $id));
     return $this->loadSingle($id);
   }
 
@@ -70,7 +54,7 @@ class DynamicFormFormController extends EntityAPIController {
    SECTION
    ================================================================== */
 
-class DynamicFormSectionController extends EntityAPIController {
+class DynamicFormSectionController extends DrupalDefaultEntityController {
 
   protected function buildQuery($ids, $conditions = array(), $revision_id = FALSE) {
     $query = parent::buildQuery($ids, $conditions, $revision_id);
@@ -83,11 +67,11 @@ class DynamicFormSectionController extends EntityAPIController {
     return $entities ? reset($entities) : FALSE;
   }
 
-  public function insert(array $fields, $now) {
+  public function create(array $fields, $now) {
     $fields['created_at'] = $now;
     $fields['updated_at'] = $now;
     $entity = (object) $fields;
-    entity_save('dynamic_form_section', $entity);
+    drupal_write_record('dynamic_form_sections', $entity);
     return $this->loadSingle((int) $entity->id);
   }
 
@@ -100,7 +84,8 @@ class DynamicFormSectionController extends EntityAPIController {
     foreach ($fields as $key => $value) {
       $entity->$key = $value;
     }
-    entity_save('dynamic_form_section', $entity);
+    drupal_write_record('dynamic_form_sections', $entity, array('id'));
+    $this->resetCache(array((int) $id));
     return $this->loadSingle($id);
   }
 
@@ -117,9 +102,7 @@ class DynamicFormSectionController extends EntityAPIController {
   }
 
   /**
-   * Returns all non-deleted sections for a form, ordered by position.
-   *
-   * Uses db_select because entity_load() does not support ORDER BY.
+
    */
   public function getSectionsForForm($form_id) {
     return db_select('dynamic_form_sections', 's')
@@ -136,7 +119,7 @@ class DynamicFormSectionController extends EntityAPIController {
    QUESTION
    ================================================================== */
 
-class DynamicFormQuestionController extends EntityAPIController {
+class DynamicFormQuestionController extends DrupalDefaultEntityController {
 
   protected function buildQuery($ids, $conditions = array(), $revision_id = FALSE) {
     $query = parent::buildQuery($ids, $conditions, $revision_id);
@@ -149,11 +132,11 @@ class DynamicFormQuestionController extends EntityAPIController {
     return $entities ? reset($entities) : FALSE;
   }
 
-  public function insert(array $fields, $now) {
+  public function create(array $fields, $now) {
     $fields['created_at'] = $now;
     $fields['updated_at'] = $now;
     $entity = (object) $fields;
-    entity_save('dynamic_form_question', $entity);
+    drupal_write_record('dynamic_form_questions', $entity);
     dynamic_form_invalidate_questions_cache((int) $fields['form_id']);
     return $this->loadSingle((int) $entity->id);
   }
@@ -168,7 +151,8 @@ class DynamicFormQuestionController extends EntityAPIController {
     foreach ($fields as $key => $value) {
       $entity->$key = $value;
     }
-    entity_save('dynamic_form_question', $entity);
+    drupal_write_record('dynamic_form_questions', $entity, array('id'));
+    $this->resetCache(array((int) $id));
     dynamic_form_invalidate_questions_cache($form_id);
     return $this->loadSingle($id);
   }
@@ -190,7 +174,7 @@ class DynamicFormQuestionController extends EntityAPIController {
    QUESTION OPTION
    ================================================================== */
 
-class DynamicFormQuestionOptionController extends EntityAPIController {
+class DynamicFormQuestionOptionController extends DrupalDefaultEntityController {
 
   protected function buildQuery($ids, $conditions = array(), $revision_id = FALSE) {
     $query = parent::buildQuery($ids, $conditions, $revision_id);
@@ -203,11 +187,11 @@ class DynamicFormQuestionOptionController extends EntityAPIController {
     return $entities ? reset($entities) : FALSE;
   }
 
-  public function insert(array $fields, $now) {
+  public function create(array $fields, $now) {
     $fields['created_at'] = $now;
     $fields['updated_at'] = $now;
     $entity = (object) $fields;
-    entity_save('dynamic_form_question_option', $entity);
+    drupal_write_record('dynamic_form_question_options', $entity);
     return $this->loadSingle((int) $entity->id);
   }
 

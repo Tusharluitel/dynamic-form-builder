@@ -5,19 +5,11 @@
  * Entity controllers for the dynamic_form_response and dynamic_form_answer
  * entity types.
  *
- * Each controller extends EntityAPIController, overrides buildQuery() to
- * exclude soft-deleted rows from every entity_load() call, and provides
- * create/update/softDelete and type-specific helpers.
+ * Each controller extends DrupalDefaultEntityController, overrides buildQuery()
+ * to exclude soft-deleted rows from every entity_load() call, and provides
+ * write helpers that use drupal_write_record() / db_update() + resetCache().
  *
- * create() / update()-style methods use entity_save() so entity hooks fire
- * correctly and the static cache is reset automatically.
- *
- * softDelete() uses entity_save() because the response entity already uses
- * EntityAPIController; touch() and setGuestEmail() keep db_update because
- * they are single-column partial updates (loading the full entity would be
- * wasteful or would lose atomic IS NULL guarantees).
- *
- * db_* is retained only where entity API cannot reach:
+ * db_* is retained where entity API cannot reach:
  *   - JOINs to the non-entity dynamic_form_response_sessions table
  *     (hasSubmittedByGuest, findDraftByGuest, isGuestSessionOwner, createSession)
  *   - COUNT aggregates (hasSubmittedByUser, hasSubmittedByGuest)
@@ -35,7 +27,7 @@
    RESPONSE
    ================================================================== */
 
-class DynamicFormResponseController extends EntityAPIController {
+class DynamicFormResponseController extends DrupalDefaultEntityController {
 
   protected function buildQuery($ids, $conditions = array(), $revision_id = FALSE) {
     $query = parent::buildQuery($ids, $conditions, $revision_id);
@@ -136,7 +128,7 @@ class DynamicFormResponseController extends EntityAPIController {
       'created_at'  => $now,
       'updated_at'  => $now,
     );
-    entity_save('dynamic_form_response', $entity);
+    drupal_write_record('dynamic_form_responses', $entity);
     return $this->loadSingle((int) $entity->id);
   }
 
@@ -198,7 +190,8 @@ class DynamicFormResponseController extends EntityAPIController {
     $entity->status       = 1;
     $entity->submitted_at = $now;
     $entity->updated_at   = $now;
-    entity_save('dynamic_form_response', $entity);
+    drupal_write_record('dynamic_form_responses', $entity, array('id'));
+    $this->resetCache(array((int) $id));
     return $this->loadSingle($id);
   }
 
@@ -207,14 +200,11 @@ class DynamicFormResponseController extends EntityAPIController {
    */
   public function softDelete($id, $uid, $now = NULL) {
     $now = $now ?: REQUEST_TIME;
-    $entity = $this->loadSingle($id);
-    if (!$entity) {
-      return;
-    }
-    $entity->deleted_at = $now;
-    $entity->deleted_by = (int) $uid;
-    $entity->updated_at = $now;
-    entity_save('dynamic_form_response', $entity);
+    db_update('dynamic_form_responses')
+      ->fields(array('deleted_at' => $now, 'deleted_by' => (int) $uid, 'updated_at' => $now))
+      ->condition('id', (int) $id)
+      ->execute();
+    $this->resetCache(array((int) $id));
   }
 }
 
@@ -222,7 +212,7 @@ class DynamicFormResponseController extends EntityAPIController {
    ANSWER
    ================================================================== */
 
-class DynamicFormAnswerController extends EntityAPIController {
+class DynamicFormAnswerController extends DrupalDefaultEntityController {
 
   protected function buildQuery($ids, $conditions = array(), $revision_id = FALSE) {
     $query = parent::buildQuery($ids, $conditions, $revision_id);
@@ -269,12 +259,11 @@ class DynamicFormAnswerController extends EntityAPIController {
       ->fetchField();
 
     if ($existing_id) {
-      $entity = $this->loadSingle((int) $existing_id);
-      if ($entity) {
-        $entity->value      = $value;
-        $entity->updated_at = $now;
-        entity_save('dynamic_form_answer', $entity);
-      }
+      db_update('dynamic_form_answers')
+        ->fields(array('value' => $value, 'updated_at' => $now, 'deleted_at' => NULL))
+        ->condition('id', (int) $existing_id)
+        ->execute();
+      $this->resetCache(array((int) $existing_id));
       return (int) $existing_id;
     }
 
@@ -285,7 +274,7 @@ class DynamicFormAnswerController extends EntityAPIController {
       'created_at'  => $now,
       'updated_at'  => $now,
     );
-    entity_save('dynamic_form_answer', $entity);
+    drupal_write_record('dynamic_form_answers', $entity);
     return (int) $entity->id;
   }
 }
