@@ -96,7 +96,7 @@ function dynamic_form_builder_page($form_id) {
 /* =====================================================================
    SECTIONS — DRUPAL FORM API (add-more pattern)
    ===================================================================== */
-
+// NOTE: Not called to called files
 function dynamic_form_builder_sections_form($form, &$form_state, $form_id) {
   // Required: tells Drupal where to find this function for AJAX rebuilds.
   $form_state['build_info']['files'][] = array(
@@ -246,7 +246,7 @@ function dynamic_form_builder_sections_form_submit($form, &$form_state) {
     'updated_at'  => $now,
   );
 
-  $section_entity = $entity_get_controller('dynamic_form_section')->create($fields, $now);
+  $section_entity = entity_get_controller('dynamic_form_section')->create($fields, $now);
   $section_id     = (int) $section_entity->id;
 
   // Append the new section to in-memory state so the form builder
@@ -256,7 +256,7 @@ function dynamic_form_builder_sections_form_submit($form, &$form_state) {
   $form_state['sections'][] = $new_section;
 
   // Clear the add-section input fields for the next render.
-  $form_state['input']['section_name']        = '';
+  $form_state['input']['section_name']        = ''; //Clears server-side v
   $form_state['input']['section_description'] = '';
 
   // Signal Drupal to re-run the form builder before the AJAX callback.
@@ -270,7 +270,7 @@ function dynamic_form_builder_sections_ajax_callback($form, &$form_state) {
   $commands   = array();
   $commands[] = ajax_command_replace('#dfb-sections-wrapper', render($form['sections_wrapper']));
   // Clear the add-section fields in the browser after a successful submit.
-  $commands[] = ajax_command_invoke('input[name="section_name"]', 'val', array(''));
+  $commands[] = ajax_command_invoke('input[name="section_name"]', 'val', array('')); // Clears client side
   $commands[] = ajax_command_invoke('textarea[name="section_description"]', 'val', array(''));
   return array('#type' => 'ajax', '#commands' => $commands);
 }
@@ -834,7 +834,7 @@ function dynamic_form_builder_question_form_submit($form, &$form_state) {
     'updated_at'       => $now,
   );
 
-  $q_entity    = $entity_get_controller('dynamic_form_question')->create($q_fields, $now);
+  $q_entity    = entity_get_controller('dynamic_form_question')->create($q_fields, $now);
   $question_id = (int) $q_entity->id;
 
   _dynamic_form_audit_log('question', $question_id, 'created', NULL, $q_fields);
@@ -845,7 +845,7 @@ function dynamic_form_builder_question_form_submit($form, &$form_state) {
     foreach ($form_state['options'] as $i => $opt) {
       $label = isset($values['option_' . $i]) ? trim($values['option_' . $i]) : '';
       if ($label !== '') {
-        $entity_get_controller('dynamic_form_question_option')->create(array(
+        entity_get_controller('dynamic_form_question_option')->create(array(
           'question_id'  => $question_id,
           'option_label' => $label,
           'position'     => $i,
@@ -912,10 +912,21 @@ function dynamic_form_builder_question_form_submit($form, &$form_state) {
   $form_state['dfb_saved_question']   = $q_obj;
   $form_state['dfb_saved_section_id'] = $section_id;
 
-  $form_state['options']          = array(array('label' => ''), array('label' => ''));
-  $form_state['validations']      = array();
-  $form_state['input']['width']   = 'full';
-  $form_state['rebuild']          = TRUE;
+  $form_state['options']     = array(array('label' => ''), array('label' => ''));
+  $form_state['validations'] = array();
+
+  // Clear all user-typed inputs so the modal opens blank for the next question.
+  // Preserve Drupal's own form internals (build id, token, form id).
+  $drupal_internals = array('form_build_id', 'form_token', 'form_id', 'op');
+  foreach (array_keys($form_state['input']) as $key) {
+    if (!in_array($key, $drupal_internals)) {
+      unset($form_state['input'][$key]);
+    }
+  }
+  $form_state['input']['width']      = 'full';
+  $form_state['input']['section_id'] = 0;
+
+  $form_state['rebuild'] = TRUE;
 }
 
 /**
@@ -1047,7 +1058,7 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
   );
 
   if (!isset($form_state['dfb_eq_loaded'])) {
-    $q = $entity_get_controller('dynamic_form_question')->loadSingle($question_id);
+    $q = entity_get_controller('dynamic_form_question')->loadSingle($question_id);
     if (!$q) {
       $form['error'] = array(
         '#markup' => '<div class="dfb-modal-header">'
@@ -1060,7 +1071,7 @@ function dynamic_form_builder_question_edit_form($form, &$form_state, $question_
 
     $section_name = '';
     if ($q->section_id) {
-      $sec = $entity_get_controller('dynamic_form_section')->loadSingle($q->section_id);
+      $sec = entity_get_controller('dynamic_form_section')->loadSingle($q->section_id);
       $section_name = $sec ? $sec->name : '';
     }
 
@@ -1564,18 +1575,18 @@ function dynamic_form_builder_question_edit_form_submit($form, &$form_state) {
     'updated_at'       => $now,
   );
 
-  $entity_get_controller('dynamic_form_question')->update($question_id, $new_q_fields, $now);
+  entity_get_controller('dynamic_form_question')->update($question_id, $new_q_fields, $now);
   _dynamic_form_audit_log('question', $question_id, 'updated', (array) $form_state['dfb_eq_question'], $new_q_fields);
 
   // Soft-delete existing options then re-insert survivors.
-  $entity_get_controller('dynamic_form_question_option')->softDeleteForQuestion($question_id, (int) $user->uid, $now);
+  entity_get_controller('dynamic_form_question_option')->softDeleteForQuestion($question_id, (int) $user->uid, $now);
 
   $choice_types = array('radio', 'checkbox', 'select', 'rating', 'linear_scale');
   if (in_array($type, $choice_types)) {
     foreach ($form_state['options'] as $i => $opt) {
       $label = isset($values['option_' . $i]) ? trim($values['option_' . $i]) : '';
       if ($label !== '') {
-        $entity_get_controller('dynamic_form_question_option')->create(array(
+        entity_get_controller('dynamic_form_question_option')->create(array(
           'question_id'  => $question_id,
           'option_label' => $label,
           'position'     => $i,
@@ -1638,7 +1649,7 @@ function dynamic_form_builder_question_edit_form_submit($form, &$form_state) {
   }
 
   // Fetch the updated row so the AJAX callback can re-render the card.
-  $form_state['dfb_eq_saved_question'] = $entity_get_controller('dynamic_form_question')->loadSingle($question_id);
+  $form_state['dfb_eq_saved_question'] = entity_get_controller('dynamic_form_question')->loadSingle($question_id);
 
   $form_state['rebuild'] = TRUE;
 }
@@ -1697,13 +1708,13 @@ function dynamic_form_ajax_section_rename($section_id) {
     drupal_exit();
   }
 
-  $section = $entity_get_controller('dynamic_form_section')->loadSingle($section_id);
+  $section = entity_get_controller('dynamic_form_section')->loadSingle($section_id);
   if (!$section) {
     drupal_json_output(array('status' => 'error', 'message' => t('Section not found.')));
     drupal_exit();
   }
 
-  $entity_get_controller('dynamic_form_section')->rename($section_id, $name, REQUEST_TIME);
+  entity_get_controller('dynamic_form_section')->rename($section_id, $name, REQUEST_TIME);
 
   _dynamic_form_audit_log(
     'section',

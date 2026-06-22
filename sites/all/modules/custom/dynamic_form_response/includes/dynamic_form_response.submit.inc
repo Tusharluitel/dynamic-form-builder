@@ -326,7 +326,7 @@ function dynamic_form_response_form($form, &$form_state, $record, $guest_token =
         'data-required'    => $q->is_required ? '1' : '0',
       );
       if (!empty($rules)) {
-        $q_attrs['data-validations'] = check_plain(drupal_json_encode($rules));
+        $q_attrs['data-validations'] = drupal_json_encode($rules);
       }
 
       $form['card']['inner'][$step_key][$sec_key][$row_key]['col_' . $qid]['question'] = array(
@@ -688,8 +688,11 @@ function _dynamic_form_response_build_fapi_element($q, array $opts, array $scale
       if ($accept_list) {
         $file_attrs['accept'] = implode(',', $accept_list);
       }
-      if (!empty($q->max_files) && (int) $q->max_files > 1) {
-        $file_attrs['multiple'] = 'multiple';
+      if (!empty($q->max_files)) {
+        $file_attrs['data-max-files'] = (string) (int) $q->max_files;
+        if ((int) $q->max_files > 1) {
+          $file_attrs['multiple'] = 'multiple';
+        }
       }
       $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"'
         . ' stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'
@@ -815,14 +818,14 @@ function _dynamic_form_response_maybe_load_tinymce($form_id) {
  */
 function dynamic_form_response_ajax_guest_email() {
   // 5 guest-email lookups per hour per IP — prevents email harvesting.
-  $ip = ip_address();
-  if (!flood_is_allowed('dfr_guest_email', 5, 3600, $ip)) {
-    drupal_add_http_header('Status', '429 Too Many Requests');
-    drupal_add_http_header('Retry-After', '3600');
-    drupal_json_output(array('status' => 'error', 'message' => t('Too many requests. Please try again later.')));
-    drupal_exit();
-  }
-  flood_register_event('dfr_guest_email', 3600, $ip);
+  // $ip = ip_address();
+  // if (!flood_is_allowed('dfr_guest_email', 5, 3600, $ip)) {
+  //   drupal_add_http_header('Status', '429 Too Many Requests');
+  //   drupal_add_http_header('Retry-After', '3600');
+  //   drupal_json_output(array('status' => 'error', 'message' => t('Too many requests. Please try again later.')));
+  //   drupal_exit();
+  // }
+  // flood_register_event('dfr_guest_email', 3600, $ip);
   drupal_json_output(_dynamic_form_response_do_guest_email());
 }
 
@@ -851,15 +854,15 @@ function _dynamic_form_response_do_guest_email() {
  * Returns JSON: { status: 'ok', response_id: N } or { status: 'error', message: '...' }
  */
 function dynamic_form_response_ajax_save() {
-  // 120 auto-saves per hour per IP (one every 30 s is normal usage).
-  $ip = ip_address();
-  if (!flood_is_allowed('dfr_response_save', 120, 3600, $ip)) {
-    drupal_add_http_header('Status', '429 Too Many Requests');
-    drupal_add_http_header('Retry-After', '60');
-    drupal_json_output(array('status' => 'error', 'message' => t('Too many requests. Please try again later.')));
-    drupal_exit();
-  }
-  flood_register_event('dfr_response_save', 3600, $ip);
+  // // 120 auto-saves per hour per IP (one every 30 s is normal usage).
+  // $ip = ip_address();
+  // if (!flood_is_allowed('dfr_response_save', 120, 3600, $ip)) {
+  //   drupal_add_http_header('Status', '429 Too Many Requests');
+  //   drupal_add_http_header('Retry-After', '60');
+  //   drupal_json_output(array('status' => 'error', 'message' => t('Too many requests. Please try again later.')));
+  //   drupal_exit();
+  // }
+  // flood_register_event('dfr_response_save', 3600, $ip);
   drupal_json_output(_dynamic_form_response_do_save());
 }
 
@@ -1026,9 +1029,9 @@ function _dynamic_form_response_do_save() {
  * Returns JSON: { status: 'ok' } or { status: 'error', errors: { qid: msg, … } }
  */
 function dynamic_form_response_ajax_submit() {
-  // 10 final submissions per hour per IP — genuine users rarely resubmit.
+  // 30 final submissions per hour per IP — genuine users rarely resubmit.
   $ip = ip_address();
-  if (!flood_is_allowed('dfr_response_submit', 10, 3600, $ip)) {
+  if (!flood_is_allowed('dfr_response_submit', 30, 3600, $ip)) {
     drupal_add_http_header('Status', '429 Too Many Requests');
     drupal_add_http_header('Retry-After', '3600');
     drupal_json_output(array('status' => 'error', 'message' => t('Too many submissions. Please try again later.')));
@@ -1104,7 +1107,7 @@ function _dynamic_form_response_do_submit() {
   $user_rules = db_select('dynamic_form_question_validations', 'v')
     ->fields('v')
     ->condition('question_id', array_keys($answers), 'IN')
-    ->condition('rule_type', array('min_length', 'max_length', 'min_value', 'max_value', 'regex'), 'IN')
+    ->condition('rule_type', array('min_length', 'max_length', 'min_value', 'max_value', 'regex', 'email', 'url', 'numeric'), 'IN')
     ->execute()
     ->fetchAll();
 
@@ -1159,6 +1162,9 @@ function _dynamic_form_response_apply_rule($rule_type, $rule_value, $error_messa
     'min_value'  => t('Must be at least @n.',            array('@n' => $rule_value)),
     'max_value'  => t('Must be at most @n.',             array('@n' => $rule_value)),
     'regex'      => t('Invalid format.'),
+    'email'      => t('Must be a valid email address.'),
+    'url'        => t('Must be a valid URL.'),
+    'numeric'    => t('Must be a number.'),
   );
   $msg = (!empty($error_message)) ? $error_message : (isset($default_messages[$rule_type]) ? $default_messages[$rule_type] : t('Invalid value.'));
 
@@ -1178,6 +1184,12 @@ function _dynamic_form_response_apply_rule($rule_type, $rule_value, $error_messa
       $match = @preg_match($pattern, $value);
       ini_set('pcre.backtrack_limit', $prev_limit);
       return ($match === 0) ? $msg : NULL;
+    case 'email':
+      return valid_email_address($value) ? NULL : $msg;
+    case 'url':
+      return valid_url($value, array('https', 'http', 'ftp')) ? NULL : $msg;
+    case 'numeric':
+      return is_numeric($value) ? NULL : $msg;
   }
   return NULL;
 }

@@ -23,10 +23,13 @@
       }
 
       // Drupal states fires state:visible on the container when #states makes
-      // it visible. The second argument is the new boolean state value.
-      $formPicker.on('state:visible', function (e, value) {
-        if (value) {
-          maybeInitSelect2();
+      // it visible. The new boolean value is on e.value (not a second argument —
+      // Drupal uses .trigger({ type, value }) not .trigger(type, [value])).
+      // Defer with setTimeout so the document-level states handler has applied
+      // .toggle() before Select2 tries to measure the element's dimensions.
+      $formPicker.on('state:visible', function (e) {
+        if (e.value) {
+          setTimeout(maybeInitSelect2, 0);
         }
       });
     }

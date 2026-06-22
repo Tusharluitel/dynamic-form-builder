@@ -161,20 +161,51 @@
         autosaveTimer = setTimeout(doAutosave, 2000);
       }
 
-      // Autosave and clear validation errors on any input change.
-      // File uploads are excluded from autosave — they save themselves.
+      // Choice / select inputs: just clear errors and trigger autosave on change.
       $container.on(
-        'input change',
-        '.dfp-input, .dfp-textarea, .dfp-select2, input[type="radio"], input[type="checkbox"]',
+        'change',
+        '.dfp-select2, input[type="radio"], input[type="checkbox"]',
         function () {
-          if (!$(this).closest('.dfp-file-dropzone').length) {
-            triggerAutosave();
-          }
+          triggerAutosave();
           var $q = $(this).closest('.dfp-question');
           $q.find('.dfr-field-error').text('').hide();
           $q.removeClass('dfp-question-error');
         }
       );
+
+      // Text / textarea: live validation on every keystroke.
+      // Empty → no message. Has content → run rules immediately.
+      $container.on('input', '.dfp-input, .dfp-textarea', function () {
+        triggerAutosave();
+        var $q  = $(this).closest('.dfp-question');
+        var val = $(this).val() || '';
+
+        if (val === '') {
+          $q.find('.dfr-field-error').text('').hide();
+          $q.removeClass('dfp-question-error');
+          return;
+        }
+
+        var rules = $q.data('validations');
+        if (!rules || !rules.length) {
+          $q.find('.dfr-field-error').text('').hide();
+          $q.removeClass('dfp-question-error');
+          return;
+        }
+
+        var errorMsg = null;
+        for (var i = 0; i < rules.length; i++) {
+          var err = applyRule(rules[i].rule_type, rules[i].rule_value, rules[i].error_message, val);
+          if (err) { errorMsg = err; break; }
+        }
+        if (errorMsg) {
+          $q.find('.dfr-field-error').text(errorMsg).show();
+          $q.addClass('dfp-question-error');
+        } else {
+          $q.find('.dfr-field-error').text('').hide();
+          $q.removeClass('dfp-question-error');
+        }
+      });
 
       // ----------------------------------------------------------------
       // Rating stars
@@ -231,6 +262,16 @@
         var $nameEl   = $dropzone.find('.dfp-file-name');
         var files     = Array.prototype.slice.call(this.files);
         var total     = files.length;
+
+        var maxFiles = parseInt($input.data('max-files'), 10) || 0;
+        if (maxFiles > 0 && total > maxFiles) {
+          $dropzone.addClass('dfp-file-error').removeClass('dfp-file-done dfp-file-uploading');
+          $nameEl.text('You can upload at most ' + maxFiles + ' file(s). Please select fewer files.').show();
+          $q.find('.dfr-field-error').text('Too many files selected (max ' + maxFiles + ').').show();
+          $q.addClass('dfp-question-error');
+          $input.val('');
+          return;
+        }
 
         $nameEl.text(total > 1 ? 'Uploading 1 of ' + total + '…' : 'Uploading…').show();
         $dropzone.addClass('dfp-file-uploading').removeClass('dfp-file-done dfp-file-error');
@@ -373,7 +414,10 @@
           max_length: 'Must be at most '  + ruleValue + ' characters.',
           min_value:  'Must be at least ' + ruleValue + '.',
           max_value:  'Must be at most '  + ruleValue + '.',
-          regex:      'Invalid format.'
+          regex:      'Invalid format.',
+          email:      'Must be a valid email address.',
+          url:        'Must be a valid URL.',
+          numeric:    'Must be a number.'
         };
         var msg = errorMessage || defaults[ruleType] || 'Invalid value.';
         switch (ruleType) {
@@ -384,6 +428,16 @@
           case 'regex': {
             try { return (new RegExp(ruleValue).test(String(val))) ? null : msg; }
             catch (e) { return null; }
+          }
+          case 'email': {
+            return (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(val))) ? null : msg;
+          }
+          case 'url': {
+            try { new URL(val); return null; }
+            catch (e) { return msg; }
+          }
+          case 'numeric': {
+            return (!isNaN(parseFloat(val)) && isFinite(val)) ? null : msg;
           }
         }
         return null;
@@ -407,17 +461,14 @@
           if (isReq && isEmpty) {
             errorMsg = 'This field is required.';
           } else if (!isEmpty) {
-            var rawRules = $q.attr('data-validations');
-            if (rawRules) {
-              try {
-                var rules = JSON.parse(rawRules);
-                var strVal = Array.isArray(val) ? val.join(',') : String(val);
-                for (var i = 0; i < rules.length; i++) {
-                  var r = rules[i];
-                  var rErr = applyRule(r.rule_type, r.rule_value, r.error_message, strVal);
-                  if (rErr) { errorMsg = rErr; break; }
-                }
-              } catch (e) {}
+            var qRules = $q.data('validations');
+            if (qRules && qRules.length) {
+              var strVal = Array.isArray(val) ? val.join(',') : String(val);
+              for (var i = 0; i < qRules.length; i++) {
+                var r = qRules[i];
+                var rErr = applyRule(r.rule_type, r.rule_value, r.error_message, strVal);
+                if (rErr) { errorMsg = rErr; break; }
+              }
             }
           }
 

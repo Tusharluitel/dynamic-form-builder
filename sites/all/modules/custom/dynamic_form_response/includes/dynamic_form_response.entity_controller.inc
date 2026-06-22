@@ -4,23 +4,6 @@
  * @file
  * Entity controllers for the dynamic_form_response and dynamic_form_answer
  * entity types.
- *
- * Each controller extends DrupalDefaultEntityController, overrides buildQuery()
- * to exclude soft-deleted rows from every entity_load() call, and provides
- * write helpers that use drupal_write_record() / db_update() + resetCache().
- *
- * db_* is retained where entity API cannot reach:
- *   - JOINs to the non-entity dynamic_form_response_sessions table
- *     (hasSubmittedByGuest, findDraftByGuest, isGuestSessionOwner, createSession)
- *   - COUNT aggregates (hasSubmittedByUser, hasSubmittedByGuest)
- *   - Key-value mapping queries (getAnswersMap)
- *   - Single-column partial updates (touch, setGuestEmail)
- *   - upsert() existence check — intentionally finds soft-deleted rows so a
- *     re-submitted answer updates in place rather than creating a duplicate
- *
- * Retrieve a controller instance via entity_get_controller():
- *   entity_get_controller('dynamic_form_response')->loadSingle($id);
- *   entity_get_controller('dynamic_form_answer')->upsert($r, $q, $v, $now);
  */
 
 /* ==================================================================

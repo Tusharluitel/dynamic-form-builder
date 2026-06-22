@@ -431,42 +431,42 @@ function dynamic_form_menu()
   );
 
   // Form CRUD routes.
-  $items['form/create'] = array(
-    'title' => 'Create Form',
-    'page callback' => 'drupal_get_form',
-    'page arguments' => array('dynamic_form_create_form'),
-    'access arguments' => array('create new form'),
-    'file' => 'includes/dynamic_form.forms.inc',
-    'type' => MENU_CALLBACK,
-  );
+  // $items['form/create'] = array(
+  //   'title' => 'Create Form',
+  //   'page callback' => 'drupal_get_form',
+  //   'page arguments' => array('dynamic_form_create_form'),
+  //   'access arguments' => array('create new form'),
+  //   'file' => 'includes/dynamic_form.forms.inc',
+  //   'type' => MENU_CALLBACK,
+  // );
 
-  $items['form/list'] = array(
-    'title' => 'My Forms',
-    'page callback' => 'dynamic_form_list_page',
-    'access arguments' => array('view forms'),
-    'file' => 'includes/dynamic_form.forms.inc',
-    'type' => MENU_CALLBACK,
-  );
+  // $items['form/list'] = array(
+  //   'title' => 'My Forms',
+  //   'page callback' => 'dynamic_form_list_page',
+  //   'access arguments' => array('view forms'),
+  //   'file' => 'includes/dynamic_form.forms.inc',
+  //   'type' => MENU_CALLBACK,
+  // );
 
-  $items['form/%/edit'] = array(
-    'title' => 'Edit Form',
-    'page callback' => 'drupal_get_form',
-    'page arguments' => array('dynamic_form_edit_form', 1),
-    'access callback' => '_dynamic_form_edit_access',
-    'access arguments' => array(1),
-    'file' => 'includes/dynamic_form.forms.inc',
-    'type' => MENU_CALLBACK,
-  );
+  // $items['form/%/edit'] = array(
+  //   'title' => 'Edit Form',
+  //   'page callback' => 'drupal_get_form',
+  //   'page arguments' => array('dynamic_form_edit_form', 1),
+  //   'access callback' => '_dynamic_form_edit_access',
+  //   'access arguments' => array(1),
+  //   'file' => 'includes/dynamic_form.forms.inc',
+  //   'type' => MENU_CALLBACK,
+  // );
 
-  $items['form/%/delete'] = array(
-    'title' => 'Delete Form',
-    'page callback' => 'drupal_get_form',
-    'page arguments' => array('dynamic_form_delete_confirm', 1),
-    'access callback' => '_dynamic_form_delete_access',
-    'access arguments' => array(1),
-    'file' => 'includes/dynamic_form.forms.inc',
-    'type' => MENU_CALLBACK,
-  );
+  // $items['form/%/delete'] = array(
+  //   'title' => 'Delete Form',
+  //   'page callback' => 'drupal_get_form',
+  //   'page arguments' => array('dynamic_form_delete_confirm', 1),
+  //   'access callback' => '_dynamic_form_delete_access',
+  //   'access arguments' => array(1),
+  //   'file' => 'includes/dynamic_form.forms.inc',
+  //   'type' => MENU_CALLBACK,
+  // );
 
   // Dashboard routes.
   $items['dashboard'] = array(
@@ -978,19 +978,11 @@ function dynamic_form_theme($existing, $type, $theme, $path)
  */
 function dynamic_form_get_questions($form_id) {
   $form_id = (int) $form_id;
-  $static  = &drupal_static(__FUNCTION__, array()); //holds cached questions for all forms keyed by form_id
-
-  if (isset($static[$form_id])) {
-    return $static[$form_id];
-  }
-
-  $cid    = 'dynamic_form:questions:' . $form_id;
-  $cached = cache_get($cid);
+  $cid     = 'dynamic_form:questions:' . $form_id;
+  $cached  = cache_get($cid);
   if ($cached !== FALSE) {
-    $static[$form_id] = $cached->data;
-    return $static[$form_id];
+    return $cached->data;
   }
-
   $questions = db_select('dynamic_form_questions', 'q')
     ->fields('q')
     ->condition('form_id', $form_id)
@@ -998,10 +990,8 @@ function dynamic_form_get_questions($form_id) {
     ->orderBy('position', 'ASC')
     ->execute()
     ->fetchAll();
-
   cache_set($cid, $questions);
-  $static[$form_id] = $questions;
-  return $static[$form_id];
+  return $questions;
 }
 
 /**

@@ -23,13 +23,13 @@
             $toggle.prop('disabled', false);
             if (data.status === 'ok') {
               if (typeof DFBToast !== 'undefined') {
-                DFBToast.show('success', data.message);
+                DFBToast.success(data.message);
               }
             } else {
               // Revert on server-side rejection.
               $toggle.prop('checked', !newVal);
               if (typeof DFBToast !== 'undefined') {
-                DFBToast.show('error', data.message || Drupal.t('Could not update filter setting.'));
+                DFBToast.error(data.message || Drupal.t('Could not update filter setting.'));
               }
             }
           },
@@ -37,7 +37,7 @@
             $toggle.prop('disabled', false);
             $toggle.prop('checked', !newVal);
             if (typeof DFBToast !== 'undefined') {
-              DFBToast.show('error', Drupal.t('Request failed. Please try again.'));
+              DFBToast.error(Drupal.t('Request failed. Please try again.'));
             }
           }
         });
