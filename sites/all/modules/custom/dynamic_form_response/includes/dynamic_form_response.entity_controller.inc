@@ -175,7 +175,9 @@ class DynamicFormResponseController extends DrupalDefaultEntityController {
     $entity->updated_at   = $now;
     drupal_write_record('dynamic_form_responses', $entity, array('id'));
     $this->resetCache(array((int) $id));
-    return $this->loadSingle($id);
+    $submitted = $this->loadSingle($id);
+    module_invoke_all('dynamic_form_response_submit', $id, $submitted);
+    return $submitted;
   }
 
   /**
@@ -188,6 +190,7 @@ class DynamicFormResponseController extends DrupalDefaultEntityController {
       ->condition('id', (int) $id)
       ->execute();
     $this->resetCache(array((int) $id));
+    module_invoke_all('dynamic_form_response_softdelete', $id, $now);
   }
 }
 

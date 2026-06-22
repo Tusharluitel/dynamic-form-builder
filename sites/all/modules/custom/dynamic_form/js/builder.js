@@ -396,6 +396,7 @@
             url:         deletePath + '/' + entityType + '/' + entityId,
             type:        'POST',
             dataType:    'json',
+            data:        { token: (Drupal.settings.dfbAjaxTokens && Drupal.settings.dfbAjaxTokens.softDelete) ? Drupal.settings.dfbAjaxTokens.softDelete : '' },
             success: function (resp) {
               modal.hide();
               $btn.removeAttr('disabled').text(Drupal.t('Delete'));

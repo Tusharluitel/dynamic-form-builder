@@ -1,5 +1,158 @@
 <?php
 
+// ---------------------------------------------------------------------------
+// Apache Solr entity registration
+// ---------------------------------------------------------------------------
+
+/**
+ * Implements hook_entity_info_alter().
+ *
+ * dynamic_form_response declares no bundles in hook_entity_info(), but the
+ * apachesolr config UI iterates $entity_info['bundles'] to render checkboxes.
+ * Add a self-named bundle so the entity appears in the list.
+ */
+function dynamic_form_solr_entity_info_alter(&$entity_info) {
+  if (isset($entity_info['dynamic_form_response']) && empty($entity_info['dynamic_form_response']['bundles'])) {
+    $entity_info['dynamic_form_response']['bundles']['dynamic_form_response'] = array(
+      'label' => $entity_info['dynamic_form_response']['label'],
+    );
+  }
+}
+
+/**
+ * Implements hook_apachesolr_entity_info_alter().
+ *
+ * Marks dynamic_form_response as indexable so it appears under
+ * "Select entity types and bundles" at admin/config/search/apachesolr.
+ * index_table points to the generic apachesolr tracking table so the Re-index
+ * button and cron indexer can queue and process responses.
+ */
+function dynamic_form_solr_apachesolr_entity_info_alter(&$entity_info) {
+  $entity_info['dynamic_form_response'] = array(
+    'indexable'         => TRUE,
+    'index_table'       => 'apachesolr_index_entities',
+    'status callback'   => array('dynamic_form_solr_response_status_callback'),
+    'document callback' => array('dynamic_form_solr_response_document_callback'),
+    'reindex callback'  => 'dynamic_form_solr_response_reindex_callback',
+  );
+}
+
+/**
+ * Reindex callback for dynamic_form_response entities.
+ *
+ * Called by apachesolr when the "Re-index" button is pressed for this entity
+ * type. Clears existing tracking rows then re-populates them from the DB so
+ * cron will pick up every submitted, non-deleted response.
+ *
+ * @param string $env_id   Apachesolr environment ID.
+ * @param string $bundle   Bundle to restrict to (NULL = all).
+ * @param string $entity_type
+ */
+function dynamic_form_solr_response_reindex_callback($env_id, $bundle = NULL, $entity_type = NULL) {
+  $transaction = db_transaction();
+  try {
+    db_delete('apachesolr_index_entities')
+      ->condition('entity_type', 'dynamic_form_response')
+      ->execute();
+
+    $select = db_select('dynamic_form_responses', 'r')
+      ->condition('r.status', 1)
+      ->isNull('r.deleted_at');
+    $select->addExpression("'dynamic_form_response'", 'entity_type');
+    $select->addField('r', 'id', 'entity_id');
+    $select->addExpression("'dynamic_form_response'", 'bundle');
+    $select->addExpression(1, 'status');
+    $select->addField('r', 'submitted_at', 'changed');
+
+    db_insert('apachesolr_index_entities')
+      ->fields(array('entity_type', 'entity_id', 'bundle', 'status', 'changed'))
+      ->from($select)
+      ->execute();
+  }
+  catch (Exception $e) {
+    $transaction->rollback();
+    watchdog_exception('dynamic_form_solr', $e);
+  }
+}
+
+/**
+ * Status callback for dynamic_form_response entities.
+ *
+ * Only submitted, non-deleted responses belong in the index.
+ */
+function dynamic_form_solr_response_status_callback($entity, $entity_type) {
+  return !empty($entity->status) && empty($entity->deleted_at);
+}
+
+/**
+ * Document callback for dynamic_form_response entities.
+ *
+ * Delegates to the existing response document builder so the custom field
+ * structure (doc_type, is_form_id, tm_q_*, etc.) is preserved.
+ *
+ * @return ApacheSolrDocument[]
+ */
+function dynamic_form_solr_response_document_callback($entity, $entity_type) {
+  $response_id = (int) $entity->id;
+
+  $answers = db_select('dynamic_form_answers', 'a')
+    ->fields('a', array('question_id', 'value'))
+    ->condition('response_id', $response_id)
+    ->execute()
+    ->fetchAll();
+
+  $question_types = array();
+  if (!empty($answers)) {
+    $qids = array_map(function ($a) { return (int) $a->question_id; }, $answers);
+    $question_types = db_select('dynamic_form_questions', 'q')
+      ->fields('q', array('id', 'type'))
+      ->condition('id', $qids, 'IN')
+      ->execute()
+      ->fetchAllKeyed(0, 1);
+  }
+
+  $answers = _dynamic_form_solr_inject_tag_answers($answers, $question_types, $response_id);
+  $doc = _dynamic_form_solr_build_response_doc($entity, $answers, $question_types);
+  return array($doc);
+}
+
+// ---------------------------------------------------------------------------
+// Tracking table — keep apachesolr_index_entities current
+// ---------------------------------------------------------------------------
+
+/**
+ * Implements hook_dynamic_form_response_submit().
+ *
+ * Adds/updates the tracking row so cron picks up the newly submitted response
+ * without requiring a full re-index.
+ */
+function dynamic_form_solr_dynamic_form_response_submit($response_id, $entity) {
+  db_merge('apachesolr_index_entities')
+    ->key(array('entity_id' => (int) $response_id, 'entity_type' => 'dynamic_form_response'))
+    ->fields(array(
+      'bundle'  => 'dynamic_form_response',
+      'status'  => 1,
+      'changed' => REQUEST_TIME,
+    ))
+    ->execute();
+}
+
+/**
+ * Implements hook_dynamic_form_response_softdelete().
+ *
+ * Sets the tracking row to status=0 so the apachesolr cron runner removes the
+ * document from Solr on its next pass.
+ */
+function dynamic_form_solr_dynamic_form_response_softdelete($response_id, $now) {
+  db_update('apachesolr_index_entities')
+    ->fields(array('status' => 0, 'changed' => REQUEST_TIME))
+    ->condition('entity_id', (int) $response_id)
+    ->condition('entity_type', 'dynamic_form_response')
+    ->execute();
+}
+
+// ---------------------------------------------------------------------------
+
 /**
  * Implements hook_dynamic_form_form_predelete().
  *

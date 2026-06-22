@@ -75,6 +75,9 @@ function dynamic_form_builder_page($form_id) {
         'wsToken' => $ws_token,
       ),
     ),
+    'dfbAjaxTokens' => array(
+      'softDelete' => drupal_get_token('dfb_ajax_delete'),
+    ),
   ), 'setting');
 
   module_load_include('inc', 'dynamic_form', 'includes/dynamic_form.dashboard');
