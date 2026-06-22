@@ -160,4 +160,41 @@ DirectoryIndex index.php index.html index.htm
   Header always set X-Content-Type-Options nosniff
   # Disable Proxy header, since it's an attack vector.
   RequestHeader unset Proxy
+  # Prevent clickjacking.
+  Header always set X-Frame-Options SAMEORIGIN
+  # Force browsers to use the declared Content-Type.
+  Header always set X-XSS-Protection "1; mode=block"
 </IfModule>
+
+# ---------------------------------------------------------------------------
+# DDoS / abuse hardening
+# ---------------------------------------------------------------------------
+
+# Cap request body to 10 MB. LimitRequestBody is the one size directive that
+# is allowed in .htaccess; the others (LimitRequestFields, LimitRequestLine,
+# LimitRequestFieldSize) are server-config only — add them to httpd.conf:
+#
+#   LimitRequestFields    50
+#   LimitRequestFieldSize 8190
+#   LimitRequestLine      4094
+LimitRequestBody 10485760
+
+# Block common scanner and bot user-agents that drive volumetric probes.
+# Legitimate browsers never send empty User-Agent strings.
+# NOTE: these rules must sit OUTSIDE the main mod_rewrite block above
+# so they are evaluated after RewriteEngine is already on.
+<IfModule mod_rewrite.c>
+  RewriteCond %{HTTP_USER_AGENT} ^-?$ [NC,OR]
+  RewriteCond %{HTTP_USER_AGENT} (sqlmap|nikto|nmap|masscan|zgrab|go-http-client/1\.1) [NC]
+  RewriteRule .* - [F,L]
+</IfModule>
+
+# mod_ratelimit bandwidth cap — <LocationMatch> is not allowed in .htaccess;
+# add the following block to httpd.conf or a conf.d file instead:
+#
+#   <IfModule mod_ratelimit.c>
+#     <LocationMatch "^/dynamic-form/ajax/">
+#       SetOutputFilter RATE_LIMIT
+#       SetEnv rate-limit 400
+#     </LocationMatch>
+#   </IfModule>

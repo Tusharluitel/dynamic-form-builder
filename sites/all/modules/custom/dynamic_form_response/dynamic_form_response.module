@@ -1,0 +1,439 @@
+<?php
+
+/**
+ * @file
+ * Dynamic Form Response — menu, permissions, and request routing.
+ */
+
+/**
+ * Implements hook_entity_info().
+ *
+ * Registers the two response-side entity types exposed by restws:
+ *   - dynamic_form_response → /dynamic_form_response/{id}.json
+ *   - dynamic_form_answer   → /dynamic_form_answer/{id}.json
+ *
+ * Both use DynamicFormSoftDeleteEntityController (declared in dynamic_form).
+ */
+function dynamic_form_response_entity_info() {
+  $info['dynamic_form_response'] = array(
+    'label'             => t('Dynamic Form Response'),
+    'plural label'      => t('Dynamic Form Responses'),
+    'base table'        => 'dynamic_form_responses',
+    'entity keys'       => array('id' => 'id'),
+    'module'            => 'dynamic_form_response',
+    'controller class'  => 'DynamicFormResponseController',
+    'access callback'   => '_dynamic_form_response_entity_access',
+  );
+
+  $info['dynamic_form_answer'] = array(
+    'label'             => t('Dynamic Form Answer'),
+    'plural label'      => t('Dynamic Form Answers'),
+    'base table'        => 'dynamic_form_answers',
+    'entity keys'       => array('id' => 'id'),
+    'module'            => 'dynamic_form_response',
+    'controller class'  => 'DynamicFormAnswerController',
+    'access callback'   => '_dynamic_form_answer_entity_access',
+  );
+
+  return $info;
+}
+
+/**
+ * Implements hook_entity_property_info().
+ */
+function dynamic_form_response_entity_property_info() {
+  $info = array();
+
+  // ---- dynamic_form_response ----
+  $p = &$info['dynamic_form_response']['properties'];
+  $p['id']           = array('label' => t('Response ID'), 'type' => 'integer', 'schema field' => 'id');
+  $p['form_id']      = array('label' => t('Form ID'), 'type' => 'integer', 'schema field' => 'form_id');
+  $p['user_id']      = array('label' => t('User ID'), 'type' => 'integer', 'schema field' => 'user_id');
+  $p['guest_email']  = array('label' => t('Guest email'), 'type' => 'text', 'schema field' => 'guest_email');
+  $p['status']       = array('label' => t('Status'), 'type' => 'integer', 'schema field' => 'status');
+  $p['submitted_at'] = array('label' => t('Submitted at'), 'type' => 'date', 'schema field' => 'submitted_at');
+  $p['created_at']   = array('label' => t('Created at'), 'type' => 'date', 'schema field' => 'created_at');
+  $p['updated_at']   = array('label' => t('Updated at'), 'type' => 'date', 'schema field' => 'updated_at');
+
+  // ---- dynamic_form_answer ----
+  $p = &$info['dynamic_form_answer']['properties'];
+  $p['id']          = array('label' => t('Answer ID'), 'type' => 'integer', 'schema field' => 'id');
+  $p['response_id'] = array('label' => t('Response ID'), 'type' => 'integer', 'schema field' => 'response_id');
+  $p['question_id'] = array('label' => t('Question ID'), 'type' => 'integer', 'schema field' => 'question_id');
+  $p['value']       = array('label' => t('Value'), 'type' => 'text', 'schema field' => 'value');
+  $p['created_at']  = array('label' => t('Created at'), 'type' => 'date', 'schema field' => 'created_at');
+  $p['updated_at']  = array('label' => t('Updated at'), 'type' => 'date', 'schema field' => 'updated_at');
+
+  return $info;
+}
+
+/**
+ * Access callback: dynamic_form_response entity.
+ *
+ * Submitted, non-deleted responses are visible to:
+ *   - users who can view the parent form (owner / editor / member with role),
+ *   - the respondent themselves (user_id == account uid).
+ *
+ * Read-only: create/update/delete are always refused.
+ */
+function _dynamic_form_response_entity_access($op, $entity = NULL, $account = NULL, $entity_type = NULL) {
+  if (_dynamic_form_entity_readonly_guard($op) === FALSE) {
+    return FALSE;
+  }
+  $account = $account ?: $GLOBALS['user'];
+  if ($entity === NULL) {
+    return user_access('view any form responses', $account) || user_access('view own form responses', $account);
+  }
+  if (_dynamic_form_api_can_view_form((int) $entity->form_id, $account)) {
+    return TRUE;
+  }
+  return (int) $entity->user_id === (int) $account->uid;
+}
+
+/**
+ * Access callback: dynamic_form_answer entity (inherits parent response access).
+ */
+function _dynamic_form_answer_entity_access($op, $entity = NULL, $account = NULL, $entity_type = NULL) {
+  if (_dynamic_form_entity_readonly_guard($op) === FALSE) {
+    return FALSE;
+  }
+  $account = $account ?: $GLOBALS['user'];
+  if ($entity === NULL) {
+    return user_access('view any form responses', $account) || user_access('view own form responses', $account);
+  }
+  $response = entity_load_single('dynamic_form_response', (int) $entity->response_id);
+  return $response ? _dynamic_form_response_entity_access('view', $response, $account) : FALSE;
+}
+
+/**
+ * Implements hook_permission().
+ */
+function dynamic_form_response_permission() {
+  return array(
+    'submit forms' => array(
+      'title'       => t('Submit forms'),
+      'description' => t('Fill out and submit dynamic forms.'),
+    ),
+    'view any form responses' => array(
+      'title'       => t('View any form responses'),
+      'description' => t('View submissions for any form regardless of ownership.'),
+    ),
+    'view own form responses' => array(
+      'title'       => t('View own form responses'),
+      'description' => t('View submissions for forms the user created or edits.'),
+    ),
+    'delete form responses' => array(
+      'title'       => t('Delete form responses'),
+      'description' => t('Soft-delete submitted responses.'),
+    ),
+    'view response panel' => array(
+      'title'       => t('View response panel'),
+      'description' => t('View the response panel.'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_menu().
+ */
+function dynamic_form_response_menu() {
+  $items = array();
+
+  // AJAX: autosave one or more answers (keeps response as draft).
+  $items['dynamic-form-response/ajax/save'] = array(
+    'page callback'   => 'dynamic_form_response_ajax_save',
+    'access callback' => TRUE,
+    'type'            => MENU_CALLBACK,
+    'file'            => 'includes/dynamic_form_response.submit.inc',
+  );
+
+  // AJAX: upload a file for a file-type question.
+  $items['dynamic-form-response/ajax/upload'] = array(
+    'page callback'   => 'dynamic_form_response_ajax_upload',
+    'access callback' => TRUE,
+    'type'            => MENU_CALLBACK,
+    'file'            => 'includes/dynamic_form_response.submit.inc',
+  );
+
+  // AJAX: validate and record email for anonymous respondents.
+  $items['dynamic-form-response/ajax/guest-email'] = array(
+    'page callback'   => 'dynamic_form_response_ajax_guest_email',
+    'access callback' => TRUE,
+    'type'            => MENU_CALLBACK,
+    'file'            => 'includes/dynamic_form_response.submit.inc',
+  );
+
+  // AJAX: final submit — validates required fields, marks response submitted.
+  $items['dynamic-form-response/ajax/submit'] = array(
+    'page callback'   => 'dynamic_form_response_ajax_submit',
+    'access callback' => TRUE,
+    'type'            => MENU_CALLBACK,
+    'file'            => 'includes/dynamic_form_response.submit.inc',
+  );
+
+  // Thank-you page shown after a successful submit.
+  $items['forms/%/thank-you'] = array(
+    'title'           => 'Thank You',
+    'page callback'   => 'dynamic_form_response_thankyou_page',
+    'page arguments'  => array(1),
+    'access callback' => TRUE,
+    'type'            => MENU_CALLBACK,
+    'file'            => 'includes/dynamic_form_response.submit.inc',
+  );
+
+  // Dashboard: paginated list of responses for one form.
+  $items['dashboard/forms/%/responses'] = array(
+    'title'            => 'Responses',
+    'page callback'    => 'dynamic_form_response_list_page',
+    'page arguments'   => array(2),
+    'access callback'  => '_dynamic_form_response_view_access',
+    'access arguments' => array(2),
+    'type'             => MENU_CALLBACK,
+    'file'             => 'includes/dynamic_form_response.dashboard.inc',
+  );
+
+  // Dashboard: detail view for a single response.
+  $items['dashboard/forms/%/responses/%'] = array(
+    'title'            => 'Response Detail',
+    'page callback'    => 'dynamic_form_response_view_page',
+    'page arguments'   => array(2, 4),
+    'access callback'  => '_dynamic_form_response_detail_access',
+    'access arguments' => array(2, 4),
+    'type'             => MENU_CALLBACK,
+    'file'             => 'includes/dynamic_form_response.dashboard.inc',
+  );
+
+  // Dashboard: forms the current user has submitted or drafted responses for.
+  $items['dashboard/submissions'] = array(
+    'title'           => 'My Submissions',
+    'page callback'   => 'dynamic_form_response_submissions_page',
+    'access callback' => 'user_is_logged_in',
+    'type'            => MENU_CALLBACK,
+    'file'            => 'includes/dynamic_form_response.dashboard.inc',
+  );
+
+  // AJAX: return question type + options for the response filter bar.
+  $items['dynamic-form-response/ajax/filter-options'] = array(
+    'page callback'   => 'dynamic_form_response_ajax_filter_options',
+    'access callback' => 'user_is_logged_in',
+    'type'            => MENU_CALLBACK,
+    'file'            => 'includes/dynamic_form_response.dashboard.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_init().
+ *
+ * Loads module CSS on public form pages and the response dashboard.
+ */
+function dynamic_form_response_init() {
+  $path = current_path();
+  if (
+    strpos($path, 'forms/') === 0 ||
+    strpos($path, 'dashboard/forms/') === 0
+  ) {
+    $mp = drupal_get_path('module', 'dynamic_form_response');
+    drupal_add_css($mp . '/css/response-form.css');
+  }
+}
+
+/* =====================================================================
+   ACCESS CALLBACKS
+   ===================================================================== */
+
+/**
+ * Access callback for dashboard/forms/%/responses routes.
+ *
+ * Grants access to: users with 'view any form responses', the form owner,
+ * and members with the owner or editor role on this form.
+ *
+ * @param int $form_id  Form primary key from the URL.
+ */
+function _dynamic_form_response_view_access($form_id) {
+  global $user;
+  if (!$user->uid) {
+    return FALSE;
+  }
+  if (user_access('view any form responses')) {
+    return TRUE;
+  }
+  if (!user_access('view own form responses')) {
+    return FALSE;
+  }
+
+  $form_id = (int) $form_id;
+
+  $form = entity_get_controller('dynamic_form_form')->loadSingle($form_id);
+  if (!$form) {
+    return FALSE;
+  }
+  if ((int) $form->created_by === (int) $user->uid) {
+    return TRUE;
+  }
+
+  return (bool) db_select('dynamic_form_members', 'm')
+    ->condition('form_id', $form_id)
+    ->condition('user_id', $user->uid)
+    ->condition('role', array('owner', 'editor'), 'IN')
+    ->isNull('deleted_at')
+    ->countQuery()->execute()->fetchField();
+}
+
+/**
+ * Implements hook_theme().
+ */
+function dynamic_form_response_theme($existing, $type, $theme, $path) {
+  $tpl_path = drupal_get_path('module', 'dynamic_form_response') . '/templates';
+  return array(
+    'dynamic_form_response_question' => array(
+      'variables' => array(
+        'question'         => NULL,
+        'input_html'       => '',
+        'validations_json' => NULL,
+      ),
+      'template' => 'dynamic-form-response-question',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_response_already_submitted' => array(
+      'variables' => array(),
+      'template'  => 'dynamic-form-response-already-submitted',
+      'path'      => $tpl_path,
+    ),
+    'dynamic_form_response_step_nav' => array(
+      'variables' => array(
+        'is_first'  => TRUE,
+        'is_last'   => TRUE,
+        'prev_step' => 0,
+        'next_step' => 0,
+      ),
+      'template' => 'dynamic-form-response-step-nav',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_response_rating_widget' => array(
+      'variables' => array(
+        'stars'     => array(),
+        'current'   => 0,
+        'min_label' => '',
+        'max_label' => '',
+      ),
+      'template' => 'dynamic-form-response-rating-widget',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_response_linear_scale_widget' => array(
+      'variables' => array(
+        'buttons'   => array(),
+        'current'   => NULL,
+        'min_label' => '',
+        'max_label' => '',
+      ),
+      'template' => 'dynamic-form-response-linear-scale-widget',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_response_file_dropzone' => array(
+      'variables' => array(
+        'svg'       => '',
+        'has_file'  => FALSE,
+        'file_name' => '',
+        'meta_html' => '',
+      ),
+      'template' => 'dynamic-form-response-file-dropzone',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_response_thankyou' => array(
+      'variables' => array('title' => '', 'back_url' => ''),
+      'template'  => 'dynamic-form-response-thankyou',
+      'path'      => $tpl_path,
+    ),
+    'dynamic_form_response_form_container' => array(
+      'variables' => array(
+        'form_id'         => 0,
+        'token'           => '',
+        'save_url'        => '',
+        'submit_url'      => '',
+        'upload_url'      => '',
+        'thanks_url'      => '',
+        'guest_email_url' => '',
+        'total'           => 1,
+        'is_anonymous'    => '0',
+        'response_id'     => 0,
+        'has_progress'    => FALSE,
+        'inner_html'      => '',
+      ),
+      'template' => 'dynamic-form-response-form-container',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_response_responses_header' => array(
+      'variables' => array(
+        'back_url'         => '',
+        'form_id'          => 0,
+        'form_title'       => '',
+        'form_builder_url' => '',
+        'has_filters'      => FALSE,
+        'filtered_total'   => 0,
+        'total_all'        => 0,
+        'solr_error'       => FALSE,
+      ),
+      'template' => 'dynamic-form-response-responses-header',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_response_answer_card' => array(
+      'variables' => array('label' => '', 'value_html' => ''),
+      'template'  => 'dynamic-form-response-answer-card',
+      'path'      => $tpl_path,
+    ),
+    'dynamic_form_response_detail_meta' => array(
+      'variables' => array(
+        'form_title'   => '',
+        'resp_name'    => '',
+        'resp_mail'    => '',
+        'submitted_at' => '',
+      ),
+      'template' => 'dynamic-form-response-detail-meta',
+      'path'     => $tpl_path,
+    ),
+    'dynamic_form_response_detail_panel' => array(
+      'variables' => array(
+        'answered_q'        => 0,
+        'total_q'           => 0,
+        'pct'               => 0,
+        'prev_url'          => FALSE,
+        'next_url'          => FALSE,
+        'current_pos'       => 0,
+        'total_responses'   => 0,
+        'all_responses_url' => '',
+        'form_builder_url'  => '',
+      ),
+      'template' => 'dynamic-form-response-detail-panel',
+      'path'     => $tpl_path,
+    ),
+  );
+}
+
+/**
+ * Access callback for dashboard/forms/%/responses/% (single response detail).
+ *
+ * Extends the list-level check by also granting access to the user who
+ * submitted the specific response being viewed.
+ *
+ * @param int $form_id      Form primary key.
+ * @param int $response_id  Response primary key.
+ */
+function _dynamic_form_response_detail_access($form_id, $response_id) {
+  global $user;
+  if (!$user->uid) {
+    return FALSE;
+  }
+
+  // Form owners, editors, and admins already covered by the list callback.
+  if (_dynamic_form_response_view_access($form_id)) {
+    return TRUE;
+  }
+
+  // Also grant access to the respondent who owns this specific response.
+  $response = entity_get_controller('dynamic_form_response')->loadSingle($response_id);
+  return $response
+    && (int) $response->form_id === (int) $form_id
+    && (int) $response->user_id === (int) $user->uid;
+}
